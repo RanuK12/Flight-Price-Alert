@@ -23,28 +23,21 @@ def send_whatsapp_message(message: str) -> bool:
         
     Returns:
         bool: True si el mensaje se envió correctamente, False en caso contrario
-        
-    Raises:
-        WhatsAppAPIError: Si hay un error al enviar el mensaje
     """
     try:
+        # Crear cliente de Twilio
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
         
+        # Enviar mensaje
         message = client.messages.create(
-            body=message,
             from_=WHATSAPP_FROM,
+            body=message,
             to=WHATSAPP_TO
         )
         
         logger.info(f"Mensaje enviado exitosamente. SID: {message.sid}")
         return True
         
-    except TwilioRestException as e:
-        error_msg = f"Error de Twilio al enviar mensaje: {str(e)}"
-        logger.error(error_msg)
-        raise WhatsAppAPIError(error_msg)
-        
     except Exception as e:
-        error_msg = f"Error inesperado al enviar mensaje: {str(e)}"
-        logger.error(error_msg)
-        raise WhatsAppAPIError(error_msg)
+        logger.error(f"Error al enviar mensaje: {str(e)}")
+        return False
