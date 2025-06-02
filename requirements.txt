@@ -1,0 +1,4 @@
+requests
+twilio
+schedule
+python-dotenv
