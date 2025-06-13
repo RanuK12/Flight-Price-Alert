@@ -69,6 +69,24 @@ python src/main.py
    - Send WhatsApp alerts when price changes exceed the threshold
    - Log all activities to `crypto_bot.log`
 
+## Usage Example
+
+You can run a backtest for the Moving Average Crossover strategy on AAPL for 2023 with:
+
+```bash
+python -m src.backtest --strategy MovingAverageCrossover --symbol AAPL --start-date 2023-01-01 --end-date 2023-12-31
+```
+
+Example output:
+
+```
+Resultados para MovingAverageCrossover:
+--------------------------------------------------
+
+Ratio de Sharpe: nan
+Drawdown Máximo: 0.00%
+```
+
 ## Configuration Options ⚙️
 
 - `MONITORING_INTERVAL`: Time between checks (in minutes)
