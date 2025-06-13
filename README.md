@@ -128,5 +128,5 @@ tests/unit/test_transform.py::test_normalize_data_min_max PASSED                
 tests/unit/test_transform.py::test_normalize_data_z_score PASSED                                  [ 93%]
 tests/unit/test_transform.py::test_forced_change PASSED                                           [100%]
 
-========================================== 16 passed in 2.04s ==========================================
+========================================== 16 passed in 1.76s ==========================================
 ```
