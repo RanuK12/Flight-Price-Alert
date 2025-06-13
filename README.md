@@ -1,110 +1,135 @@
-# Algorithmic Trading with Python
+# Algorithmic Trading System
 
-Un sistema de trading algorítmico que implementa estrategias de trading automatizadas usando Python.
+A system for backtesting algorithmic trading strategies.
 
-## Características
+## Features
 
-- **Descarga de datos históricos** usando yfinance
-- **Cálculo de indicadores técnicos** (SMA, RSI, MACD)
-- **Generación de señales de compra/venta**
-- **Backtesting de estrategias**
-- **Visualización de resultados** (valor del portafolio, señales)
-- **Monitoreo en tiempo real** con Prometheus y Grafana
-- **Automatización** con Airflow y Docker
+- Historical stock data download using yfinance
+- Trading strategy implementation (Moving Average Crossover)
+- Backtesting system with performance metrics
+- Results visualization
 
-## Estructura del Proyecto
+## Requirements
 
-```
-algorithmic-trading-python/
-├── src/
-│   ├── data/           # Funciones para descarga y procesamiento de datos
-│   ├── strategies/     # Implementación de estrategias de trading
-│   ├── backtest/       # Sistema de backtesting
-│   └── utils/          # Utilidades y helpers
-├── tests/
-│   ├── unit/          # Tests unitarios
-│   └── integration/   # Tests de integración
-├── notebooks/         # Análisis exploratorio y visualizaciones
-├── airflow/          # DAGs para automatización
-├── monitoring/       # Configuración de Prometheus y Grafana
-└── docker/          # Configuración de Docker
-```
+- Python 3.8+
+- Dependencies listed in `requirements.txt`
 
-## Instalación
+## Installation
 
-1. Clonar el repositorio:
+1. Clone the repository:
 ```bash
-git clone https://github.com/RanuK12/algorithmic-trading-python.git
-cd algorithmic-trading-python
+git clone https://github.com/RanuK12/cryptocurrency-price-monitor.git
+cd cryptocurrency-price-monitor
 ```
 
-2. Crear y activar entorno virtual:
-```bash
-python -m venv venv
-source venv/bin/activate  # En Windows: venv\Scripts\activate
-```
-
-3. Instalar dependencias:
+2. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-## Uso
+## Usage
 
-### Ejecutar Backtesting
+### Running Backtesting
 
-```bash
-python -m src.backtest --strategy MovingAverageCrossover --symbol AAPL --start-date 2023-01-01 --end-date 2023-12-31
-```
-
-### Ejecutar con Docker
+To run a backtesting of a strategy:
 
 ```bash
-docker-compose up --build
+python -m src.backtest --strategy MovingAverageCrossover --symbol AAPL --start-date 2023-01-01 --end-date 2023-12-31 --initial-capital 100000 --plot --save-plot
 ```
 
-### Monitoreo
+Parameters:
+- `--strategy`: Strategy name to test
+- `--symbol`: Stock symbol
+- `--start-date`: Start date (YYYY-MM-DD)
+- `--end-date`: End date (YYYY-MM-DD)
+- `--initial-capital`: Initial capital for backtesting
+- `--plot`: Show results plots
+- `--save-plot`: Save results plots to file
 
-- Prometheus: http://localhost:9090
-- Grafana: http://localhost:3000 (credenciales por defecto: admin/admin)
+### Results Examples
 
-## Estrategias Implementadas
+#### AAPL (2023)
+![AAPL Backtest Results](docs/images/MovingAverageCrossover_AAPL_2023-01-01_2023-12-31.png)
+
+```
+Results for MovingAverageCrossover:
+--------------------------------------------------
+Period: 2023-01-01 to 2023-12-31
+Initial Capital: $100,000.00
+Final Capital: $122,034.39
+Total Return: 22.03%
+Annual Return: 22.23%
+Sharpe Ratio: 1.15
+Maximum Drawdown: -15.62%
+```
+
+#### MSFT (2023)
+![MSFT Backtest Results](docs/images/MovingAverageCrossover_MSFT_2023-01-01_2023-12-31.png)
+
+```
+Results for MovingAverageCrossover:
+--------------------------------------------------
+Period: 2023-01-01 to 2023-12-31
+Initial Capital: $100,000.00
+Final Capital: $137,173.44
+Total Return: 37.17%
+Annual Return: 37.52%
+Sharpe Ratio: 1.47
+Maximum Drawdown: -15.77%
+```
+
+#### GOOGL (2023)
+![GOOGL Backtest Results](docs/images/MovingAverageCrossover_GOOGL_2023-01-01_2023-12-31.png)
+
+```
+Results for MovingAverageCrossover:
+--------------------------------------------------
+Period: 2023-01-01 to 2023-12-31
+Initial Capital: $100,000.00
+Final Capital: $78,350.04
+Total Return: -21.65%
+Annual Return: -21.80%
+Sharpe Ratio: -0.70
+Maximum Drawdown: -33.48%
+```
+
+## Implemented Strategies
 
 ### Moving Average Crossover
-- Compra cuando la SMA corta cruza por encima de la SMA larga
-- Venta cuando la SMA corta cruza por debajo de la SMA larga
+- Buy when short SMA crosses above long SMA
+- Sell when short SMA crosses below long SMA
+- Default parameters:
+  - Short SMA: 20 periods
+  - Long SMA: 50 periods
 
-### Ejemplo de Resultados
+## Project Structure
 
-```bash
-Resultados para MovingAverageCrossover:
---------------------------------------------------
-Ratio de Sharpe: 1.25
-Drawdown Máximo: 15.3%
-Retorno Total: 23.5%
+```
+src/
+├── data/
+│   └── fetcher.py      # Historical data download
+├── strategies/
+│   ├── base.py         # Base strategy class
+│   └── moving_average.py # Moving average crossover strategy
+└── backtest/
+    ├── runner.py       # Backtesting system
+    └── __main__.py     # Main script
 ```
 
-## Tests
+## Contributing
 
-Ejecutar los tests unitarios:
-```bash
-python -m pytest tests/unit/ -v
-```
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-## Contribuir
+## License
 
-1. Fork el repositorio
-2. Crear una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abrir un Pull Request
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Licencia
+## Contact
 
-Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
+RanuK12 - [@RanuK12](https://github.com/RanuK12)
 
-## Contacto
-
-RanuK12 - ranucoliemilio@gmail.com
-
-Link del Proyecto: [https://github.com/RanuK12/algorithmic-trading-python](https://github.com/RanuK12/algorithmic-trading-python)
+Project Link: [https://github.com/RanuK12/cryptocurrency-price-monitor](https://github.com/RanuK12/cryptocurrency-price-monitor)
