@@ -15,12 +15,13 @@ class DataFetcher:
     
     def __init__(self):
         """Initialize the data fetcher."""
-        self.coingecko_base_url = "https://api.coingecko.com/api/v3"
+        self.coingecko_base_url = "https://api.coingecko.com/api/v3" # Keep for reference, but won't be used for now
         self.binance_base_url = "https://api.binance.com/api/v3"
-        self.binance_supported = ['PEPE', 'DOGE', 'SHIB', 'BNB', 'SOL', 'ADA', 'XRP', 'AVAX', 'MATIC', 'LTC', 'BCH', 'LINK', 'UNI', 'CAKE', 'SAND', 'APE', 'GMT', 'OP', 'ARB', '1000SATS', 'FLOKI', 'WIF']
+        # Actualizamos la lista de criptomonedas soportadas para usar solo Binance
         self.supported_cryptos = {
             'BTC', 'ETH', 'BNB', 'XRP', 'ADA', 'DOGE', 'DOT', 'UNI', 'LINK',
-            'SOL', 'MATIC', 'LTC', 'AVAX', 'SHIB', 'PEPE', 'FLOKI', 'BONK'
+            'SOL', 'MATIC', 'LTC', 'AVAX', 'SHIB', 'PEPE', 'FLOKI', 'BONK',
+            'USDT', 'USDC' # Añadidas algunas de las que antes iban por CoinGecko
         }
         
     def get_historical_data(
@@ -50,16 +51,9 @@ class DataFetcher:
         elif end_date is None:
             end_date = datetime.now()
             
-        # Check if symbol is a cryptocurrency
+        # Check if symbol is a cryptocurrency and use Binance
         if self._is_crypto(symbol):
-            # Si es BTC o ETH, usar CoinGecko, si es PEPE u otro, usar Binance
-            if symbol.upper() in ['BTC', 'ETH', 'USDT', 'BNB', 'SOL', 'XRP', 'USDC', 'ADA', 'AVAX', 'DOGE']:
-                return self._get_crypto_data(symbol, start_date, end_date, interval)
-            elif symbol.upper() in self.binance_supported:
-                return self._get_binance_data(symbol, start_date, end_date)
-            else:
-                print(f"Crypto symbol {symbol} not supported by Binance or CoinGecko.")
-                return pd.DataFrame()
+            return self._get_binance_data(symbol, start_date, end_date) # Siempre usar Binance para cryptos soportadas
         else:
             return self._get_stock_data(symbol, start_date, end_date, interval)
     
@@ -101,84 +95,8 @@ class DataFetcher:
         """
         return symbol.upper() in self.supported_cryptos
     
-    def _get_crypto_data(
-        self,
-        symbol: str,
-        start_date: datetime,
-        end_date: datetime,
-        interval: str
-    ) -> pd.DataFrame:
-        """
-        Download historical data for a cryptocurrency using CoinGecko API.
-        
-        Args:
-            symbol: Cryptocurrency symbol
-            start_date: Start date
-            end_date: End date
-            interval: Data interval
-            
-        Returns:
-            DataFrame with historical data
-        """
-        # Convert interval to CoinGecko format
-        interval_map = {
-            '1d': 'daily',
-            '1h': 'hourly',
-            '1w': 'weekly',
-            '1m': 'monthly'
-        }
-        cg_interval = interval_map.get(interval, 'daily')
-        
-        # Convert dates to Unix timestamps
-        start_timestamp = int(start_date.timestamp())
-        end_timestamp = int(end_date.timestamp())
-        
-        # Get data from CoinGecko
-        url = f"{self.coingecko_base_url}/coins/{symbol.lower()}/market_chart/range"
-        params = {
-            'vs_currency': 'usd',
-            'from': start_timestamp,
-            'to': end_timestamp
-        }
-        
-        try:
-            response = requests.get(url, params=params)
-            response.raise_for_status()
-            data = response.json()
-            
-            # Convert to DataFrame
-            df = pd.DataFrame(data['prices'], columns=['timestamp', 'close'])
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            df.set_index('timestamp', inplace=True)
-            
-            # Add other columns
-            df['open'] = df['close'].shift(1)
-            df['high'] = df['close']
-            df['low'] = df['close']
-            df['volume'] = 0  # CoinGecko doesn't provide volume in this endpoint
-            
-            # Forward fill missing values
-            df.fillna(method='ffill', inplace=True)
-            
-            # Resample to desired interval
-            if interval != '1d':
-                df = df.resample(interval).agg({
-                    'open': 'first',
-                    'high': 'max',
-                    'low': 'min',
-                    'close': 'last',
-                    'volume': 'sum'
-                })
-            
-            # Rename columns to lowercase
-            df.columns = [col.lower() for col in df.columns]
-            
-            return df
-            
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching data for {symbol}: {e}")
-            return pd.DataFrame()
-    
+    # Se elimina _get_crypto_data ya que ahora todas las cryptos soportadas irán por Binance
+
     def _get_stock_data(
         self,
         symbol: str,
@@ -199,64 +117,84 @@ class DataFetcher:
             DataFrame with historical data
         """
         try:
-            data = yf.download(
-                symbol,
-                start=start_date,
-                end=end_date,
-                interval=interval
-            )
-            
-            # Rename columns to lowercase
-            data.columns = [col.lower() for col in data.columns]
-            
-            return data
-            
+            ticker = yf.Ticker(symbol)
+            df = ticker.history(start=start_date, end=end_date, interval=interval, auto_adjust=True)
+            if df.empty:
+                print(f"No historical data found for {symbol} with yfinance.")
+                return pd.DataFrame()
+            df.index.name = 'Date' # Asegurar que el índice se llame 'Date'
+            return df
         except Exception as e:
-            print(f"Error downloading data for {symbol}: {e}")
+            print(f"Error fetching stock data for {symbol}: {e}")
             return pd.DataFrame()
 
     def _get_binance_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
         """
-        Download historical data for a cryptocurrency using Binance API.
+        Download historical cryptocurrency data from Binance.
+        
+        Args:
+            symbol: Cryptocurrency symbol
+            start_date: Start date
+            end_date: End date
+            
+        Returns:
+            DataFrame with historical data
         """
-        # Convertir fechas a timestamps
+        symbol = symbol.upper() + 'USDT'  # BTC -> BTCUSDT
+        klines_url = f"{self.binance_base_url}/klines"
+        
+        # Convert datetime to milliseconds timestamp for Binance API
         start_ts = int(start_date.timestamp() * 1000)
         end_ts = int(end_date.timestamp() * 1000)
         
-        # Construir URL para la API de Binance
-        url = f"{self.binance_base_url}/klines"
         params = {
-            'symbol': f"{symbol}USDT",
-            'interval': '1d',
+            'symbol': symbol,
+            'interval': '1d',  # Binance API uses '1d' for daily
             'startTime': start_ts,
             'endTime': end_ts,
-            'limit': 1000
+            'limit': 1000 # Max limit per request
         }
         
-        try:
-            response = requests.get(url, params=params)
-            response.raise_for_status()
-            data = response.json()
-            
-            # Convertir datos a DataFrame
-            df = pd.DataFrame(data, columns=[
-                'timestamp', 'Open', 'High', 'Low', 'Close', 'Volume',
-                'close_time', 'quote_volume', 'trades', 'taker_buy_base',
-                'taker_buy_quote', 'ignore'
-            ])
-            
-            # Convertir tipos de datos
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
-                df[col] = pd.to_numeric(df[col])
+        all_data = []
+        while True:
+            try:
+                response = requests.get(klines_url, params=params)
+                response.raise_for_status()
+                data = response.json()
                 
-            # Establecer timestamp como índice
-            df.set_index('timestamp', inplace=True)
+                if not data:
+                    break
+                    
+                all_data.extend(data)
+                
+                # Update start_ts for the next request
+                params['startTime'] = data[-1][0] + 1 # Last timestamp + 1 ms
+                time.sleep(0.1) # Be kind to the API
+                
+            except requests.exceptions.RequestException as e:
+                print(f"Error fetching data from Binance for {symbol}: {e}")
+                return pd.DataFrame()
+        
+        if not all_data:
+            print(f"No historical data found for {symbol} on Binance.")
+            return pd.DataFrame()
+
+        # Process the raw data
+        df = pd.DataFrame(all_data, columns=[
+            'Open time', 'Open', 'High', 'Low', 'Close', 'Volume', 
+            'Close time', 'Quote asset volume', 'Number of trades',
+            'Taker buy base asset volume', 'Taker buy quote asset volume', 'Ignore'
+        ])
+        
+        df['Open time'] = pd.to_datetime(df['Open time'], unit='ms')
+        df.set_index('Open time', inplace=True)
+        
+        # Ensure correct column types
+        numeric_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+        for col in numeric_cols:
+            df[col] = pd.to_numeric(df[col])
             
-            # Seleccionar columnas necesarias
-            df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
-            
-            return df
-            
-        except requests.exceptions.RequestException as e:
-            raise Exception(f"Error al obtener datos de Binance: {str(e)}") 
+        # Select and rename relevant columns with initial capital letters
+        df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
+        
+        return df

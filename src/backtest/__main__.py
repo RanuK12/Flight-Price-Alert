@@ -53,6 +53,12 @@ def main():
     parser.add_argument('--risk-free-rate', type=float, default=0.02,
                       help='Tasa libre de riesgo anual')
     
+    # Argumentos para graficar y guardar el plot
+    parser.add_argument('--plot', action='store_true',
+                      help='Muestra el gráfico de resultados')
+    parser.add_argument('--save-plot', action='store_true',
+                      help='Guarda el gráfico de resultados en un archivo')
+
     args = parser.parse_args()
     
     # Mapear nombre de estrategia a clase
@@ -92,7 +98,8 @@ def main():
         f"{args.symbol}_{args.strategy}_{args.start_date}_{args.end_date or 'present'}.png"
     )
     
-    runner.plot_results(save_path=report_path)
+    if args.plot or args.save_plot:
+        runner.plot_results(save_path=report_path if args.save_plot else None)
 
 if __name__ == '__main__':
     main() 
