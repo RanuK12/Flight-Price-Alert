@@ -177,6 +177,75 @@ Trading Analysis - DOGE
    - Maintain current position sizing
 ```
 
+## Trading Metrics Guide
+
+### Performance Metrics
+- **Total Return**: The overall percentage gain or loss of the strategy over the entire period
+- **Annualized Return**: The yearly equivalent of the total return, accounting for compounding
+- **Sharpe Ratio**: Measures risk-adjusted returns relative to the risk-free rate
+  - > 1: Good
+  - > 2: Very Good
+  - > 3: Excellent
+- **Sortino Ratio**: Similar to Sharpe but only considers downside volatility
+  - > 1: Good
+  - > 2: Very Good
+  - > 3: Excellent
+
+### Trading Activity Metrics
+- **Number of Trades**: Total number of buy/sell signals executed
+- **Success Rate**: Percentage of profitable trades
+  - > 50%: Good
+  - > 60%: Very Good
+  - > 70%: Excellent
+- **Profit Factor**: Ratio of gross profits to gross losses
+  - > 1: Profitable
+  - > 1.5: Good
+  - > 2: Excellent
+- **Average Gain/Loss Ratio**: Average profit per winning trade divided by average loss per losing trade
+  - > 1: Good
+  - > 1.5: Very Good
+  - > 2: Excellent
+
+### Risk Metrics
+- **Annual Volatility**: Standard deviation of returns, annualized
+  - < 20%: Low
+  - 20-40%: Medium
+  - > 40%: High
+- **Maximum Drawdown**: Largest peak-to-trough decline
+  - < 20%: Low
+  - 20-40%: Medium
+  - > 40%: High
+- **Calmar Ratio**: Annualized return divided by maximum drawdown
+  - > 1: Good
+  - > 2: Very Good
+  - > 3: Excellent
+- **VaR (95%)**: Maximum expected loss with 95% confidence
+- **Expected Shortfall (95%)**: Average of losses beyond VaR
+
+### Strategy Evaluation Guide
+- **Performance Assessment**:
+  - Positive: Strategy is profitable
+  - Negative: Strategy is losing money
+- **Risk-Adjusted Returns**:
+  - Sharpe > 1: Good risk-adjusted returns
+  - Sharpe < 0: Poor risk-adjusted returns
+- **Signal Accuracy**:
+  - Success Rate > 50%: Good signal accuracy
+  - Success Rate < 40%: Poor signal accuracy
+
+### Market Analysis Guide
+- **Volatility Assessment**:
+  - High: > 40% annual volatility
+  - Medium: 20-40% annual volatility
+  - Low: < 20% annual volatility
+- **Risk Assessment**:
+  - High: > 40% maximum drawdown
+  - Medium: 20-40% maximum drawdown
+  - Low: < 20% maximum drawdown
+- **Daily Risk**:
+  - VaR indicates potential daily losses
+  - Expected Shortfall shows average of worst-case scenarios
+
 ## Implemented Strategies
 
 ### Moving Average Crossover
