@@ -34,131 +34,148 @@ pip install -r requirements.txt
 To run a backtesting of a strategy:
 
 ```bash
-python -m src.backtest --strategy MovingAverageCrossover --symbol AAPL --start-date 2023-01-01 --end-date 2023-12-31 --initial-capital 100000 --plot --save-plot
+python -m src.backtest --strategy MovingAverageCrossover --symbol BTC --start-date 2024-05-01 --end-date 2025-06-13 --short-period 10 --long-period 30 --plot --save-plot
 ```
 
 Parameters:
 - `--strategy`: Strategy name to test
-- `--symbol`: Stock symbol
+- `--symbol`: Cryptocurrency symbol
 - `--start-date`: Start date (YYYY-MM-DD)
 - `--end-date`: End date (YYYY-MM-DD)
-- `--initial-capital`: Initial capital for backtesting
+- `--short-period`: Short period for moving average
+- `--long-period`: Long period for moving average
 - `--plot`: Show results plots
 - `--save-plot`: Save results plots to file
 
 ### Results Examples
 
-#### PEPE (2024-05-01 a 2025-06-13)
+#### PEPE (2024-05-01 to 2025-06-13)
 ![PEPE Backtest Results](results/PEPE_MovingAverageCrossover_2024-05-01_2025-06-13.png)
 
 ```
-Resultados para MovingAverageCrossover:
---------------------------------------------------
-Periodo: 2024-05-01 a 2025-06-13
-Retorno Total: -54.86%
-Retorno Anualizado: -38.89%
-Sharpe Ratio: 0.03
-Sortino Ratio: 0.05
-Máximo Drawdown: -78.56%
-Volatilidad Anual: 105.91%
-Número de Operaciones: 377
-Tasa de Éxito: 46.15%
-Factor de Beneficio: 1.01
-Ratio Promedio Ganancia/Pérdida: 1.18
-VaR (95%): -9.99%
-Expected Shortfall (95%): -13.29%
+Trading Analysis - PEPE
+==================================================
+
+1. Overall Performance:
+   - Total Return: -54.86%
+   - Annualized Return: -38.89%
+   - Sharpe Ratio: 0.03
+   - Sortino Ratio: 0.05
+
+2. Trading Activity:
+   - Number of Trades: 377
+   - Success Rate: 46.15%
+   - Profit Factor: 1.01
+   - Average Gain/Loss Ratio: 1.18
+
+3. Risk Analysis:
+   - Annual Volatility: 105.91%
+   - Maximum Drawdown: -78.56%
+   - Calmar Ratio: -0.49
+   - VaR (95%): -9.99%
+   - Expected Shortfall (95%): -13.29%
+
+4. Strategy Evaluation:
+   - The strategy shows negative performance
+   - Sharpe ratio indicates poor risk-adjusted returns
+   - Success rate of 46.15% suggests low signal accuracy
+   - Profit factor of 1.01 indicates barely offsetting losses
+
+5. Market Analysis:
+   - The analyzed period shows high volatility
+   - Maximum drawdown of -78.56% indicates significant risk
+   - VaR suggests maximum expected daily losses of -9.99%
+
+6. Recommendations:
+   - Consider adjusting strategy parameters to improve performance
+   - Implement stricter stop-losses to reduce maximum drawdown
+   - Maintain current position sizing
 ```
 
-**Objective Analysis for Investors:**
-
-The backtest for PEPE using a Moving Average Crossover strategy over the period 2024-05-01 to 2025-06-13 shows a significant negative performance (-54.86% total return, -38.89% annualized). The strategy executed 377 trades with a win rate of 46.15% and a profit factor of 1.01, indicating that gains barely offset losses. The Sharpe and Sortino ratios are very low, suggesting poor risk-adjusted returns. The maximum drawdown is extremely high (-78.56%), and annualized volatility is also very high (105.91%), reflecting a highly risky and unstable market environment for this asset.
-
-**Investor takeaway:**
-- PEPE, during this period, exhibited high volatility and deep drawdowns, making it a very risky asset for trend-following strategies like the Moving Average Crossover.
-- The strategy did not provide consistent or reliable profits, and the risk of large losses was substantial.
-- Investors should be cautious with PEPE and consider more robust risk management or alternative strategies if considering exposure to this asset.
-
-#### BTC (2024-05-01 a 2025-06-13)
+#### BTC (2024-05-01 to 2025-06-13)
 ![BTC Backtest Results](results/BTC_MovingAverageCrossover_2024-05-01_2025-06-13.png)
 
 ```
-Análisis de Trading - BTC
+Trading Analysis - BTC
 ==================================================
 
-1. Rendimiento General:
-   - Retorno Total: -27.87%
-   - Retorno Anualizado: -18.32%
-   - Ratio de Sharpe: -0.37
-   - Ratio de Sortino: -0.50
+1. Overall Performance:
+   - Total Return: -27.87%
+   - Annualized Return: -18.32%
+   - Sharpe Ratio: -0.37
+   - Sortino Ratio: -0.50
 
-2. Actividad de Trading:
-   - Número de Operaciones: 378
-   - Tasa de Éxito: 49.21%
-   - Factor de Beneficio: 0.94
-   - Ratio Promedio Ganancia/Pérdida: 0.97
+2. Trading Activity:
+   - Number of Trades: 378
+   - Success Rate: 49.21%
+   - Profit Factor: 0.94
+   - Average Gain/Loss Ratio: 0.97
 
-3. Análisis de Riesgo:
-   - Volatilidad Anual: 39.22%
-   - Máximo Drawdown: -55.93%
-   - Ratio de Calmar: -0.33
+3. Risk Analysis:
+   - Annual Volatility: 39.22%
+   - Maximum Drawdown: -55.93%
+   - Calmar Ratio: -0.33
    - VaR (95%): -3.98%
    - Expected Shortfall (95%): -5.74%
 
-4. Evaluación de la Estrategia:
-   - La estrategia muestra un rendimiento negativo
-   - El ratio de Sharpe indica un rendimiento bajo ajustado al riesgo
-   - La tasa de éxito de 49.21% sugiere una baja precisión en las señales
-   - El factor de beneficio de 0.94 indica una modesta eficiencia en la gestión del riesgo
+4. Strategy Evaluation:
+   - The strategy shows negative performance
+   - Sharpe ratio indicates poor risk-adjusted returns
+   - Success rate of 49.21% suggests low signal accuracy
+   - Profit factor of 0.94 indicates modest risk management efficiency
 
-   - El período analizado muestra una volatilidad alta
-   - El máximo drawdown de -55.93% indica un riesgo significativo
-   - El VaR sugiere que las pérdidas máximas esperadas en un día son de -3.98%
+5. Market Analysis:
+   - The analyzed period shows high volatility
+   - Maximum drawdown of -55.93% indicates significant risk
+   - VaR suggests maximum expected daily losses of -3.98%
 
-6. Recomendaciones:
-   - Considerar ajustar los parámetros de la estrategia para mejorar el rendimiento
-   - Implementar stop-loss más estrictos para reducir el drawdown máximo
-   - Mantener el tamaño de posición actual
+6. Recommendations:
+   - Consider adjusting strategy parameters to improve performance
+   - Implement stricter stop-losses to reduce maximum drawdown
+   - Maintain current position sizing
+```
 
-#### DOGE (2024-05-01 a 2025-06-13)
+#### DOGE (2024-05-01 to 2025-06-13)
 ![DOGE Backtest Results](results/DOGE_MovingAverageCrossover_2024-05-01_2025-06-13.png)
 
 ```
-Análisis de Trading - DOGE
+Trading Analysis - DOGE
 ==================================================
 
-1. Rendimiento General:
-   - Retorno Total: 220.98%
-   - Retorno Anualizado: 105.87%
-   - Ratio de Sharpe: 1.27
-   - Ratio de Sortino: 2.20
+1. Overall Performance:
+   - Total Return: 220.98%
+   - Annualized Return: 105.87%
+   - Sharpe Ratio: 1.27
+   - Sortino Ratio: 2.20
 
-2. Actividad de Trading:
-   - Número de Operaciones: 378
-   - Tasa de Éxito: 51.85%
-   - Factor de Beneficio: 1.27
-   - Ratio Promedio Ganancia/Pérdida: 1.18
+2. Trading Activity:
+   - Number of Trades: 378
+   - Success Rate: 51.85%
+   - Profit Factor: 1.27
+   - Average Gain/Loss Ratio: 1.18
 
-3. Análisis de Riesgo:
-   - Volatilidad Anual: 79.13%
-   - Máximo Drawdown: -57.00%
-   - Ratio de Calmar: 1.86
+3. Risk Analysis:
+   - Annual Volatility: 79.13%
+   - Maximum Drawdown: -57.00%
+   - Calmar Ratio: 1.86
    - VaR (95%): -7.17%
    - Expected Shortfall (95%): -9.51%
 
-4. Evaluación de la Estrategia:
-   - La estrategia muestra un rendimiento positivo
-   - El ratio de Sharpe indica un rendimiento aceptable ajustado al riesgo
-   - La tasa de Éxito de 51.85% sugiere una buena precisión en las señales
+4. Strategy Evaluation:
+   - The strategy shows positive performance
+   - Sharpe ratio indicates acceptable risk-adjusted returns
+   - Success rate of 51.85% suggests good signal accuracy
 
-5. Análisis de Mercado:
-   - El período analizado muestra una volatilidad alta
-   - El máximo drawdown de -57.00% indica un riesgo significativo
-   - El VaR sugiere que las pérdidas máximas esperadas en un día son de -7.17%
+5. Market Analysis:
+   - The analyzed period shows high volatility
+   - Maximum drawdown of -57.00% indicates significant risk
+   - VaR suggests maximum expected daily losses of -7.17%
 
-6. Recomendaciones:
-   - La estrategia muestra un buen balance entre riesgo y retorno
-   - Implementar stop-loss más estrictos para reducir el drawdown máximo
-   - Mantener el tamaño de posición actual
+6. Recommendations:
+   - The strategy shows a good balance between risk and return
+   - Implement stricter stop-losses to reduce maximum drawdown
+   - Maintain current position sizing
+```
 
 ## Implemented Strategies
 
