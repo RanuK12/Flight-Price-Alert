@@ -6,26 +6,35 @@ from abc import ABC, abstractmethod
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from typing import Optional, Dict, Any
 
 class BaseStrategy(ABC):
     """
     Clase base abstracta para todas las estrategias de trading.
     """
     
-    def __init__(self):
-        """Inicializa la estrategia base."""
-        self.name = self.__class__.__name__
+    def __init__(self, name: str):
+        """
+        Inicializa la estrategia base.
+        
+        Args:
+            name: Nombre de la estrategia
+        """
+        self.name = name
+        self.signals = None
+        self.positions = None
+        self.returns = None
     
     @abstractmethod
     def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
         """
-        Genera señales de trading basadas en los datos proporcionados.
+        Genera señales de trading basadas en los datos.
         
         Args:
-            data (pd.DataFrame): DataFrame con datos de precios
+            data: DataFrame con datos históricos
             
         Returns:
-            pd.DataFrame: DataFrame con señales de trading
+            DataFrame con señales de trading
         """
         pass
     
@@ -57,47 +66,68 @@ class BaseStrategy(ABC):
         plt.grid(True)
         plt.show()
     
-    def calculate_returns(self, signals: pd.DataFrame) -> pd.Series:
+    def calculate_returns(self, data: pd.DataFrame) -> pd.DataFrame:
         """
         Calcula los retornos de la estrategia.
         
         Args:
-            signals (pd.DataFrame): DataFrame con señales de trading
+            data: DataFrame con datos históricos
             
         Returns:
-            pd.Series: Serie con los retornos
+            DataFrame con retornos de la estrategia
         """
-        # Calcular retornos del precio
-        price_returns = signals['close'].pct_change()
+        if self.signals is None:
+            self.signals = self.generate_signals(data)
+            
+        # Calcular retornos de precios
+        price_returns = data['close'].pct_change()
         
         # Calcular retornos de la estrategia
-        strategy_returns = price_returns * signals['signal'].shift(1)
+        strategy_returns = self.signals['signal'] * price_returns
         
-        # Eliminar valores NaN
-        return strategy_returns.fillna(0)
+        # Llenar NaN con 0
+        strategy_returns = strategy_returns.fillna(0)
+        
+        self.returns = strategy_returns
+        return strategy_returns
     
-    def calculate_metrics(self, signals: pd.DataFrame) -> dict:
+    def calculate_metrics(self) -> Dict[str, float]:
         """
         Calcula métricas de rendimiento de la estrategia.
         
-        Args:
-            signals (pd.DataFrame): DataFrame con señales de trading
-            
         Returns:
-            dict: Diccionario con métricas de rendimiento
+            Diccionario con métricas de rendimiento
         """
-        returns = self.calculate_returns(signals)
-        returns = returns.dropna()
-        # Si returns es DataFrame, tomar la primera columna
-        if isinstance(returns, pd.DataFrame):
-            returns = returns.iloc[:, 0]
-        total_return = float((1 + returns).prod() - 1)
-        annual_return = float((1 + total_return) ** (252 / len(returns)) - 1)
-        sharpe_ratio = float(np.sqrt(252) * returns.mean() / returns.std())
-        max_drawdown = float((returns.cumsum() - returns.cumsum().cummax()).min())
+        if self.returns is None:
+            raise ValueError("Primero debes calcular los retornos usando calculate_returns()")
+            
+        # Calcular métricas
+        total_return = (1 + self.returns).prod() - 1
+        annual_return = (1 + total_return) ** (252 / len(self.returns)) - 1
+        sharpe_ratio = np.sqrt(252) * self.returns.mean() / self.returns.std()
+        
+        # Calcular drawdown máximo
+        cum_returns = (1 + self.returns).cumprod()
+        rolling_max = cum_returns.expanding().max()
+        drawdowns = cum_returns / rolling_max - 1
+        max_drawdown = drawdowns.min()
+        
         return {
-            'total_return': total_return,
-            'annual_return': annual_return,
-            'sharpe_ratio': sharpe_ratio,
-            'max_drawdown': max_drawdown
-        } 
+            'total_return': float(total_return),
+            'annual_return': float(annual_return),
+            'sharpe_ratio': float(sharpe_ratio),
+            'max_drawdown': float(max_drawdown)
+        }
+    
+    def get_positions(self) -> pd.DataFrame:
+        """
+        Obtiene las posiciones de la estrategia.
+        
+        Returns:
+            DataFrame con posiciones
+        """
+        if self.signals is None:
+            raise ValueError("Primero debes generar señales usando generate_signals()")
+            
+        self.positions = self.signals['signal'].copy()
+        return self.positions 

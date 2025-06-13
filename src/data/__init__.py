@@ -1,3 +1,7 @@
 """
-Paquete para manejo de datos financieros.
-""" 
+Módulo para manejo de datos.
+"""
+
+from .fetcher import DataFetcher
+
+__all__ = ['DataFetcher'] 

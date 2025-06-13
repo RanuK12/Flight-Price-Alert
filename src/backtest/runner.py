@@ -1,128 +1,117 @@
 """
-Módulo para realizar backtesting de estrategias de trading.
+Módulo para ejecutar backtests de estrategias de trading.
 """
-
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Any, Union, Optional
-from datetime import datetime
 import matplotlib.pyplot as plt
-from src.strategies.base import BaseStrategy
-from src.data.fetcher import DataFetcher
+from typing import Dict, Any, Type
+from datetime import datetime
+import os
+
+from ..data.fetcher import DataFetcher
+from ..strategies.base import BaseStrategy
+from ..analysis.report import TradingReport
+from .risk_metrics import calculate_risk_metrics
 
 class BacktestRunner:
-    """
-    Clase para realizar backtesting de estrategias de trading.
-    """
+    """Clase para ejecutar backtests de estrategias de trading."""
     
-    def __init__(
-        self,
-        strategies: List[BaseStrategy],
-        symbols: List[str],
-        start_date: Union[str, datetime],
-        end_date: Optional[Union[str, datetime]] = None,
-        initial_capital: float = 100000.0
-    ):
+    def __init__(self, strategy_class: Type[BaseStrategy], symbol: str,
+                 start_date: str, end_date: str, initial_capital: float = 10000.0,
+                 risk_free_rate: float = 0.02):
         """
-        Inicializa el runner de backtesting.
+        Inicializa el runner de backtest.
         
         Args:
-            strategies (List[BaseStrategy]): Lista de estrategias a probar
-            symbols (List[str]): Lista de símbolos a analizar
-            start_date (Union[str, datetime]): Fecha de inicio
-            end_date (Optional[Union[str, datetime]]): Fecha de fin (opcional)
-            initial_capital (float): Capital inicial para el backtesting
+            strategy_class: Clase de la estrategia a probar
+            symbol: Símbolo del activo a analizar
+            start_date: Fecha de inicio del backtest (YYYY-MM-DD)
+            end_date: Fecha de fin del backtest (YYYY-MM-DD)
+            initial_capital: Capital inicial para el backtest
+            risk_free_rate: Tasa libre de riesgo anual
         """
-        self.strategies = strategies
-        self.symbols = symbols
+        self.strategy_class = strategy_class
+        self.symbol = symbol
         self.start_date = start_date
         self.end_date = end_date
         self.initial_capital = initial_capital
+        self.risk_free_rate = risk_free_rate
+        
         self.data_fetcher = DataFetcher()
-    
-    def run(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Ejecuta el backtesting para todas las estrategias y símbolos.
+        self.results = None
         
+    def run(self, **strategy_params) -> Dict[str, Any]:
+        """
+        Ejecuta el backtest de la estrategia.
+        
+        Args:
+            **strategy_params: Parámetros específicos de la estrategia
+            
         Returns:
-            Dict[str, Dict[str, Any]]: Resultados del backtesting
+            Diccionario con los resultados del backtest
         """
-        results = {}
+        # Obtener datos históricos
+        data = self.data_fetcher.get_historical_data(
+            self.symbol, self.start_date, self.end_date
+        )
         
-        for strategy in self.strategies:
-            strategy_results = {}
-            
-            for symbol in self.symbols:
-                # Obtener datos
-                data = self.data_fetcher.get_historical_data(
-                    symbol, self.start_date, self.end_date
-                )
-                
-                # Generar señales
-                signals = strategy.generate_signals(data)
-                
-                # Calcular métricas
-                metrics = strategy.calculate_metrics(signals)
-                
-                # Calcular retornos
-                returns = strategy.calculate_returns(signals)
-                
-                # Calcular equity curve
-                equity_curve = (1 + returns).cumprod() * self.initial_capital
-                
-                strategy_results[symbol] = {
-                    'metrics': metrics,
-                    'returns': returns,
-                    'equity_curve': equity_curve,
-                    'signals': signals
-                }
-            
-            results[strategy.name] = strategy_results
+        # Inicializar estrategia
+        strategy = self.strategy_class(**strategy_params)
         
-        return results
+        # Generar señales
+        signals = strategy.generate_signals(data)
+        
+        # Calcular retornos
+        signals['Returns'] = signals['Close'].pct_change()
+        
+        # Calcular valor del portafolio
+        signals['Position'] = signals['Signal'].shift(1)
+        signals['Strategy_Returns'] = signals['Position'] * signals['Returns']
+        signals['Portfolio_Value'] = (1 + signals['Strategy_Returns']).cumprod() * self.initial_capital
+        
+        # Calcular métricas de riesgo
+        returns = signals['Strategy_Returns'].dropna()
+        metrics = calculate_risk_metrics(returns, self.risk_free_rate)
+        
+        # Guardar resultados
+        self.results = {
+            'data': signals,
+            'returns': returns,
+            'metrics': metrics
+        }
+        
+        return self.results
     
-    def plot_comparison(self, results: Dict[str, Dict[str, Any]]) -> None:
+    def plot_results(self, save_path: str = None) -> None:
         """
-        Visualiza la comparación de resultados entre estrategias.
+        Genera y muestra/guarda las gráficas de resultados.
         
         Args:
-            results (Dict[str, Dict[str, Any]]): Resultados del backtesting
+            save_path: Ruta donde guardar las gráficas (opcional)
         """
-        plt.figure(figsize=(12, 6))
-        
-        for strategy_name, strategy_results in results.items():
-            # Calcular equity curve promedio
-            equity_curves = []
-            for symbol_results in strategy_results.values():
-                equity_curves.append(symbol_results['equity_curve'])
+        if self.results is None:
+            raise ValueError("Debe ejecutar el backtest antes de generar gráficas")
             
-            avg_equity = pd.concat(equity_curves, axis=1).mean(axis=1)
-            plt.plot(avg_equity.index, avg_equity.values,
-                    label=strategy_name, alpha=0.7)
+        # Crear generador de reportes
+        report = TradingReport(self.results, self.symbol)
         
-        plt.title('Comparación de Estrategias')
-        plt.xlabel('Fecha')
-        plt.ylabel('Capital')
-        plt.legend()
-        plt.grid(True)
-        plt.show()
-    
-    def print_results(self, results: Dict[str, Dict[str, Any]]) -> None:
-        """
-        Imprime los resultados del backtesting.
-        
-        Args:
-            results (Dict[str, Dict[str, Any]]): Resultados del backtesting
-        """
-        for strategy_name, strategy_results in results.items():
-            print(f"\nResultados para {strategy_name}:")
-            print("-" * 50)
+        # Generar y guardar reporte
+        if save_path:
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            report.generate_report(save_path)
+        else:
+            report.generate_report()
             
-            for symbol, result in strategy_results.items():
-                print(f"\nSímbolo: {symbol}")
-                metrics = result['metrics']
-                
-                print(f"Retorno Total: {float(metrics['total_return']):.2%}")
-                print(f"Retorno Anual: {float(metrics['annual_return']):.2%}")
-                print(f"Ratio de Sharpe: {float(metrics['sharpe_ratio']):.2f}")
-                print(f"Drawdown Máximo: {float(metrics['max_drawdown']):.2%}") 
+        # Imprimir resumen del análisis
+        print(report.generate_analysis_summary())
+        
+    def print_results(self) -> None:
+        """Imprime un resumen de los resultados del backtest."""
+        if self.results is None:
+            raise ValueError("Debe ejecutar el backtest antes de imprimir resultados")
+            
+        # Crear generador de reportes
+        report = TradingReport(self.results, self.symbol)
+        
+        # Imprimir resumen del análisis
+        print(report.generate_analysis_summary()) 
