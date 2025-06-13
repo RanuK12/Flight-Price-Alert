@@ -1,4 +1,36 @@
-requests
-twilio
-schedule
-python-dotenv
+# Dependencias principales
+pandas>=1.5.0
+numpy>=1.21.0
+yfinance>=0.2.0
+matplotlib>=3.5.0
+scikit-learn>=1.0.0
+
+# Testing
+pytest>=7.0.0
+pytest-mock>=3.10.0
+
+# Desarrollo
+black>=22.0.0
+flake8>=4.0.0
+mypy>=0.950
+
+# Documentación
+sphinx>=4.0.0
+sphinx-rtd-theme>=1.0.0
+
+# Visualización
+plotly>=5.0.0
+dash>=2.0.0
+
+# Base de datos
+sqlalchemy>=1.4.0
+psycopg2-binary>=2.9.0
+
+# API y web
+fastapi>=0.70.0
+uvicorn>=0.15.0
+requests>=2.26.0
+
+# Monitoreo
+prometheus-client>=0.12.0
+grafana-api>=1.0.0 
