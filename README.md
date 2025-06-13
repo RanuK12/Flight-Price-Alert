@@ -97,3 +97,36 @@ If you encounter any issues or have questions, please open an issue in the GitHu
 
 - [CoinGecko API](https://www.coingecko.com/en/api) for cryptocurrency data
 - [Twilio](https://www.twilio.com/) for WhatsApp integration
+
+## Ejemplos de Tests
+
+A continuación se muestra un ejemplo de la ejecución de los tests unitarios:
+
+```bash
+$ python -m pytest tests/unit/ -v
+========================================= test session starts ==========================================
+platform win32 -- Python 3.13.3, pytest-8.4.0, pluggy-1.6.0
+cachedir: .pytest_cache
+rootdir: C:\Users\emilio\Desktop\Oficina Ranuk
+plugins: mock-3.14.1
+collected 16 items
+
+tests/unit/test_extract.py::test_extract_csv PASSED                                               [  6%]
+tests/unit/test_extract.py::test_extract_json PASSED                                              [ 12%]
+tests/unit/test_extract.py::test_extract_api PASSED                                               [ 18%]
+tests/unit/test_extract.py::test_extract_sql PASSED                                               [ 25%]
+tests/unit/test_extract.py::test_extract_data_invalid_source PASSED                               [ 31%]
+tests/unit/test_extract.py::test_cleanup PASSED                                                   [ 37%]
+tests/unit/test_transform.py::test_clean_data_drop_na PASSED                                      [ 43%]
+tests/unit/test_transform.py::test_clean_data_drop_duplicates PASSED                              [ 50%]
+tests/unit/test_transform.py::test_clean_data_fill_na PASSED                                      [ 56%]
+tests/unit/test_transform.py::test_clean_data_rename_cols PASSED                                  [ 62%]
+tests/unit/test_transform.py::test_aggregate_data PASSED                                          [ 68%]
+tests/unit/test_transform.py::test_filter_data PASSED                                             [ 75%]
+tests/unit/test_transform.py::test_transform_dates PASSED                                         [ 81%]
+tests/unit/test_transform.py::test_normalize_data_min_max PASSED                                  [ 87%]
+tests/unit/test_transform.py::test_normalize_data_z_score PASSED                                  [ 93%]
+tests/unit/test_transform.py::test_forced_change PASSED                                           [100%]
+
+========================================== 16 passed in 2.04s ==========================================
+```
