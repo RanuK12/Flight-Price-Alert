@@ -1,132 +1,110 @@
-# Cryptocurrency Price Monitor 🤖
+# Algorithmic Trading with Python
 
-A powerful cryptocurrency price monitoring bot that sends real-time alerts via WhatsApp when significant price changes are detected.
+Un sistema de trading algorítmico que implementa estrategias de trading automatizadas usando Python.
 
-## Features ✨
+## Características
 
-- **Real-time Monitoring**: Continuously tracks cryptocurrency prices using the CoinGecko API
-- **WhatsApp Notifications**: Instant alerts sent directly to your WhatsApp
-- **Customizable Alerts**: Set your own price change thresholds
-- **Multiple Cryptocurrencies**: Monitor any cryptocurrency supported by CoinGecko
-- **Configurable Intervals**: Adjust monitoring frequency to your needs
-- **Secure**: Environment variables for sensitive credentials
-- **Detailed Logging**: Comprehensive logging system for monitoring and debugging
+- **Descarga de datos históricos** usando yfinance
+- **Cálculo de indicadores técnicos** (SMA, RSI, MACD)
+- **Generación de señales de compra/venta**
+- **Backtesting de estrategias**
+- **Visualización de resultados** (valor del portafolio, señales)
+- **Monitoreo en tiempo real** con Prometheus y Grafana
+- **Automatización** con Airflow y Docker
 
-## Prerequisites 📋
+## Estructura del Proyecto
 
-- Python 3.8 or higher
-- A Twilio account with WhatsApp capabilities
-- A CoinGecko API key (optional, but recommended for higher rate limits)
-
-## Installation 🚀
-
-1. Clone the repository:
-```bash
-git clone https://github.com/RanuK12/cryptocurrency-price-monitor.git
-cd cryptocurrency-price-monitor
+```
+algorithmic-trading-python/
+├── src/
+│   ├── data/           # Funciones para descarga y procesamiento de datos
+│   ├── strategies/     # Implementación de estrategias de trading
+│   ├── backtest/       # Sistema de backtesting
+│   └── utils/          # Utilidades y helpers
+├── tests/
+│   ├── unit/          # Tests unitarios
+│   └── integration/   # Tests de integración
+├── notebooks/         # Análisis exploratorio y visualizaciones
+├── airflow/          # DAGs para automatización
+├── monitoring/       # Configuración de Prometheus y Grafana
+└── docker/          # Configuración de Docker
 ```
 
-2. Create and activate a virtual environment:
+## Instalación
+
+1. Clonar el repositorio:
+```bash
+git clone https://github.com/RanuK12/algorithmic-trading-python.git
+cd algorithmic-trading-python
+```
+
+2. Crear y activar entorno virtual:
 ```bash
 python -m venv venv
-# On Windows
-.\venv\Scripts\activate
-# On Unix or MacOS
-source venv/bin/activate
+source venv/bin/activate  # En Windows: venv\Scripts\activate
 ```
 
-3. Install dependencies:
+3. Instalar dependencias:
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Create a `.env` file in the root directory with your credentials:
-```env
-# Twilio Configuration
-TWILIO_ACCOUNT_SID=your_account_sid
-TWILIO_AUTH_TOKEN=your_auth_token
-WHATSAPP_FROM=whatsapp:+14155238886
-WHATSAPP_TO=whatsapp:+your_phone_number
+## Uso
 
-# Monitoring Configuration
-MONITORING_INTERVAL=30
-PRICE_CHANGE_THRESHOLD=0.5
-CRYPTO_ID=bitcoin
-
-# API Configuration
-COINGECKO_API_URL=https://api.coingecko.com/api/v3
-```
-
-## Usage 💡
-
-1. Start the bot:
-```bash
-python src/main.py
-```
-
-2. The bot will:
-   - Monitor the specified cryptocurrency every 30 minutes (configurable)
-   - Send WhatsApp alerts when price changes exceed the threshold
-   - Log all activities to `crypto_bot.log`
-
-## Configuration Options ⚙️
-
-- `MONITORING_INTERVAL`: Time between checks (in minutes)
-- `PRICE_CHANGE_THRESHOLD`: Percentage change that triggers an alert
-- `CRYPTO_ID`: The cryptocurrency to monitor (e.g., 'bitcoin', 'ethereum')
-
-## Security 🔒
-
-- All sensitive credentials are stored in the `.env` file
-- The `.env` file is ignored by Git to prevent accidental exposure
-- API keys and tokens are never hardcoded in the source code
-
-## Contributing 🤝
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License 📄
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support 💬
-
-If you encounter any issues or have questions, please open an issue in the GitHub repository.
-
-## Acknowledgments 🙏
-
-- [CoinGecko API](https://www.coingecko.com/en/api) for cryptocurrency data
-- [Twilio](https://www.twilio.com/) for WhatsApp integration
-
-## Ejemplos de Tests
-
-A continuación se muestra un ejemplo de la ejecución de los tests unitarios:
+### Ejecutar Backtesting
 
 ```bash
-$ python -m pytest tests/unit/ -v
-========================================= test session starts ==========================================
-platform win32 -- Python 3.13.3, pytest-8.4.0, pluggy-1.6.0
-cachedir: .pytest_cache
-rootdir: C:\Users\emilio\Desktop\Oficina Ranuk
-plugins: mock-3.14.1
-collected 16 items
-
-tests/unit/test_extract.py::test_extract_csv PASSED                                               [  6%]
-tests/unit/test_extract.py::test_extract_json PASSED                                              [ 12%]
-tests/unit/test_extract.py::test_extract_api PASSED                                               [ 18%]
-tests/unit/test_extract.py::test_extract_sql PASSED                                               [ 25%]
-tests/unit/test_extract.py::test_extract_data_invalid_source PASSED                               [ 31%]
-tests/unit/test_extract.py::test_cleanup PASSED                                                   [ 37%]
-tests/unit/test_transform.py::test_clean_data_drop_na PASSED                                      [ 43%]
-tests/unit/test_transform.py::test_clean_data_drop_duplicates PASSED                              [ 50%]
-tests/unit/test_transform.py::test_clean_data_fill_na PASSED                                      [ 56%]
-tests/unit/test_transform.py::test_clean_data_rename_cols PASSED                                  [ 62%]
-tests/unit/test_transform.py::test_aggregate_data PASSED                                          [ 68%]
-tests/unit/test_transform.py::test_filter_data PASSED                                             [ 75%]
-tests/unit/test_transform.py::test_transform_dates PASSED                                         [ 81%]
-tests/unit/test_transform.py::test_normalize_data_min_max PASSED                                  [ 87%]
-tests/unit/test_transform.py::test_normalize_data_z_score PASSED                                  [ 93%]
-tests/unit/test_transform.py::test_forced_change PASSED                                           [100%]
-
-========================================== 16 passed in 1.76s ==========================================
+python -m src.backtest --strategy MovingAverageCrossover --symbol AAPL --start-date 2023-01-01 --end-date 2023-12-31
 ```
+
+### Ejecutar con Docker
+
+```bash
+docker-compose up --build
+```
+
+### Monitoreo
+
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000 (credenciales por defecto: admin/admin)
+
+## Estrategias Implementadas
+
+### Moving Average Crossover
+- Compra cuando la SMA corta cruza por encima de la SMA larga
+- Venta cuando la SMA corta cruza por debajo de la SMA larga
+
+### Ejemplo de Resultados
+
+```bash
+Resultados para MovingAverageCrossover:
+--------------------------------------------------
+Ratio de Sharpe: 1.25
+Drawdown Máximo: 15.3%
+Retorno Total: 23.5%
+```
+
+## Tests
+
+Ejecutar los tests unitarios:
+```bash
+python -m pytest tests/unit/ -v
+```
+
+## Contribuir
+
+1. Fork el repositorio
+2. Crear una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abrir un Pull Request
+
+## Licencia
+
+Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
+
+## Contacto
+
+RanuK12 - ranucoliemilio@gmail.com
+
+Link del Proyecto: [https://github.com/RanuK12/algorithmic-trading-python](https://github.com/RanuK12/algorithmic-trading-python)
