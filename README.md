@@ -1,20 +1,22 @@
 # Algorithmic Trading System
 
-A system for backtesting algorithmic trading strategies.
+A professional system for backtesting algorithmic trading strategies, focusing on cryptocurrency markets.
 
 ## Features
 
 - Historical cryptocurrency data download using Binance API
 - Trading strategy implementation (Moving Average Crossover)
 - Backtesting system with performance metrics
-- Results visualization
+- Results visualization and analysis
 - Risk analysis and performance evaluation
+- Advanced metrics calculation (Sharpe, Sortino, VaR, etc.)
 
 ## Requirements
 
 - Python 3.8+
 - Dependencies listed in `requirements.txt`
 - Binance API access (for cryptocurrency data)
+- Jupyter Notebook (for advanced analysis)
 
 ## Installation
 
@@ -28,6 +30,11 @@ cd algorithmic-trading-python
 ```bash
 pip install -r requirements.txt
 ```
+
+3. Set up Binance API access:
+   - Create an account on Binance
+   - Generate API keys
+   - Add your API keys to the configuration file
 
 ## Usage
 
@@ -70,6 +77,44 @@ results = runner.run(short_period=10, long_period=30)
 
 # Plot the results
 runner.plot_results(save_path='results/btc_analysis.png')
+```
+
+### Advanced Analysis with Jupyter Notebooks
+
+For advanced analysis and visualization, we provide Jupyter notebooks in the `notebooks` directory:
+
+- `analysis/exploratory_analysis.ipynb`: Data exploration and visualization
+- `analysis/strategy_optimization.ipynb`: Strategy parameter optimization
+- `analysis/risk_analysis.ipynb`: Detailed risk metrics analysis
+
+Example from exploratory analysis:
+```python
+# Load and prepare data
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Plot price and volume
+plt.figure(figsize=(15, 7))
+plt.plot(data.index, data['Close'], label='Price')
+plt.title('BTC Price Movement')
+plt.xlabel('Date')
+plt.ylabel('Price (USD)')
+plt.legend()
+plt.show()
+
+# Plot trading signals
+plt.figure(figsize=(15, 7))
+plt.plot(data.index, data['Close'], label='Price')
+plt.plot(data.index, data['Short_MA'], label='Short MA')
+plt.plot(data.index, data['Long_MA'], label='Long MA')
+plt.scatter(buy_signals.index, buy_signals['Close'], marker='^', color='g', label='Buy')
+plt.scatter(sell_signals.index, sell_signals['Close'], marker='v', color='r', label='Sell')
+plt.title('Trading Signals')
+plt.xlabel('Date')
+plt.ylabel('Price (USD)')
+plt.legend()
+plt.show()
 ```
 
 ### Results Examples
@@ -292,6 +337,14 @@ src/
 └── backtest/
     ├── runner.py       # Backtesting system
     └── __main__.py     # Main script
+
+notebooks/
+├── analysis/
+│   ├── exploratory_analysis.ipynb    # Data exploration
+│   ├── strategy_optimization.ipynb   # Strategy optimization
+│   └── risk_analysis.ipynb          # Risk metrics analysis
+└── examples/
+    └── basic_usage.ipynb            # Basic usage examples
 ```
 
 ## Contributing
