@@ -1,6 +1,6 @@
 # Algorithmic Trading System
 
-A professional system for backtesting algorithmic trading strategies, focusing on cryptocurrency markets.
+A professional system for backtesting algorithmic trading strategies, focusing on cryptocurrency markets. **This project is designed for backtesting purposes only and is not intended for live trading.**
 
 ## Features
 
@@ -346,6 +346,16 @@ notebooks/
 └── examples/
     └── basic_usage.ipynb            # Basic usage examples
 ```
+
+## Why Invest in This Project?
+
+- **Advanced Automation:** Backtesting and visualization of trading strategies in seconds.
+- **Demonstrable Results:** Risk and performance metrics superior to standard benchmarks.
+- **Ease of Use:** Simple installation, clear documentation, and active support.
+- **Scalability Potential:** The system can adapt to new assets, markets, and strategies.
+- **Active Community:** Project open to contributions, with frequent updates and technical support.
+
+Interested in collaborating, investing, or acquiring the project? Contact me for more information!
 
 ## Contributing
 
