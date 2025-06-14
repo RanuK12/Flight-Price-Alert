@@ -4,22 +4,24 @@ A system for backtesting algorithmic trading strategies.
 
 ## Features
 
-- Historical stock data download using yfinance
+- Historical cryptocurrency data download using Binance API
 - Trading strategy implementation (Moving Average Crossover)
 - Backtesting system with performance metrics
 - Results visualization
+- Risk analysis and performance evaluation
 
 ## Requirements
 
 - Python 3.8+
 - Dependencies listed in `requirements.txt`
+- Binance API access (for cryptocurrency data)
 
 ## Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/RanuK12/cryptocurrency-price-monitor.git
-cd cryptocurrency-price-monitor
+git clone https://github.com/RanuK12/algorithmic-trading-python.git
+cd algorithmic-trading-python
 ```
 
 2. Install dependencies:
@@ -39,13 +41,36 @@ python -m src.backtest --strategy MovingAverageCrossover --symbol BTC --start-da
 
 Parameters:
 - `--strategy`: Strategy name to test
-- `--symbol`: Cryptocurrency symbol
+- `--symbol`: Cryptocurrency symbol (supported: BTC, ETH, DOGE, PEPE, etc.)
 - `--start-date`: Start date (YYYY-MM-DD)
 - `--end-date`: End date (YYYY-MM-DD)
 - `--short-period`: Short period for moving average
 - `--long-period`: Long period for moving average
 - `--plot`: Show results plots
 - `--save-plot`: Save results plots to file
+
+### Example Analysis
+
+Here's an example of how to analyze the results:
+
+```python
+from src.backtest.runner import BacktestRunner
+from src.strategies.moving_average import MovingAverageCrossover
+
+# Initialize the backtest runner
+runner = BacktestRunner(
+    strategy_class=MovingAverageCrossover,
+    symbol='BTC',
+    start_date='2024-05-01',
+    end_date='2025-06-13'
+)
+
+# Run the backtest
+results = runner.run(short_period=10, long_period=30)
+
+# Plot the results
+runner.plot_results(save_path='results/btc_analysis.png')
+```
 
 ### Results Examples
 
@@ -260,7 +285,7 @@ Trading Analysis - DOGE
 ```
 src/
 ├── data/
-│   └── fetcher.py      # Historical data download
+│   └── fetcher.py      # Historical data download from Binance
 ├── strategies/
 │   ├── base.py         # Base strategy class
 │   └── moving_average.py # Moving average crossover strategy
@@ -285,4 +310,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 RanuK12 - [@RanuK12](https://github.com/RanuK12)
 
-Project Link: [https://github.com/RanuK12/cryptocurrency-price-monitor](https://github.com/RanuK12/cryptocurrency-price-monitor)
+Project Link: [https://github.com/RanuK12/algorithmic-trading-python](https://github.com/RanuK12/algorithmic-trading-python)
