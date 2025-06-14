@@ -34,7 +34,8 @@ pip install -r requirements.txt
 3. Set up Binance API access:
    - Create an account on Binance
    - Generate API keys
-   - Add your API keys to the configuration file
+   - **For security, store your API keys in environment variables or a `.env` file (e.g., `BINANCE_API_KEY`, `BINANCE_SECRET_KEY`) and ensure `.env` is added to your `.gitignore` file.**
+   - Add your API keys to the configuration file or load them from environment variables within `src/data/fetcher.py`.
 
 ## Usage
 
