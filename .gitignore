@@ -1,6 +1,9 @@
 # Environment variables
 .env
+<<<<<<< HEAD
 .env.*
+=======
+>>>>>>> b6c19694e71614de944b6ffaa6fe49bb14e1afad
 
 # Python
 __pycache__/
@@ -8,35 +11,26 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual Environment
 venv/
 ENV/
 env/
 .venv/
 venv_new/
 
+# Logs
+*.log
+crypto_bot.log
+
+# Price history
+price_history.json
+
 # IDE
-.idea/
 .vscode/
+.idea/
 *.swp
 *.swo
 
+<<<<<<< HEAD
 # Logs and databases
 *.log
 logs/
@@ -82,3 +76,51 @@ monitoring/grafana/data/
 
 # Webserver configuration
 webserver_config.py 
+=======
+# OS
+.DS_Store
+Thumbs.db
+
+# Ignorar directorios de otros proyectos y entornos virtuales
+App Enviar Correos/
+Bot Crypto/
+Emilio's_Proyects/
+Enviar Mails/
+General/
+Job_Finder_App/
+Movie Recommendation System/
+sentiment-analyzer/
+trading_system.egg-info/
+uploads/
+venv_new/
+etl-bigdata-pipeline/
+import time.py
+setup.py
+test_results.json
+
+# Archivos específicos generados por Python
+__pycache__/
+*.pyc
+*.pyd
+*.so
+.Python
+.ipynb_checkpoints
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+.env
+.venv/
+notebooks/
+# Archivos de logs
+*.log
+*.sqlite3
+
+# Entornos virtuales
+env/
+venv/
+/venv
+*.env
+>>>>>>> b6c19694e71614de944b6ffaa6fe49bb14e1afad

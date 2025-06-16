@@ -1,100 +1,142 @@
+"""
+Módulo de Extracción de Datos
+
+Este módulo proporciona funciones para extraer datos de diferentes fuentes:
+- Archivos CSV
+- Archivos JSON
+- APIs REST
+- Bases de datos SQL
+
+Cada función está diseñada para manejar un tipo específico de fuente de datos
+y devuelve un DataFrame de pandas con los datos extraídos.
+"""
+
 import pandas as pd
-from typing import Union, Optional
 import json
 import requests
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
+from typing import Dict, Any, Union, List
+import logging
 
+# Configuración del logger
+logger = logging.getLogger(__name__)
 
-def extract_csv(path: str, **kwargs) -> pd.DataFrame:
-    """Extract data from a CSV file.
-
-    Args:
-        path (str): Path to the CSV file
-        **kwargs: Additional arguments to pass to pd.read_csv
-
-    Returns:
-        pd.DataFrame: Extracted data
+def extract_data(config: Dict[str, Any]) -> pd.DataFrame:
     """
-    return pd.read_csv(path, **kwargs)
-
-
-def extract_json(path: str, **kwargs) -> pd.DataFrame:
-    """Extract data from a JSON file.
-
-    Args:
-        path (str): Path to the JSON file
-        **kwargs: Additional arguments to pass to pd.read_json
-
-    Returns:
-        pd.DataFrame: Extracted data
-    """
-    return pd.read_json(path, **kwargs)
-
-
-def extract_api(url: str, params: Optional[dict] = None, **kwargs) -> pd.DataFrame:
-    """Extract data from an API endpoint.
-
-    Args:
-        url (str): API endpoint URL
-        params (Optional[dict]): Query parameters
-        **kwargs: Additional arguments to pass to requests.get
-
-    Returns:
-        pd.DataFrame: Extracted data
-    """
-    response = requests.get(url, params=params, **kwargs)
-    response.raise_for_status()
-    return pd.DataFrame(response.json())
-
-
-def extract_sql(query: str, db_url: str, **kwargs) -> pd.DataFrame:
-    """Extract data from a SQL database.
-
-    Args:
-        query (str): SQL query to execute
-        db_url (str): Database connection URL
-        **kwargs: Additional arguments to pass to pd.read_sql
-
-    Returns:
-        pd.DataFrame: Extracted data
-    """
-    engine = create_engine(db_url)
-    return pd.read_sql(query, engine, **kwargs)
-
-
-def extract_data(source: Union[str, dict], **kwargs) -> pd.DataFrame:
-    """Extract data from various sources.
-
-    Args:
-        source (Union[str, dict]): Source configuration or path
-        **kwargs: Additional arguments for the specific extractor
-
-    Returns:
-        pd.DataFrame: Extracted data
-    """
-    if isinstance(source, str):
-        # If source is a string, assume it's a file path
-        if source.endswith('.csv'):
-            return extract_csv(source, **kwargs)
-        elif source.endswith('.json'):
-            return extract_json(source, **kwargs)
-        else:
-            raise ValueError(f"Unsupported file format: {source}")
+    Función principal para extraer datos basada en la configuración proporcionada.
     
-    elif isinstance(source, dict):
-        # If source is a dict, it should contain source configuration
-        source_type = source.get('type', '').lower()
-        
+    Args:
+        config (Dict[str, Any]): Diccionario de configuración que especifica:
+            - type: Tipo de fuente ('csv', 'json', 'api', 'sql')
+            - path/url: Ruta o URL de la fuente de datos
+            - params: Parámetros adicionales específicos de la fuente
+    
+    Returns:
+        pd.DataFrame: DataFrame con los datos extraídos
+    
+    Raises:
+        ValueError: Si el tipo de fuente no es soportado
+        FileNotFoundError: Si el archivo no existe
+        Exception: Para otros errores durante la extracción
+    """
+    source_type = config.get('type', '').lower()
+    
+    try:
         if source_type == 'csv':
-            return extract_csv(source['path'], **kwargs)
+            return _extract_csv(config)
         elif source_type == 'json':
-            return extract_json(source['path'], **kwargs)
+            return _extract_json(config)
         elif source_type == 'api':
-            return extract_api(source['url'], source.get('params'), **kwargs)
+            return _extract_api(config)
         elif source_type == 'sql':
-            return extract_sql(source['query'], source['db_url'], **kwargs)
+            return _extract_sql(config)
         else:
-            raise ValueError(f"Unsupported source type: {source_type}")
+            raise ValueError(f"Tipo de fuente no soportado: {source_type}")
+    except Exception as e:
+        logger.error(f"Error extrayendo datos: {str(e)}")
+        raise
+
+def _extract_csv(config: Dict[str, Any]) -> pd.DataFrame:
+    """
+    Extrae datos de un archivo CSV.
     
-    else:
-        raise ValueError("Source must be either a string (file path) or a dictionary (source configuration)") 
+    Args:
+        config (Dict[str, Any]): Configuración que incluye:
+            - path: Ruta al archivo CSV
+            - sep: Separador (opcional, default=',')
+            - encoding: Codificación del archivo (opcional)
+    
+    Returns:
+        pd.DataFrame: DataFrame con los datos del CSV
+    """
+    path = config['path']
+    sep = config.get('sep', ',')
+    encoding = config.get('encoding', 'utf-8')
+    
+    logger.info(f"Extrayendo datos de CSV: {path}")
+    return pd.read_csv(path, sep=sep, encoding=encoding)
+
+def _extract_json(config: Dict[str, Any]) -> pd.DataFrame:
+    """
+    Extrae datos de un archivo JSON.
+    
+    Args:
+        config (Dict[str, Any]): Configuración que incluye:
+            - path: Ruta al archivo JSON
+            - encoding: Codificación del archivo (opcional)
+    
+    Returns:
+        pd.DataFrame: DataFrame con los datos del JSON
+    """
+    path = config['path']
+    encoding = config.get('encoding', 'utf-8')
+    
+    logger.info(f"Extrayendo datos de JSON: {path}")
+    with open(path, 'r', encoding=encoding) as f:
+        data = json.load(f)
+    return pd.DataFrame(data['data'])
+
+def _extract_api(config: Dict[str, Any]) -> pd.DataFrame:
+    """
+    Extrae datos de una API REST.
+    
+    Args:
+        config (Dict[str, Any]): Configuración que incluye:
+            - url: URL de la API
+            - method: Método HTTP (opcional, default='GET')
+            - params: Parámetros de la consulta (opcional)
+            - headers: Headers HTTP (opcional)
+    
+    Returns:
+        pd.DataFrame: DataFrame con los datos de la API
+    """
+    url = config['url']
+    method = config.get('method', 'GET')
+    params = config.get('params', {})
+    headers = config.get('headers', {})
+    
+    logger.info(f"Extrayendo datos de API: {url}")
+    response = requests.request(method, url, params=params, headers=headers)
+    response.raise_for_status()
+    return pd.DataFrame(response.json()['data'])
+
+def _extract_sql(config: Dict[str, Any]) -> pd.DataFrame:
+    """
+    Extrae datos de una base de datos SQL.
+    
+    Args:
+        config (Dict[str, Any]): Configuración que incluye:
+            - connection_string: String de conexión a la base de datos
+            - query: Consulta SQL a ejecutar
+            - params: Parámetros de la consulta (opcional)
+    
+    Returns:
+        pd.DataFrame: DataFrame con los resultados de la consulta
+    """
+    connection_string = config['connection_string']
+    query = config['query']
+    params = config.get('params', {})
+    
+    logger.info(f"Extrayendo datos de SQL: {query}")
+    engine = create_engine(connection_string)
+    return pd.read_sql(query, engine, params=params) 

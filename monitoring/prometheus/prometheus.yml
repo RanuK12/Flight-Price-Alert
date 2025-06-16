@@ -7,24 +7,10 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
+  - job_name: 'trading_app'
+    static_configs:
+      - targets: ['app:8000']
+
   - job_name: 'airflow'
     static_configs:
-      - targets: ['airflow-webserver:8080']
-
-  - job_name: 'etl-pipeline'
-    static_configs:
-      - targets: ['localhost:8000']
-
-  - job_name: 'node-exporter'
-    static_configs:
-      - targets: ['node-exporter:9100']
-
-alerting:
-  alertmanagers:
-    - static_configs:
-        - targets:
-          # - alertmanager:9093
-
-rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml" 
+      - targets: ['airflow:8080'] 
