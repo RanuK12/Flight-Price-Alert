@@ -100,15 +100,15 @@ Aquí tienes una vista general de las funcionalidades del dashboard a través de
 
 ### Dashboard Principal
 Esta imagen muestra la interfaz principal del dashboard, incluyendo la selección de idioma y criptomoneda, junto con las métricas clave del mercado en tiempo real.
-![Dashboard Principal](docs/images/dashboard_principal.png)
+![Dashboard Principal](docs/images/dashboard_principal.png.png)
 
 ### Gráfico de Análisis Técnico
 Visualiza el análisis técnico detallado con indicadores como SMA 20, SMA 50, Bandas de Bollinger y MACD, esenciales para entender las tendencias del mercado.
-![Análisis Técnico - Gráfico Principal](docs/images/grafico_principal.png)
+![Análisis Técnico - Gráfico Principal](docs/images/grafico_principal.png.png)
 
 ### Informe del Inversor y Datos Históricos
 Una vista combinada del informe dinámico para el inversor, que ofrece un resumen del período, recomendaciones y una explicación de la tendencia del mercado, junto con la tabla de datos históricos.
-![Reporte y Datos Históricos](docs/images/reporte_y_datos_historicos.png)
+![Reporte y Datos Históricos](docs/images/reporte_y_datos_historicos.png.png)
 
 ## 🛠️ Technical Architecture
 
