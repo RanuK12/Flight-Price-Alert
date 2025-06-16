@@ -86,6 +86,40 @@ Our Telegram bot provides real-time market insights and automated trading signal
 ![Cryptocurrency Selection](docs/images/crypto_selection.png)
 *Cryptocurrency selection interface with real-time price updates*
 
+## 🚀 Features
+
+*   **Interactive Dashboard**: Real-time cryptocurrency price tracking and interactive charts.
+*   **Technical Analysis**: Integration of key indicators like RSI, MACD, and Bollinger Bands.
+*   **Dynamic Investor Reports**: Generate period-specific reports with trend analysis and recommendations.
+*   **Multi-language Support**: Seamless switching between English and Spanish interfaces.
+*   **Telegram Bot Integration**: Real-time alerts and market data queries via Telegram.
+
+## 📸 Screenshots
+
+### 🖥️ Dashboard Preview
+**Dashboard Overview** Main dashboard interface showing real-time market data and cryptocurrency selection.
+![Dashboard Principal](docs/images/dashboard_principal.png)
+
+**Technical Analysis** Detailed technical analysis with multiple indicators.
+![Análisis Técnico - Gráfico Principal](docs/images/grafico_principal.png)
+
+**Market Trends** Market trend analysis and recommendations.
+![Reporte y Datos Históricos](docs/images/reporte_y_datos_historicos.png)
+
+### 📊 Reports and Data
+**Investor Report** Dynamic investor report based on the selected period.
+![Reporte Inversor](docs/images/reporte_y_datos_historicos.png)
+
+**Historical Data** Table of historical price and volume data.
+![Datos Históricos](docs/images/reporte_y_datos_historicos.png)
+
+### ⚙️ User Interface
+**Language Selection** Multi-language support with English and Spanish interfaces.
+(La captura de pantalla de selección de idioma se incluirá en el dashboard principal)
+
+**Cryptocurrency Selection** Cryptocurrency selection interface with real-time price updates.
+(La captura de pantalla de selección de criptomoneda se incluirá en el dashboard principal)
+
 ## 🛠️ Technical Architecture
 
 ### System Components
