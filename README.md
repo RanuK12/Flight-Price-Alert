@@ -96,29 +96,19 @@ Our Telegram bot provides real-time market insights and automated trading signal
 
 ## 📸 Screenshots
 
-### 🖥️ Dashboard Preview
-**Dashboard Overview** Main dashboard interface showing real-time market data and cryptocurrency selection.
+Aquí tienes una vista general de las funcionalidades del dashboard a través de capturas de pantalla:
+
+### Dashboard Principal
+Esta imagen muestra la interfaz principal del dashboard, incluyendo la selección de idioma y criptomoneda, junto con las métricas clave del mercado en tiempo real.
 ![Dashboard Principal](docs/images/dashboard_principal.png)
 
-**Technical Analysis** Detailed technical analysis with multiple indicators.
+### Gráfico de Análisis Técnico
+Visualiza el análisis técnico detallado con indicadores como SMA 20, SMA 50, Bandas de Bollinger y MACD, esenciales para entender las tendencias del mercado.
 ![Análisis Técnico - Gráfico Principal](docs/images/grafico_principal.png)
 
-**Market Trends** Market trend analysis and recommendations.
+### Informe del Inversor y Datos Históricos
+Una vista combinada del informe dinámico para el inversor, que ofrece un resumen del período, recomendaciones y una explicación de la tendencia del mercado, junto con la tabla de datos históricos.
 ![Reporte y Datos Históricos](docs/images/reporte_y_datos_historicos.png)
-
-### 📊 Reports and Data
-**Investor Report** Dynamic investor report based on the selected period.
-![Reporte Inversor](docs/images/reporte_y_datos_historicos.png)
-
-**Historical Data** Table of historical price and volume data.
-![Datos Históricos](docs/images/reporte_y_datos_historicos.png)
-
-### ⚙️ User Interface
-**Language Selection** Multi-language support with English and Spanish interfaces.
-(La captura de pantalla de selección de idioma se incluirá en el dashboard principal)
-
-**Cryptocurrency Selection** Cryptocurrency selection interface with real-time price updates.
-(La captura de pantalla de selección de criptomoneda se incluirá en el dashboard principal)
 
 ## 🛠️ Technical Architecture
 
