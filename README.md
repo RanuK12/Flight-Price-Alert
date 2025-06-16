@@ -71,19 +71,19 @@ Our Telegram bot provides real-time market insights and automated trading signal
 
 ## 🖥️ Dashboard Preview
 
-![Dashboard Overview](docs/images/dashboard_overview.png)
+![Dashboard Overview](docs/images/Dashboard_Overview.png)
 *Main dashboard interface showing real-time market data and technical analysis*
 
-![Technical Analysis](docs/images/technical_analysis.png)
+![Technical Analysis](docs/images/Technical_Analysis.png)
 *Detailed technical analysis with multiple indicators*
 
-![Market Trends](docs/images/market_trends.png)
+![Market Trends](docs/images/Market_Trends.png)
 *Market trend analysis and recommendations*
 
-![Language Selection](docs/images/language_selection.png)
+![Language Selection](docs/images/Language_Selection.png)
 *Multi-language support with English and Spanish interfaces*
 
-![Cryptocurrency Selection](docs/images/crypto_selection.png)
+![Cryptocurrency Selection](docs/images/Cryptocurrency_Selection.png)
 *Cryptocurrency selection interface with real-time price updates*
 
 ## 🚀 Features
