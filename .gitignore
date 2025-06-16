@@ -7,21 +7,46 @@ __pycache__/
 *$py.class
 *.so
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
 venv/
 ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 
 # Logs
 *.log
-crypto_bot.log
+logs/
 
-# Price history
-price_history.json
+# Data
+data/
+*.csv
+*.xlsx
+*.db
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# Cache
+.cache/
+.streamlit/
 
 # OS
 .DS_Store
