@@ -10,10 +10,13 @@ A professional system for cryptocurrency market analysis and algorithmic trading
 - Multi-language support (English/Spanish)
 - Customizable time periods for analysis
 - Market trend identification and recommendations
+- Direct integration with Binance API for real-time crypto data
 
 ### Advanced Data Processing
 - ETL pipeline for efficient data processing
-- Real-time data extraction from multiple sources
+- Real-time data extraction from multiple sources:
+  - Binance API for cryptocurrency data
+  - Yahoo Finance for additional market data
 - Advanced data transformation and feature engineering
 - Efficient data loading and storage
 - Historical data analysis and backtesting
@@ -133,6 +136,9 @@ A combined view of the dynamic investor report, offering a summary of the period
 - **Backend**: Python 3.8+
 - **Web Framework**: Streamlit
 - **Data Processing**: Pandas, NumPy
+- **Data Sources**: 
+  - Binance API (primary source for crypto data)
+  - Yahoo Finance (supplementary market data)
 - **Machine Learning**: Scikit-learn
 - **Visualization**: Plotly
 - **Monitoring**: Prometheus
@@ -145,7 +151,8 @@ A combined view of the dynamic investor report, offering a summary of the period
 - Python 3.8+
 - Dependencies listed in `requirements.txt`
 - Streamlit for web interface
-- YFinance for market data
+- Binance API for cryptocurrency data
+- YFinance for supplementary market data
 - python-telegram-bot for Telegram integration
 - Docker and Docker Compose (optional)
 - Prometheus (optional)
@@ -163,7 +170,15 @@ cd algorithmic-trading-python
 pip install -r requirements.txt
 ```
 
-3. Configure Telegram Bot:
+3. Configure API Keys:
+   - Create a Binance account and get your API keys
+   - Add the keys to your environment variables or `.env` file:
+     ```
+     BINANCE_API_KEY=your_api_key_here
+     BINANCE_API_SECRET=your_api_secret_here
+     ```
+
+4. Configure Telegram Bot:
    - Create a new bot using [@BotFather](https://t.me/botfather)
    - Get your bot token
    - Add the token to your environment variables or `.env` file:
@@ -171,12 +186,12 @@ pip install -r requirements.txt
      TELEGRAM_BOT_TOKEN=your_bot_token_here
      ```
 
-4. Run the dashboard:
+5. Run the dashboard:
 ```bash
 python -m streamlit run main.py
 ```
 
-5. Start the Telegram bot (in a separate terminal):
+6. Start the Telegram bot (in a separate terminal):
 ```bash
 python telegram_bot.py
 ```
