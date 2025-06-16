@@ -34,7 +34,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 st.title("Crypto Analysis Dashboard")
 
-# Configuración de las criptomonedas
+# Configuración de las criptomonedas (agregando XLM, XRP y DOGE)
 CRYPTO_SYMBOLS = {
     "BTC": "BTC-USD",
     "ETH": "ETH-USD",
@@ -76,16 +76,16 @@ def calculate_indicators(df):
     return df
 
 # Función para determinar la tendencia
-def get_trend(data, language="Español"):
+def get_trend(data):
     current_price = data['Close'].iloc[-1].item()
     sma_20 = data['SMA_20'].iloc[-1].item()
     sma_50 = data['SMA_50'].iloc[-1].item()
     if current_price > sma_20 and sma_20 > sma_50:
-        return "UPWARD" if language == "English" else "ALCISTA"
+        return "alcista"
     elif current_price < sma_20 and sma_20 < sma_50:
-        return "DOWNWARD" if language == "English" else "BAJISTA"
+        return "bajista"
     else:
-        return "SIDEWAYS" if language == "English" else "LATERAL"
+        return "lateral"
 
 # Función para crear gráfico
 def create_crypto_chart(df, symbol):
@@ -93,23 +93,24 @@ def create_crypto_chart(df, symbol):
                        vertical_spacing=0.03, 
                        row_heights=[0.7, 0.3])
 
+    # Gráfico de precios
     fig.add_trace(go.Candlestick(x=df.index,
                                 open=df['Open'],
                                 high=df['High'],
                                 low=df['Low'],
                                 close=df['Close'],
-                                name='Price'),
+                                name='Precio'),
                   row=1, col=1)
-    
+    # Bollinger Bands
     fig.add_trace(go.Scatter(x=df.index, y=df['BB_Upper'],
                             line=dict(color='rgba(250, 0, 0, 0.3)'),
-                            name='Upper BB'),
+                            name='BB Superior'),
                   row=1, col=1)
     fig.add_trace(go.Scatter(x=df.index, y=df['BB_Lower'],
                             line=dict(color='rgba(0, 250, 0, 0.3)'),
-                            name='Lower BB'),
+                            name='BB Inferior'),
                   row=1, col=1)
-    
+    # Moving Averages
     fig.add_trace(go.Scatter(x=df.index, y=df['SMA_20'],
                             line=dict(color='blue'),
                             name='SMA 20'),
@@ -118,89 +119,60 @@ def create_crypto_chart(df, symbol):
                             line=dict(color='orange'),
                             name='SMA 50'),
                   row=1, col=1)
-    
+    # MACD
     fig.add_trace(go.Scatter(x=df.index, y=df['MACD'],
                             line=dict(color='blue'),
                             name='MACD'),
                   row=2, col=1)
     fig.add_trace(go.Scatter(x=df.index, y=df['MACD_Signal'],
                             line=dict(color='orange'),
-                            name='MACD Signal'),
+                            name='Señal MACD'),
                   row=2, col=1)
-    
+    # Actualizar layout
     fig.update_layout(
-        title=f'Technical Analysis - {symbol}',
-        yaxis_title='Price (USD)',
+        title=f'Análisis Técnico - {symbol}',
+        yaxis_title='Precio (USD)',
         yaxis2_title='MACD',
         xaxis_rangeslider_visible=False,
         height=800,
         template='plotly_dark'
     )
-    
     return fig
 
 # Función para generar informe dinámico según el período
-def generate_report(data, period, language="Español"):
+def generate_report(data, period):
     current_price = data['Close'].iloc[-1].item()
     sma_20 = data['SMA_20'].iloc[-1].item()
     sma_50 = data['SMA_50'].iloc[-1].item()
     rsi = data['RSI'].iloc[-1].item()
-    trend = get_trend(data, language)
+    trend = get_trend(data)
 
-    if language == "English":
-        report = f"""
-        **Period Summary ({period}):**
-        - Main trend: **{trend}**
-        - Current price: **${current_price:.2f}**
-        - RSI: **{rsi:.2f}** ({'Overbought' if rsi > 70 else 'Oversold' if rsi < 30 else 'Neutral'})
-        - Daily return: **{data['Close'].pct_change().iloc[-1].item()*100:.2f}%**
-        - Daily volatility: **{data['Close'].pct_change().std().item()*100:.2f}%**
-        - Average volume: **${data['Volume'].mean().item():,.0f}**
+    report = f"""
+    **Resumen del período {period}:**
+    - Tendencia principal: **{trend.upper()}**
+    - Precio actual: **${current_price:.2f}**
+    - RSI: **{rsi:.2f}** ({'Sobrecomprado' if rsi > 70 else 'Sobrevendido' if rsi < 30 else 'Neutral'})
+    - Retorno diario: **{data['Close'].pct_change().iloc[-1].item()*100:.2f}%**
+    - Volatilidad diaria: **{data['Close'].pct_change().std().item()*100:.2f}%**
+    - Volumen promedio: **${data['Volume'].mean().item():,.0f}**
 
-        **Recommendation:**
-        """
-        if trend == "UPWARD":
-            report += "The trend is upward and RSI is not overbought. It might be a good time to hold or buy."
-        elif trend == "DOWNWARD":
-            report += "The trend is downward. Caution before buying, it might be better to wait for a reversal."
-        elif rsi > 70:
-            report += "RSI is in overbought territory. There might be a short-term correction."
-        elif rsi < 30:
-            report += "RSI is in oversold territory. There might be a bounce opportunity."
-        else:
-            report += "The market is sideways or without a clear trend. Better wait for confirmation."
-
-        report += """
-        **What is RSI?**
-        The RSI (Relative Strength Index) is an indicator that measures the speed and change of price movements. An RSI above 70 indicates that the asset is overbought, while an RSI below 30 indicates that it is oversold. It's a useful tool for identifying potential trend reversals.
-        """
+    **Recomendación:**
+    """
+    if trend == "alcista" and rsi < 70:
+        report += "La tendencia es alcista y el RSI no está sobrecomprado. Puede ser un buen momento para mantener o comprar."
+    elif trend == "bajista":
+        report += "La tendencia es bajista. Precaución antes de comprar, podría ser mejor esperar una reversión."
+    elif rsi > 70:
+        report += "El RSI está en zona de sobrecompra. Puede haber una corrección a corto plazo."
+    elif rsi < 30:
+        report += "El RSI está en zona de sobreventa. Puede haber una oportunidad de rebote."
     else:
-        report = f"""
-        **Resumen del período {period}:**
-        - Tendencia principal: **{trend}**
-        - Precio actual: **${current_price:.2f}**
-        - RSI: **{rsi:.2f}** ({'Sobrecomprado' if rsi > 70 else 'Sobrevendido' if rsi < 30 else 'Neutral'})
-        - Retorno diario: **{data['Close'].pct_change().iloc[-1].item()*100:.2f}%**
-        - Volatilidad diaria: **{data['Close'].pct_change().std().item()*100:.2f}%**
-        - Volumen promedio: **${data['Volume'].mean().item():,.0f}**
+        report += "El mercado está lateral o sin una tendencia clara. Mejor esperar confirmación."
 
-        **Recomendación:**
-        """
-        if trend == "ALCISTA":
-            report += "La tendencia es alcista y el RSI no está sobrecomprado. Puede ser un buen momento para mantener o comprar."
-        elif trend == "BAJISTA":
-            report += "La tendencia es bajista. Precaución antes de comprar, podría ser mejor esperar una reversión."
-        elif rsi > 70:
-            report += "El RSI está en zona de sobrecompra. Puede haber una corrección a corto plazo."
-        elif rsi < 30:
-            report += "El RSI está en zona de sobreventa. Puede haber una oportunidad de rebote."
-        else:
-            report += "El mercado está lateral o sin una tendencia clara. Mejor esperar confirmación."
-
-        report += """
-        **¿Qué es el RSI?**
-        El RSI (Índice de Fuerza Relativa) es un indicador que mide la velocidad y el cambio de los movimientos de precios. Un RSI por encima de 70 indica que el activo está sobrecomprado, mientras que un RSI por debajo de 30 indica que está sobrevendido. Es una herramienta útil para identificar posibles reversiones de tendencia.
-        """
+    report += """
+    **¿Qué es el RSI?**
+    El RSI (Índice de Fuerza Relativa) es un indicador que mide la velocidad y el cambio de los movimientos de precios. Un RSI por encima de 70 indica que el activo está sobrecomprado, mientras que un RSI por debajo de 30 indica que está sobrevendido. Es una herramienta útil para identificar posibles reversiones de tendencia.
+    """
     return report
 
 # Sidebar para configuración
@@ -232,7 +204,7 @@ selected_crypto = st.sidebar.selectbox(
 time_period = st.sidebar.selectbox(
     "Analysis period" if language == "English" else "Período de análisis",
     ["1d", "3d", "5d", "15d", "1mo", "3mo", "6mo", "1y"],
-    index=1
+    index=1  # Cambiado a 3d
 )
 
 # Obtener y procesar datos
@@ -265,8 +237,7 @@ if data is not None and not data.empty:
     
     # Informe dinámico según el período
     st.subheader("Investor Report" if language == "English" else "Informe para el Inversor")
-    report = generate_report(data, time_period, language)
-    st.markdown(report)
+    st.markdown(generate_report(data, time_period))
 
     # Explicación de las tendencias
     st.subheader("Trend Explanation" if language == "English" else "Explicación de las Tendencias")
@@ -289,13 +260,13 @@ if data is not None and not data.empty:
 
     # Indicador de tendencia de mercado
     st.subheader("Market Trend" if language == "English" else "Tendencia de Mercado")
-    trend = get_trend(data, language)
-    if trend == "UPWARD" or trend == "ALCISTA":
+    trend = get_trend(data)
+    if trend == "alcista":
         st.markdown('<div style="background-color: green; color: white; padding: 10px; border-radius: 5px;">Upward Trend</div>' if language == "English" else '<div style="background-color: green; color: white; padding: 10px; border-radius: 5px;">Tendencia Alcista</div>', unsafe_allow_html=True)
-    elif trend == "DOWNWARD" or trend == "BAJISTA":
+    elif trend == "bajista":
         st.markdown('<div style="background-color: red; color: white; padding: 10px; border-radius: 5px;">Downward Trend</div>' if language == "English" else '<div style="background-color: red; color: white; padding: 10px; border-radius: 5px;">Tendencia Bajista</div>', unsafe_allow_html=True)
     else:
-        st.markdown('<div style="background-color: orange; color: white; padding: 10px; border-radius: 5px;">Sideways Trend</div>' if language == "English" else '<div style="background-color: orange; color: white; padding: 10px; border-radius: 5px;">Tendencia Lateral</div>', unsafe_allow_html=True)
+        st.markdown('<div style="background-color: orange; color: white; padding: 10px; border-radius: 5px;">Lateral Trend</div>' if language == "English" else '<div style="background-color: orange; color: white; padding: 10px; border-radius: 5px;">Tendencia Lateral</div>', unsafe_allow_html=True)
 
     # Tabla de datos históricos simplificada
     st.subheader("Historical Data" if language == "English" else "Datos Históricos")
@@ -307,4 +278,11 @@ if data is not None and not data.empty:
         'Volume': '{:,.0f}'
     }))
 else:
-    st.error(f"No data available for {selected_crypto} in the selected period." if language == "English" else f"No hay datos disponibles para {selected_crypto} en el período seleccionado.") 
+    st.error(f"No data available for {selected_crypto} in the selected period." if language == "English" else f"No hay datos disponibles para {selected_crypto} en el período seleccionado.")
+
+# Integración del bot de Telegram
+st.sidebar.header("Telegram Bot" if language == "English" else "Bot de Telegram")
+if st.sidebar.button("Start Telegram Bot" if language == "English" else "Iniciar Bot de Telegram"):
+    import subprocess
+    subprocess.Popen(["python", "telegram_bot.py"])
+    st.sidebar.success("Telegram Bot started. Use /help to see available commands." if language == "English" else "Bot de Telegram iniciado. Usa /help para ver los comandos disponibles.")
