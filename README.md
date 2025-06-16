@@ -95,15 +95,15 @@ Here's an overview of the dashboard's functionalities through screenshots:
 
 ### Main Dashboard
 This image shows the main dashboard interface, including language and cryptocurrency selection, along with key real-time market metrics.
-![Main Dashboard](docs/images/dashboard_principal.png)
+![Main Dashboard](docs/images/dashboard_principal.png.png)
 
 ### Technical Analysis Chart
 Visualize detailed technical analysis with indicators like SMA 20, SMA 50, Bollinger Bands, and MACD, essential for understanding market trends.
-![Technical Analysis Chart](docs/images/grafico_principal.png)
+![Technical Analysis Chart](docs/images/grafico_principal.png.png)
 
 ### Investor Report and Historical Data
 A combined view of the dynamic investor report, offering a summary of the period, recommendations, and an explanation of the market trend, along with the historical data table.
-![Investor Report and Historical Data](docs/images/reporte_y_datos_historicos.png)
+![Investor Report and Historical Data](docs/images/reporte_y_datos_historicos.png.png)
 
 ## 🛠️ Technical Architecture
 
