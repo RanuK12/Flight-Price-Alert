@@ -69,46 +69,21 @@ Our Telegram bot provides real-time market insights and automated trading signal
 - Ripple (XRP)
 - Dogecoin (DOGE)
 
-## 🖥️ Dashboard Preview
-
-![Dashboard Overview](docs/images/dashboard_overview.png)
-*Main dashboard interface showing real-time market data and technical analysis*
-
-![Technical Analysis](docs/images/technical_analysis.png)
-*Detailed technical analysis with multiple indicators*
-
-![Market Trends](docs/images/market_trends.png)
-*Market trend analysis and recommendations*
-
-![Language Selection](docs/images/language_selection.png)
-*Multi-language support with English and Spanish interfaces*
-
-![Cryptocurrency Selection](docs/images/crypto_selection.png)
-*Cryptocurrency selection interface with real-time price updates*
-
-## 🚀 Features
-
-*   **Interactive Dashboard**: Real-time cryptocurrency price tracking and interactive charts.
-*   **Technical Analysis**: Integration of key indicators like RSI, MACD, and Bollinger Bands.
-*   **Dynamic Investor Reports**: Generate period-specific reports with trend analysis and recommendations.
-*   **Multi-language Support**: Seamless switching between English and Spanish interfaces.
-*   **Telegram Bot Integration**: Real-time alerts and market data queries via Telegram.
-
 ## 📸 Screenshots
 
-Aquí tienes una vista general de las funcionalidades del dashboard a través de capturas de pantalla:
+Here's an overview of the dashboard's functionalities through screenshots:
 
-### Dashboard Principal
-Esta imagen muestra la interfaz principal del dashboard, incluyendo la selección de idioma y criptomoneda, junto con las métricas clave del mercado en tiempo real.
-![Dashboard Principal](docs/images/dashboard_principal.png)
+### Main Dashboard
+This image shows the main dashboard interface, including language and cryptocurrency selection, along with key real-time market metrics.
+![Main Dashboard](docs/images/dashboard_principal.png)
 
-### Gráfico de Análisis Técnico
-Visualiza el análisis técnico detallado con indicadores como SMA 20, SMA 50, Bandas de Bollinger y MACD, esenciales para entender las tendencias del mercado.
-![Análisis Técnico - Gráfico Principal](docs/images/grafico_principal.png)
+### Technical Analysis Chart
+Visualize detailed technical analysis with indicators like SMA 20, SMA 50, Bollinger Bands, and MACD, essential for understanding market trends.
+![Technical Analysis Chart](docs/images/grafico_principal.png)
 
-### Informe del Inversor y Datos Históricos
-Una vista combinada del informe dinámico para el inversor, que ofrece un resumen del período, recomendaciones y una explicación de la tendencia del mercado, junto con la tabla de datos históricos.
-![Reporte y Datos Históricos](docs/images/reporte_y_datos_historicos.png)
+### Investor Report and Historical Data
+A combined view of the dynamic investor report, offering a summary of the period, recommendations, and an explanation of the market trend, along with the historical data table.
+![Investor Report and Historical Data](docs/images/reporte_y_datos_historicos.png)
 
 ## 🛠️ Technical Architecture
 
@@ -162,8 +137,8 @@ Una vista combinada del informe dinámico para el inversor, que ofrece un resume
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/RanuK12/crypto-analysis-dashboard.git
-cd crypto-analysis-dashboard
+git clone https://github.com/RanuK12/algorithmic-trading-python.git
+cd algorithmic-trading-python
 ```
 
 2. Install dependencies:
@@ -217,8 +192,9 @@ The dashboard provides several key features:
 
 2. **Market Analysis**
    - Use `/analyze BTC` to get technical analysis for Bitcoin
-   - Get trend analysis with `/trend ETH`
-   - Check volume analysis with `/volume BNB`
+   - Receive technical analysis reports
+   - View trend predictions
+   - Monitor volume and volatility
 
 3. **Price Alerts**
    - Set price alerts with `/alert BTC 50000`
@@ -256,8 +232,8 @@ Trading Analysis - BTC
    - Annual Volatility: 39.22%
    - Maximum Drawdown: -55.93%
    - Calmar Ratio: -0.33
-   - VaR (95%): -3.98%
-   - Expected Shortfall (95%): -5.74%
+   - VaR (95%) : -3.98%
+   - Expected Shortfall (95%) : -5.74%
 ```
 
 ### Backtesting Results
@@ -368,7 +344,7 @@ Trading Analysis - BTC
 ├── docs/
 │   └── images/         # Documentation images
 ├── tests/              # Test suite
-├── monitoring/         # Monitoring configuration
+├── monitoring/
 │   └── prometheus/     # Prometheus setup
 ├── airflow/           # Airflow DAGs
 │   └── dags/          # Workflow definitions
