@@ -92,11 +92,25 @@ async function fetchLevelDayPrices(route) {
     }
 
     return dayPrices
-      .filter(day => day?.date && typeof day.price === 'number')
-      .map(day => ({
-        date: day.date,
-        price: day.price
-      }));
+      .map(day => {
+        if (!day?.date) return null;
+
+        const parsedPrice =
+          typeof day.price === 'number'
+            ? day.price
+            : typeof day.price === 'string'
+              ? parseFloat(day.price.replace(/,/g, ''))
+              : NaN;
+
+        if (!Number.isFinite(parsedPrice)) return null;
+
+        const precisePrice = Math.round(parsedPrice * 100) / 100;
+        return {
+          date: day.date,
+          price: precisePrice
+        };
+      })
+      .filter(Boolean);
   } catch (error) {
     console.error(`Error consultando la API de LEVEL para ${route.label}:`, error.message);
     return [];
@@ -164,9 +178,20 @@ async function checkPrices() {
   }
 }
 
-cron.schedule('*/5 * * * *', () => {
-  console.log('Ejecutando chequeo de precios:', new Date().toLocaleString());
-  checkPrices();
-});
+if (process.env.NODE_ENV !== 'test') {
+  cron.schedule('*/5 * * * *', () => {
+    console.log('Ejecutando chequeo de precios:', new Date().toLocaleString());
+    checkPrices();
+  });
 
-checkPrices();
+  checkPrices();
+}
+
+module.exports = {
+  buildLevelUrl,
+  fetchLevelDayPrices,
+  getCheapestDay,
+  parseRoutes,
+  checkPrices,
+  checkRoute
+};
