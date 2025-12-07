@@ -1,6 +1,7 @@
 # Environment variables
 .env
 .env.*
+!.env.example
 
 # Python
 __pycache__/
@@ -84,7 +85,11 @@ monitoring/grafana/data/
 # Project specific
 *.json
 *.parquet
-webserver_config.py 
+webserver_config.py
+
+# Node metadata
+!/package.json
+!/package-lock.json
 
 # Otros directorios y archivos específicos
 App Enviar Correos/
