@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
-    "test": "echo \"No automated tests specified\""
+    "test": "jest"
   },
   "keywords": [
     "flights",
@@ -22,5 +22,8 @@
     "node-cron": "^3.0.3",
     "node-telegram-bot-api": "^0.63.0",
     "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   }
 }
