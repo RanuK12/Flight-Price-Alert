@@ -2,6 +2,26 @@
 
 A professional system for cryptocurrency market analysis and algorithmic trading strategies, featuring a modern web interface for real-time market insights and historical performance analysis. This project combines advanced data processing, machine learning, and real-time monitoring to provide comprehensive cryptocurrency market analysis.
 
+## ✈️ Flight price alerts (Telegram)
+
+The repository also includes a lightweight flight-alert bot (`index.js`) that queries LEVEL's calendar API, stores historical prices in SQLite, and sends Telegram alerts when fares drop below your threshold.
+
+1. Copy `.env.example` to `.env` and fill in your `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, and optional `PRICE_THRESHOLD`/`DB_PATH`.
+2. Optionally configure custom routes with `LEVEL_ROUTES_JSON`, for example:
+
+   ```bash
+   LEVEL_ROUTES_JSON='[{"origin":"EZE","destination":"MAD","outboundDate":"2025-07-30","threshold":320}]'
+   ```
+
+3. Install Node dependencies and start the watcher:
+
+   ```bash
+   npm install
+   npm run start
+   ```
+
+The bot polls every five minutes, records prices for each available date, and notifies you of the cheapest day when it falls under the configured threshold.
+
 ## 🌟 Key Features
 
 ### Real-time Market Analysis
