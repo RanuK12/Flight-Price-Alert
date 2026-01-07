@@ -1,197 +1,101 @@
 require('dotenv').config();
-const axios = require('axios');
 const cron = require('node-cron');
 const TelegramBot = require('node-telegram-bot-api');
-const { insertPrice } = require('./database');
+const { initDb, insertPrice, getLastPrice } = require('./database');
+const { scrapeSkyscanner } = require('./skyscanner_scraper');
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-const GLOBAL_THRESHOLD = parseInt(process.env.PRICE_THRESHOLD, 10) || 300;
+const PRICE_THRESHOLD = parseInt(process.env.PRICE_THRESHOLD, 10) || 500;
 const TELEGRAM_ENABLED = Boolean(TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID);
 
 const bot = TELEGRAM_ENABLED
   ? new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: false })
   : null;
 
-function parseRoutes() {
-  if (process.env.LEVEL_ROUTES_JSON) {
-    try {
-      const parsed = JSON.parse(process.env.LEVEL_ROUTES_JSON);
-      if (Array.isArray(parsed)) {
-        return parsed.map(route => ({
-          origin: route.origin,
-          destination: route.destination,
-          outboundDate: route.outboundDate,
-          label: route.label || `${route.origin} → ${route.destination}`,
-          threshold: route.threshold || GLOBAL_THRESHOLD
-        }));
-      }
-      console.warn('LEVEL_ROUTES_JSON must be an array of routes. Using defaults.');
-    } catch (err) {
-      console.warn('Invalid LEVEL_ROUTES_JSON. Using defaults.', err.message);
-    }
-  }
+// Rutas de vuelos a monitorear
+const routes = [
+  { origin: 'MAD', destination: 'COR', name: 'Madrid → Córdoba' },
+  { origin: 'BCN', destination: 'COR', name: 'Barcelona → Córdoba' },
+  { origin: 'FCO', destination: 'COR', name: 'Roma → Córdoba' },
+];
 
-  return [
-    {
-      origin: 'EZE',
-      destination: 'MAD',
-      outboundDate: '2025-07-30',
-      label: 'Buenos Aires → Madrid',
-      threshold: GLOBAL_THRESHOLD
-    },
-    {
-      origin: 'EZE',
-      destination: 'BCN',
-      outboundDate: '2025-09-16',
-      label: 'Buenos Aires → Barcelona',
-      threshold: GLOBAL_THRESHOLD
-    }
-  ];
+function buildAlertMessage(route, price) {
+  const savings = PRICE_THRESHOLD - price;
+  const savingsPercent = ((savings / PRICE_THRESHOLD) * 100).toFixed(1);
+  
+  return `✈️ *ALERTA DE VUELO BARATO*\n\n` +
+    `*Ruta:* ${route.name}\n` +
+    `*Precio:* €${price} EUR\n` +
+    `*Umbral:* €${PRICE_THRESHOLD} EUR\n` +
+    `*Ahorro:* €${savings} (${savingsPercent}%)\n\n` +
+    `🔗 Ver en Skyscanner\n\n` +
+    `⚠️ Verifica condiciones y equipaje antes de comprar.`;
 }
 
-const routes = parseRoutes();
-const BASE_URL = 'https://www.flylevel.com/nwe/flights/api/calendar/';
-
-function buildLevelUrl(route) {
-  const outboundDate = route.outboundDate;
-  const parsedDate = new Date(outboundDate);
-  if (Number.isNaN(parsedDate.getTime())) {
-    throw new Error(`Fecha de salida inválida para ${route.label || route.origin}`);
-  }
-  const month = `${parsedDate.getUTCMonth() + 1}`.padStart(2, '0');
-  const year = parsedDate.getUTCFullYear();
-
-  const params = new URLSearchParams({
-    triptype: route.triptype || 'RT',
-    origin: route.origin,
-    destination: route.destination,
-    outboundDate,
-    month,
-    year,
-    currencyCode: route.currencyCode || 'USD'
-  });
-
-  return `${BASE_URL}?${params.toString()}`;
-}
-
-async function fetchLevelDayPrices(route) {
-  const url = buildLevelUrl(route);
-  try {
-    const response = await axios.get(url, {
-      timeout: 15000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; FlightAlertsBot/1.0)'
-      }
-    });
-
-    const dayPrices = response?.data?.data?.dayPrices;
-    if (!Array.isArray(dayPrices)) {
-      console.error(`Respuesta inesperada de la API para ${route.label}`);
-      return [];
-    }
-
-    return dayPrices
-      .map(day => {
-        if (!day?.date) return null;
-
-        const parsedPrice =
-          typeof day.price === 'number'
-            ? day.price
-            : typeof day.price === 'string'
-              ? parseFloat(day.price.replace(/,/g, ''))
-              : NaN;
-
-        if (!Number.isFinite(parsedPrice)) return null;
-
-        const precisePrice = Math.round(parsedPrice * 100) / 100;
-        return {
-          date: day.date,
-          price: precisePrice
-        };
-      })
-      .filter(Boolean);
-  } catch (error) {
-    console.error(`Error consultando la API de LEVEL para ${route.label}:`, error.message);
-    return [];
-  }
-}
-
-async function sendTelegramAlert(routeLabel, bestDay, threshold) {
+async function sendAlert(route, price) {
   if (!TELEGRAM_ENABLED) {
-    console.log('Telegram deshabilitado. Alerta omitida.');
+    console.log(`Alerta (Telegram deshabilitado): ${route.name} - €${price}`);
     return;
   }
 
-  const message = `🚨 *ALERTA DE PRECIO BAJO*\nRuta: ${routeLabel}\nFecha más barata: ${bestDay.date}\nPrecio: $${bestDay.price} USD\nUmbral: $${threshold} USD\n¡Es un buen momento para reservar tu vuelo!`;
   try {
+    const message = buildAlertMessage(route, price);
     await bot.sendMessage(TELEGRAM_CHAT_ID, message, { parse_mode: 'Markdown' });
-    console.log(`Alerta enviada: ${routeLabel} - $${bestDay.price} (${bestDay.date})`);
+    console.log(`✅ Alerta enviada: ${route.name} - €${price}`);
   } catch (error) {
-    console.error('Error al enviar mensaje de Telegram:', error.message);
-  }
-}
-
-async function persistPrices(routeName, dayPrices) {
-  for (const day of dayPrices) {
-    try {
-      await insertPrice(routeName, day.date, day.price);
-    } catch (err) {
-      console.error(`Error guardando precio para ${routeName} ${day.date}:`, err.message);
-    }
-  }
-}
-
-function getCheapestDay(dayPrices) {
-  return dayPrices.reduce((best, day) => {
-    if (!best || day.price < best.price) return day;
-    return best;
-  }, null);
-}
-
-async function checkRoute(route) {
-  const dayPrices = await fetchLevelDayPrices(route);
-  if (!dayPrices.length) {
-    console.warn(`Sin precios disponibles para ${route.label}.`);
-    return;
-  }
-
-  await persistPrices(`${route.origin}-${route.destination}`, dayPrices);
-  const cheapest = getCheapestDay(dayPrices);
-
-  if (cheapest && cheapest.price < route.threshold) {
-    await sendTelegramAlert(route.label, cheapest, route.threshold);
-  } else if (cheapest) {
-    console.log(
-      `Precio más bajo para ${route.label} el ${cheapest.date}: $${cheapest.price} (umbral $${route.threshold})`
-    );
+    console.error(`Error enviando alerta: ${error.message}`);
   }
 }
 
 async function checkPrices() {
+  console.log(`\n📍 Verificando precios a las ${new Date().toLocaleTimeString('es-ES')}...\n`);
+  
+  if (!await initDb()) {
+    console.error('Error inicializando base de datos');
+    return;
+  }
+
   for (const route of routes) {
     try {
-      await checkRoute(route);
-    } catch (err) {
-      console.error('Error en chequeo de ruta:', err.message);
+      const { url, minPrice, flights } = await scrapeSkyscanner(route.origin, route.destination);
+      
+      if (minPrice === null) {
+        console.log(`❌ ${route.name}: Sin precios encontrados`);
+        continue;
+      }
+
+      // Guardar en base de datos
+      const date = new Date().toISOString().split('T')[0];
+      await insertPrice(`${route.origin}-${route.destination}`, date, minPrice);
+
+      // Obtener último precio para comparar
+      const lastPrice = await getLastPrice(`${route.origin}-${route.destination}`, date);
+
+      // Enviar alerta si el precio está bajo del umbral
+      if (minPrice < PRICE_THRESHOLD) {
+        await sendAlert(route, minPrice);
+      } else {
+        console.log(`${route.name}: €${minPrice} (Umbral: €${PRICE_THRESHOLD})`);
+      }
+    } catch (error) {
+      console.error(`Error procesando ${route.name}: ${error.message}`);
     }
   }
+
+  console.log('\n✅ Verificación completada\n');
 }
 
-if (process.env.NODE_ENV !== 'test') {
-  cron.schedule('*/5 * * * *', () => {
-    console.log('Ejecutando chequeo de precios:', new Date().toLocaleString());
-    checkPrices();
-  });
+// Verificación inicial
+console.log('🛫 Flight Price Bot iniciado');
+console.log(`⏱️ Chequeos cada 15 minutos`);
+console.log(`💰 Umbral: €${PRICE_THRESHOLD} EUR\n`);
 
+checkPrices();
+
+// Programar chequeos automáticos
+cron.schedule('*/15 * * * *', () => {
   checkPrices();
-}
+});
 
-module.exports = {
-  buildLevelUrl,
-  fetchLevelDayPrices,
-  getCheapestDay,
-  parseRoutes,
-  checkPrices,
-  checkRoute
-};
+module.exports = { checkPrices };
