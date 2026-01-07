@@ -1,44 +1,97 @@
-# Crypto Analysis Dashboard
+# 🛫 Flight Price Alert Bot
 
-A professional system for cryptocurrency market analysis and algorithmic trading strategies, featuring a modern web interface for real-time market insights and historical performance analysis. This project combines advanced data processing, machine learning, and real-time monitoring to provide comprehensive cryptocurrency market analysis.
+Bot automatizado para monitorear precios de vuelos y enviar alertas por Telegram cuando encuentras ofertas baratas.
 
-## ✈️ Flight Price Alerts (Telegram)
+## ✨ Características
 
-Included in this repository is a flight price monitoring bot that:
+- ✅ **Monitoreo automático** cada 15 minutos
+- ✅ **Web scraping** de Skyscanner en tiempo real
+- ✅ **Alertas por Telegram** consolidadas
+- ✅ **Base de datos SQLite** para historial
+- ✅ **Código profesional** y mantenible
+- ✅ **Fácil configuración** con variables de entorno
 
-- **Monitors routes**: Madrid, Barcelona, Roma → Córdoba
-- **Checks every 15 minutes** for price changes
-- **Stores history** in SQLite database
-- **Sends Telegram alerts** when prices drop below threshold (€500)
+## 🛣️ Rutas Monitoreadas
 
-### Quick Start
+| Origen | Destino | Umbral |
+|--------|---------|--------|
+| MAD | COR | €500 |
+| BCN | COR | €500 |
+| FCO | COR | €500 |
+
+## 🚀 Instalación Rápida
+
+### 1. Clonar el repositorio
 
 ```bash
-# 1. Configure environment
-cp .env.example .env
-# Edit .env and add your Telegram credentials:
-# TELEGRAM_BOT_TOKEN=your_token
-# TELEGRAM_CHAT_ID=your_chat_id
-# PRICE_THRESHOLD=500
+git clone https://github.com/RanuK12/Flight-Price-Alert.git
+cd Flight-Price-Alert
+```
 
-# 2. Install dependencies
+### 2. Instalar dependencias
+
+```bash
 npm install
+```
 
-# 3. Start the bot
+### 3. Configurar variables de entorno
+
+Crear archivo `.env`:
+
+```env
+TELEGRAM_BOT_TOKEN=tu_token_aqui
+TELEGRAM_CHAT_ID=tu_chat_id_aqui
+PRICE_THRESHOLD=500
+```
+
+### 4. Ejecutar el bot
+
+```bash
 node index.js
 ```
 
-### Monitored Routes
+El bot iniciará y verificará precios automáticamente cada 15 minutos.
 
-| Route | Threshold |
-|-------|-----------|
-| Madrid → Córdoba | €500 |
-| Barcelona → Córdoba | €500 |
-| Roma → Córdoba | €500 |
+## ⚙️ Configuración
 
-### Alert Format
+### Cambiar rutas monitoreadas
 
-When a cheap flight is found:
+Editar `index.js` y modificar el array `routes`:
+
+```javascript
+const routes = [
+  { origin: 'MAD', destination: 'COR', name: 'Madrid → Córdoba' },
+  { origin: 'BCN', destination: 'COR', name: 'Barcelona → Córdoba' },
+  { origin: 'FCO', destination: 'COR', name: 'Roma → Córdoba' },
+];
+```
+
+### Cambiar umbral de precio
+
+En `.env`:
+```env
+PRICE_THRESHOLD=500  # Cambiar a tu valor deseado en EUR
+```
+
+### Cambiar frecuencia de verificación
+
+En `index.js`, modificar la expresión cron:
+
+```javascript
+// Cada 15 minutos (actual)
+cron.schedule('*/15 * * * *', () => { checkPrices(); });
+
+// Cada 30 minutos
+cron.schedule('*/30 * * * *', () => { checkPrices(); });
+
+// Cada hora
+cron.schedule('0 * * * *', () => { checkPrices(); });
+```
+
+## 📱 Formato de Alertas
+
+Cuando se encuentra un vuelo barato:
+
 ```
 ✈️ ALERTA DE VUELO BARATO
 
@@ -50,430 +103,87 @@ Ahorro: €120 (24%)
 ⚠️ Verifica condiciones y equipaje antes de comprar.
 ```
 
-### Configuration
+## 🛠️ Stack Tecnológico
 
-Edit `index.js` to add more routes:
-```javascript
-const routes = [
-  { origin: 'MAD', destination: 'COR', name: 'Madrid → Córdoba' },
-  { origin: 'BCN', destination: 'COR', name: 'Barcelona → Córdoba' },
-  { origin: 'FCO', destination: 'COR', name: 'Roma → Córdoba' },
-];
+| Tecnología | Versión | Propósito |
+|-----------|---------|----------|
+| Node.js | v16+ | Runtime |
+| node-telegram-bot-api | v0.66.0 | Bot Telegram |
+| sqlite3 | v5.1.6 | Base de datos |
+| puppeteer-extra | v3.3.6 | Web scraping |
+| node-cron | v4.1.1 | Scheduling |
+| axios | v1.4.0 | HTTP requests |
+| dotenv | v16.0.0 | Configuración |
+
+## 📂 Estructura del Proyecto
+
 ```
+Flight-Price-Alert/
+├── index.js                    # Bot principal
+├── database.js                 # Gestión de SQLite
+├── skyscanner_scraper.js       # Web scraper
+├── package.json               # Dependencias
+├── .env.example               # Ejemplo de configuración
+├── .gitignore                 # Archivos ignorados
+├── README.md                  # Este archivo
+└── CHANGELOG.md               # Historial de cambios
+```
+
+## 🔧 Troubleshooting
+
+### El bot no envía mensajes
+
+1. Verificar que `TELEGRAM_BOT_TOKEN` es válido
+2. Verificar que `TELEGRAM_CHAT_ID` es correcto
+3. Asegurar que el token tiene permisos para enviar mensajes
+
+### No encuentra precios
+
+1. Skyscanner puede estar bloqueando requests. Esperar unos minutos
+2. Verificar que las rutas son válidas (códigos IATA correctos)
+3. Revisar logs del scraper
+
+### Base de datos corrupta
+
+```bash
+rm prices.db
+node index.js
+```
+
+## 📊 Base de Datos
+
+La tabla `prices` almacena:
+
+```sql
+CREATE TABLE prices (
+  id INTEGER PRIMARY KEY,
+  route TEXT,
+  date TEXT,
+  price REAL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(route, date)
+);
+```
+
+## 🤝 Contribuciones
+
+Las contribuciones son bienvenidas. Por favor:
+
+1. Fork el proyecto
+2. Crear una rama: `git checkout -b feature/mejora`
+3. Commit: `git commit -am 'Agrega mejora'`
+4. Push: `git push origin feature/mejora`
+5. Abrir un Pull Request
+
+## 📄 Licencia
+
+MIT - Ver archivo [LICENSE](LICENSE)
+
+## ✍️ Autor
+
+Creado para encontrar vuelos baratos 🎯
 
 ---
 
-## 🌟 Key Features
-
-### Real-time Market Analysis
-- Interactive dashboard with real-time cryptocurrency data
-- Technical indicators visualization (RSI, MACD, Bollinger Bands)
-- Multi-language support (English/Spanish)
-- Customizable time periods for analysis
-- Market trend identification and recommendations
-- Direct integration with Binance API for real-time crypto data
-
-### Advanced Data Processing
-- ETL pipeline for efficient data processing
-- Real-time data extraction from multiple sources:
-  - Binance API for cryptocurrency data
-  - Yahoo Finance for additional market data
-- Advanced data transformation and feature engineering
-- Efficient data loading and storage
-- Historical data analysis and backtesting
-
-### Trading Strategy Implementation
-- Moving Average Crossover strategy
-- Backtesting system with performance metrics
-- Risk analysis and performance evaluation
-- Advanced metrics calculation (Sharpe, Sortino, VaR, etc.)
-- Strategy optimization and parameter tuning
-
-### Monitoring and Alerts
-- Real-time market monitoring
-- Customizable price alerts
-- Trend change notifications
-- Volume spike detection
-- Performance tracking and reporting
-
-### Telegram Bot Integration
-Our Telegram bot provides real-time market insights and automated trading signals. Here's what you can do with it:
-
-1. **Market Analysis**
-   - Get real-time price updates
-   - Receive technical analysis reports
-   - View trend predictions
-   - Monitor volume and volatility
-
-2. **Trading Signals**
-   - Automated buy/sell signals
-   - Price alerts
-   - Trend change notifications
-   - Volume spike alerts
-
-3. **Custom Commands**
-   ```
-   /start - Initialize the bot
-   /help - Show available commands
-   /analyze <symbol> - Get technical analysis
-   /list - Show available cryptocurrencies
-   /alert <symbol> - Set price alerts
-   /trend <symbol> - Get trend analysis
-   /volume <symbol> - Check volume analysis
-   ```
-
-![Telegram Bot Interface](docs/images/telegram_bot.png)
-*Telegram bot interface showing real-time market analysis and commands*
-
-### Supported Cryptocurrencies
-- Bitcoin (BTC)
-- Ethereum (ETH)
-- Binance Coin (BNB)
-- Stellar (XLM)
-- Ripple (XRP)
-- Dogecoin (DOGE)
-
-## 🖥️ Dashboard Preview
-
-![Dashboard Overview](docs/images/Dashboard_Overview.png)
-*Main dashboard interface showing real-time market data and technical analysis*
-
-![Technical Analysis](docs/images/Technical_Analysis.png)
-*Detailed technical analysis with multiple indicators*
-
-![Market Trends](docs/images/Market_Trends.png)
-*Market trend analysis and recommendations*
-
-![Language Selection](docs/images/Language_Selection.png)
-*Multi-language support with English and Spanish interfaces*
-
-![Cryptocurrency Selection](docs/images/Cryptocurrency_Selection.png)
-*Cryptocurrency selection interface with real-time price updates*
-
-## 📸 Screenshots
-
-Here's an overview of the dashboard's functionalities through screenshots:
-
-### Main Dashboard
-This image shows the main dashboard interface, including language and cryptocurrency selection, along with key real-time market metrics.
-![Main Dashboard](docs/images/dashboard_principal.png.png)
-
-### Technical Analysis Chart
-Visualize detailed technical analysis with indicators like SMA 20, SMA 50, Bollinger Bands, and MACD, essential for understanding market trends.
-![Technical Analysis Chart](docs/images/grafico_principal.png.png)
-
-### Investor Report and Historical Data
-A combined view of the dynamic investor report, offering a summary of the period, recommendations, and an explanation of the market trend, along with the historical data table.
-![Investor Report and Historical Data](docs/images/reporte_y_datos_historicos.png.png)
-
-## 🛠️ Technical Architecture
-
-### System Components
-1. **Data Processing Layer**
-   - ETL pipeline for data extraction and transformation
-   - Real-time data processing
-   - Historical data management
-   - Feature engineering
-
-2. **Analysis Layer**
-   - Technical analysis engine
-   - Strategy implementation
-   - Backtesting system
-   - Performance metrics calculation
-
-3. **Presentation Layer**
-   - Streamlit web interface
-   - Telegram bot integration
-   - Real-time alerts system
-   - Data visualization
-
-4. **Monitoring Layer**
-   - Prometheus metrics
-   - Performance monitoring
-   - System health checks
-   - Alert management
-
-### Technology Stack
-- **Backend**: Python 3.8+
-- **Web Framework**: Streamlit
-- **Data Processing**: Pandas, NumPy
-- **Data Sources**: 
-  - Binance API (primary source for crypto data)
-  - Yahoo Finance (supplementary market data)
-- **Machine Learning**: Scikit-learn
-- **Visualization**: Plotly
-- **Monitoring**: Prometheus
-- **Containerization**: Docker
-- **Orchestration**: Docker Compose
-- **Workflow Management**: Apache Airflow
-
-## 📋 Requirements
-
-- Python 3.8+
-- Dependencies listed in `requirements.txt`
-- Streamlit for web interface
-- Binance API for cryptocurrency data
-- YFinance for supplementary market data
-- python-telegram-bot for Telegram integration
-- Docker and Docker Compose (optional)
-- Prometheus (optional)
-
-## 🚀 Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/RanuK12/algorithmic-trading-python.git
-cd algorithmic-trading-python
-```
-
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-3. Configure API Keys:
-   - Create a Binance account and get your API keys
-   - Add the keys to your environment variables or `.env` file:
-     ```
-     BINANCE_API_KEY=your_api_key_here
-     BINANCE_API_SECRET=your_api_secret_here
-     ```
-
-4. Configure Telegram Bot:
-   - Create a new bot using [@BotFather](https://t.me/botfather)
-   - Get your bot token
-   - Add the token to your environment variables or `.env` file:
-     ```
-     TELEGRAM_BOT_TOKEN=your_bot_token_here
-     ```
-
-5. Run the dashboard:
-```bash
-python -m streamlit run main.py
-```
-
-6. Start the Telegram bot (in a separate terminal):
-```bash
-python telegram_bot.py
-```
-
-### Docker Installation (Optional)
-```bash
-docker-compose up -d
-```
-
-## 💻 Usage
-
-### Dashboard Interface
-
-The dashboard provides several key features:
-
-1. **Language Selection**: Choose between English and Spanish interfaces
-2. **Cryptocurrency Selection**: Select from supported cryptocurrencies
-3. **Time Period Selection**: Choose analysis period (1d to 1y)
-4. **Technical Indicators**:
-   - RSI (Relative Strength Index)
-   - MACD (Moving Average Convergence Divergence)
-   - Bollinger Bands
-   - Moving Averages (20 and 50 periods)
-
-### Telegram Bot Usage
-
-1. **Start the Bot**
-   - Send `/start` to initialize the bot
-   - Use `/help` to see available commands
-
-2. **Market Analysis**
-   - Use `/analyze BTC` to get technical analysis for Bitcoin
-   - Receive technical analysis reports
-   - View trend predictions
-   - Monitor volume and volatility
-
-3. **Price Alerts**
-   - Set price alerts with `/alert BTC 50000`
-   - Get notified when price targets are reached
-   - Receive trend change notifications
-
-4. **Real-time Updates**
-   - Get instant market updates
-   - Receive trading signals
-   - Monitor portfolio performance
-
-## 📊 Analysis Examples
-
-### Example Analysis
-
-Here's an example of the analysis output for Bitcoin:
-
-```
-Trading Analysis - BTC
-==================================================
-
-1. Overall Performance:
-   - Total Return: -27.87%
-   - Annualized Return: -18.32%
-   - Sharpe Ratio: -0.37
-   - Sortino Ratio: -0.50
-
-2. Trading Activity:
-   - Number of Trades: 378
-   - Success Rate: 49.21%
-   - Profit Factor: 0.94
-   - Average Gain/Loss Ratio: 0.97
-
-3. Risk Analysis:
-   - Annual Volatility: 39.22%
-   - Maximum Drawdown: -55.93%
-   - Calmar Ratio: -0.33
-   - VaR (95%) : -3.98%
-   - Expected Shortfall (95%) : -5.74%
-```
-
-### Backtesting Results
-
-#### PEPE (2024-05-01 to 2025-06-13)
-![PEPE Backtest Results](results/PEPE_MovingAverageCrossover_2024-05-01_2025-06-13.png)
-
-#### BTC (2024-05-01 to 2025-06-13)
-![BTC Backtest Results](results/BTC_MovingAverageCrossover_2024-05-01_2025-06-13.png)
-
-#### DOGE (2024-05-01 to 2025-06-13)
-![DOGE Backtest Results](results/DOGE_MovingAverageCrossover_2024-05-01_2025-06-13.png)
-
-## 📈 Trading Metrics Guide
-
-### Performance Metrics
-- **Total Return**: Overall percentage gain/loss
-  - Positive: Strategy is profitable
-  - Negative: Strategy is losing money
-- **Annualized Return**: Yearly equivalent return
-  - > 20%: Excellent
-  - 10-20%: Good
-  - < 10%: Poor
-- **Sharpe Ratio**: Risk-adjusted returns
-  - > 1: Good
-  - > 2: Very Good
-  - > 3: Excellent
-- **Sortino Ratio**: Downside risk-adjusted returns
-  - > 1: Good
-  - > 2: Very Good
-  - > 3: Excellent
-
-### Trading Activity Metrics
-- **Number of Trades**: Total executed trades
-  - High: > 100 trades/month
-  - Medium: 50-100 trades/month
-  - Low: < 50 trades/month
-- **Success Rate**: Percentage of profitable trades
-  - > 50%: Good
-  - > 60%: Very Good
-  - > 70%: Excellent
-- **Profit Factor**: Gross profit to gross loss ratio
-  - > 1: Profitable
-  - > 1.5: Good
-  - > 2: Excellent
-- **Average Gain/Loss Ratio**: Profit per winning trade vs loss per losing trade
-  - > 1: Good
-  - > 1.5: Very Good
-  - > 2: Excellent
-
-### Risk Metrics
-- **Annual Volatility**: Standard deviation of returns
-  - < 20%: Low risk
-  - 20-40%: Medium risk
-  - > 40%: High risk
-- **Maximum Drawdown**: Largest peak-to-trough decline
-  - < 20%: Low risk
-  - 20-40%: Medium risk
-  - > 40%: High risk
-- **VaR (95%)**: Maximum expected loss with 95% confidence
-  - < 5%: Low risk
-  - 5-10%: Medium risk
-  - > 10%: High risk
-- **Expected Shortfall**: Average of losses beyond VaR
-  - < 7%: Low risk
-  - 7-15%: Medium risk
-  - > 15%: High risk
-- **Calmar Ratio**: Annualized return to maximum drawdown
-  - > 1: Good
-  - > 2: Very Good
-  - > 3: Excellent
-
-### Market Analysis Metrics
-- **Volume Analysis**
-  - Volume trend
-  - Volume vs price correlation
-  - Volume spikes detection
-- **Trend Analysis**
-  - Moving average crossovers
-  - Support/resistance levels
-  - Trend strength indicators
-- **Momentum Indicators**
-  - RSI overbought/oversold levels
-  - MACD signal crossovers
-  - Stochastic oscillator signals
-
-## 🔧 Project Structure
-
-```
-├── main.py              # Main Streamlit application
-├── telegram_bot.py      # Telegram bot implementation
-├── src/
-│   ├── data/
-│   │   ├── __init__.py
-│   │   └── exchange.py  # Market data handling
-│   ├── strategies/
-│   │   ├── base.py     # Base strategy class
-│   │   └── moving_average.py
-│   ├── backtest/
-│   │   ├── runner.py   # Backtesting system
-│   │   └── __main__.py
-│   ├── analysis/
-│   │   └── technical.py # Technical analysis
-│   └── utils/
-│       └── helpers.py   # Utility functions
-├── notebooks/
-│   └── analysis/       # Jupyter notebooks for analysis
-├── docs/
-│   └── images/         # Documentation images
-├── tests/              # Test suite
-├── monitoring/
-│   └── prometheus/     # Prometheus setup
-├── airflow/           # Airflow DAGs
-│   └── dags/          # Workflow definitions
-└── requirements.txt    # Project dependencies
-```
-
-## 🤝 Contributing
-
-We welcome contributions! Here's how you can help:
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### Development Guidelines
-- Follow PEP 8 style guide
-- Write unit tests for new features
-- Update documentation as needed
-- Use meaningful commit messages
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 📞 Contact
-
-RanuK12 - [@RanuK12](https://github.com/RanuK12)
-
-Project Link: [https://github.com/RanuK12/crypto-analysis-dashboard](https://github.com/RanuK12/crypto-analysis-dashboard)
-
-## 🙏 Acknowledgments
-
-- Yahoo Finance for market data
-- Streamlit for the web framework
-- Plotly for interactive visualizations
-- Python-Telegram-Bot for bot integration
-- All contributors and supporters of the project
+**Última actualización**: enero 2026  
+**Estado**: Activo y en mantenimiento
