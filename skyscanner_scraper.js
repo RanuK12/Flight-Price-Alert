@@ -35,7 +35,7 @@ async function scrapeSkyscanner(origin, destination, maxRetries = 2) {
         const cookieBtn = await page.$('button[class*="accept"], button[title*="Aceptar"]');
         if (cookieBtn) {
           await cookieBtn.click();
-          await page.waitForTimeout(500);
+          await new Promise(res => setTimeout(res, 500));
         }
       } catch (e) {
         // Sin banner de cookies
@@ -45,37 +45,65 @@ async function scrapeSkyscanner(origin, destination, maxRetries = 2) {
       await page.evaluate(() => {
         window.scrollTo(0, document.body.scrollHeight / 2);
       });
-      await page.waitForTimeout(800);
+      await new Promise(res => setTimeout(res, 800));
 
       // Extraer precios
       const flights = await page.evaluate((baseUrl) => {
         const results = [];
-        const priceElements = document.querySelectorAll(
-          '[class*="price"], [class*="Price"], [data-test-id*="price"]'
-        );
+        
+        // Múltiples estrategias de búsqueda de precios
+        const pricePatterns = [
+          // Buscar en data attributes
+          document.querySelectorAll('[data-test-id*="price"], [data-test*="price"]'),
+          // Buscar por clases comunes
+          document.querySelectorAll('[class*="price"]'),
+          // Buscar span con números grandes
+          document.querySelectorAll('span, div'),
+        ];
 
-        priceElements.forEach((el) => {
-          const text = el.textContent?.trim() || '';
-          const match = text.match(/€?\s*(\d{1,4})/);
-          if (match) {
-            const price = parseInt(match[1], 10);
-            if (price >= 50 && price <= 5000) {
-              results.push({
-                price,
-                airline: 'Skyscanner',
-                link: baseUrl,
+        const foundPrices = new Set();
+
+        for (const elements of pricePatterns) {
+          elements.forEach((el) => {
+            const text = el.textContent?.trim() || '';
+            // Buscar patrones de precios: €número o número€
+            const matches = text.match(/€\s*(\d{2,4})|(\d{2,4})\s*€/g);
+            if (matches) {
+              matches.forEach(match => {
+                const price = parseInt(match.replace(/[^0-9]/g, ''), 10);
+                if (price >= 50 && price <= 5000 && !foundPrices.has(price)) {
+                  foundPrices.add(price);
+                  results.push({
+                    price,
+                    airline: 'Skyscanner',
+                    link: baseUrl,
+                  });
+                }
               });
             }
-          }
-        });
+          });
+        }
 
-        // Eliminar duplicados
-        const seen = new Set();
-        return results.filter((f) => {
-          if (seen.has(f.price)) return false;
-          seen.add(f.price);
-          return true;
-        });
+        // Si no encontramos precios, buscar en el texto completo
+        if (results.length === 0) {
+          const fullText = document.body.innerText;
+          const priceMatches = fullText.match(/€\s*(\d{2,4})|(\d{2,4})\s*EUR/gi);
+          if (priceMatches) {
+            priceMatches.forEach(match => {
+              const price = parseInt(match.replace(/[^0-9]/g, ''), 10);
+              if (price >= 50 && price <= 5000 && !foundPrices.has(price)) {
+                foundPrices.add(price);
+                results.push({
+                  price,
+                  airline: 'Skyscanner',
+                  link: baseUrl,
+                });
+              }
+            });
+          }
+        }
+
+        return results;
       }, url);
 
       const minPrice = flights.length > 0
