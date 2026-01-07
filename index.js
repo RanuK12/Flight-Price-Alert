@@ -15,33 +15,59 @@ const bot = TELEGRAM_ENABLED
 
 // Rutas de vuelos a monitorear
 const routes = [
-  { origin: 'MAD', destination: 'COR', name: 'Madrid → Córdoba' },
-  { origin: 'BCN', destination: 'COR', name: 'Barcelona → Córdoba' },
-  { origin: 'FCO', destination: 'COR', name: 'Roma → Córdoba' },
+  // Destinos a Córdoba
+  { origin: 'MAD', destination: 'COR', name: '✈️ Madrid → Córdoba' },
+  { origin: 'BCN', destination: 'COR', name: '✈️ Barcelona → Córdoba' },
+  { origin: 'FCO', destination: 'COR', name: '✈️ Roma → Córdoba' },
+  // Vuelos desde Córdoba a otros destinos
+  { origin: 'COR', destination: 'MAD', name: '✈️ Córdoba → Madrid' },
+  { origin: 'COR', destination: 'BCN', name: '✈️ Córdoba → Barcelona' },
+  { origin: 'COR', destination: 'FCO', name: '✈️ Córdoba → Roma' },
 ];
 
-function buildAlertMessage(route, price) {
+function buildAlertMessage(route, price, flights = []) {
   const savings = PRICE_THRESHOLD - price;
   const savingsPercent = ((savings / PRICE_THRESHOLD) * 100).toFixed(1);
   
-  return `✈️ *ALERTA DE VUELO BARATO*\n\n` +
-    `*Ruta:* ${route.name}\n` +
-    `*Precio:* €${price} EUR\n` +
-    `*Umbral:* €${PRICE_THRESHOLD} EUR\n` +
-    `*Ahorro:* €${savings} (${savingsPercent}%)\n\n` +
-    `🔗 Ver en Skyscanner\n\n` +
-    `⚠️ Verifica condiciones y equipaje antes de comprar.`;
+  let message = `🎉 *¡VUELOS BARATOS ENCONTRADOS!*\n\n` +
+    `${route.name}\n` +
+    `━━━━━━━━━━━━━━━━━\n\n` +
+    `💰 *Precio mínimo:* €${price} EUR\n` +
+    `🎯 *Umbral:* €${PRICE_THRESHOLD} EUR\n` +
+    `💸 *Ahorras:* €${savings} (${savingsPercent}%)\n\n`;
+  
+  // Agregar detalles de vuelos si existen
+  if (flights && flights.length > 0) {
+    message += `📋 *Vuelos disponibles:*\n`;
+    
+    flights.slice(0, 4).forEach((flight, index) => {
+      const flightSavings = PRICE_THRESHOLD - flight.price;
+      const flightPercent = ((flightSavings / PRICE_THRESHOLD) * 100).toFixed(0);
+      const linkUrl = flight.link && flight.link.startsWith('http') ? flight.link : `https://www.skyscanner.es/transporte/vuelos/${route.origin.toLowerCase()}/${route.destination.toLowerCase()}/`;
+      message += `\n${index + 1}. ${flight.airline || 'Vuelo disponible'}\n` +
+        `   💵 €${flight.price} EUR (-${flightPercent}%)\n` +
+        `   [🔗 Reservar en Skyscanner](${linkUrl})\n`;
+    });
+  }
+  
+  message += `\n━━━━━━━━━━━━━━━━━\n` +
+    `⚠️ _Verifica condiciones, equipaje y horarios antes de reservar._`;
+  
+  return message;
 }
 
-async function sendAlert(route, price) {
+async function sendAlert(route, price, flights = []) {
   if (!TELEGRAM_ENABLED) {
     console.log(`Alerta (Telegram deshabilitado): ${route.name} - €${price}`);
     return;
   }
 
   try {
-    const message = buildAlertMessage(route, price);
-    await bot.sendMessage(TELEGRAM_CHAT_ID, message, { parse_mode: 'Markdown' });
+    const message = buildAlertMessage(route, price, flights);
+    await bot.sendMessage(TELEGRAM_CHAT_ID, message, { 
+      parse_mode: 'Markdown',
+      disable_web_page_preview: false
+    });
     console.log(`✅ Alerta enviada: ${route.name} - €${price}`);
   } catch (error) {
     console.error(`Error enviando alerta: ${error.message}`);
@@ -74,7 +100,7 @@ async function checkPrices() {
 
       // Enviar alerta si el precio está bajo del umbral
       if (minPrice < PRICE_THRESHOLD) {
-        await sendAlert(route, minPrice);
+        await sendAlert(route, minPrice, flights);
       } else {
         console.log(`${route.name}: €${minPrice} (Umbral: €${PRICE_THRESHOLD})`);
       }
