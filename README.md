@@ -2,25 +2,66 @@
 
 A professional system for cryptocurrency market analysis and algorithmic trading strategies, featuring a modern web interface for real-time market insights and historical performance analysis. This project combines advanced data processing, machine learning, and real-time monitoring to provide comprehensive cryptocurrency market analysis.
 
-## ✈️ Flight price alerts (Telegram)
+## ✈️ Flight Price Alerts (Telegram)
 
-The repository also includes a lightweight flight-alert bot (`index.js`) that queries LEVEL's calendar API, stores historical prices in SQLite, and sends Telegram alerts when fares drop below your threshold.
+Included in this repository is a flight price monitoring bot that:
 
-1. Copy `.env.example` to `.env` and fill in your `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, and optional `PRICE_THRESHOLD`/`DB_PATH`.
-2. Optionally configure custom routes with `LEVEL_ROUTES_JSON`, for example:
+- **Monitors routes**: Madrid, Barcelona, Roma → Córdoba
+- **Checks every 15 minutes** for price changes
+- **Stores history** in SQLite database
+- **Sends Telegram alerts** when prices drop below threshold (€500)
 
-   ```bash
-   LEVEL_ROUTES_JSON='[{"origin":"EZE","destination":"MAD","outboundDate":"2025-07-30","threshold":320}]'
-   ```
+### Quick Start
 
-3. Install Node dependencies and start the watcher:
+```bash
+# 1. Configure environment
+cp .env.example .env
+# Edit .env and add your Telegram credentials:
+# TELEGRAM_BOT_TOKEN=your_token
+# TELEGRAM_CHAT_ID=your_chat_id
+# PRICE_THRESHOLD=500
 
-   ```bash
-   npm install
-   npm run start
-   ```
+# 2. Install dependencies
+npm install
 
-The bot polls every five minutes, records prices for each available date, and notifies you of the cheapest day when it falls under the configured threshold.
+# 3. Start the bot
+node index.js
+```
+
+### Monitored Routes
+
+| Route | Threshold |
+|-------|-----------|
+| Madrid → Córdoba | €500 |
+| Barcelona → Córdoba | €500 |
+| Roma → Córdoba | €500 |
+
+### Alert Format
+
+When a cheap flight is found:
+```
+✈️ ALERTA DE VUELO BARATO
+
+Ruta: Madrid → Córdoba
+Precio: €380 EUR
+Umbral: €500 EUR
+Ahorro: €120 (24%)
+
+⚠️ Verifica condiciones y equipaje antes de comprar.
+```
+
+### Configuration
+
+Edit `index.js` to add more routes:
+```javascript
+const routes = [
+  { origin: 'MAD', destination: 'COR', name: 'Madrid → Córdoba' },
+  { origin: 'BCN', destination: 'COR', name: 'Barcelona → Córdoba' },
+  { origin: 'FCO', destination: 'COR', name: 'Roma → Córdoba' },
+];
+```
+
+---
 
 ## 🌟 Key Features
 
