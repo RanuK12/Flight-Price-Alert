@@ -1,103 +1,269 @@
-# 🛫 Flight Price Alert Bot
+# ✈️ Flight Price Finder
 
-Bot automatizado para monitorear precios de vuelos y enviar alertas por Telegram cuando encuentras ofertas baratas.
+Una aplicación web moderna para monitorear y comparar precios de vuelos en tiempo real desde múltiples fuentes. Busca vuelos baratos, guarda alertas y recibe notificaciones.
 
-## ✨ Características
+## 🎯 Características Principales
 
-- ✅ **Monitoreo automático** cada 15 minutos
-- ✅ **Web scraping** de Skyscanner en tiempo real
-- ✅ **Alertas por Telegram** consolidadas
-- ✅ **Base de datos SQLite** para historial
-- ✅ **Código profesional** y mantenible
-- ✅ **Fácil configuración** con variables de entorno
+### 🔍 Búsqueda Inteligente
+- **Multi-fuente:** Skyscanner, Kayak (y más en expansión)
+- **Comparación automática:** Encuentra el precio más bajo entre todas las fuentes
+- **Enlaces directos:** Reserva desde la app con un clic
+- **Fechas de salida:** Información específica del día de vuelo
+- **Historial de búsquedas:** Accede a tus rutas recientes
 
-## 🛣️ Rutas Monitoreadas
+### 📊 Monitoreo de Precios
+- **Alertas personalizadas:** Guarda rutas con umbral de precio
+- **Histórico de precios:** Visualiza tendencias
+- **Base de datos SQLite:** Todos tus datos locales
 
-| Origen | Destino | Umbral |
-|--------|---------|--------|
-| MAD | COR | €500 |
-| BCN | COR | €500 |
-| FCO | COR | €500 |
+### 💻 Interfaz Responsiva
+- Diseño moderno y limpio
+- Funciona en desktop, tablet y móvil
+- Búsqueda rápida con rutas populares
+- Notificaciones en tiempo real
+
+## 🛫 Rutas Disponibles
+
+### Destinos Principales
+- **🇦🇷 Buenos Aires (Ezeiza - AEP)** - Principal destino Argentina
+- 🇪🇸 Madrid (MAD), Barcelona (BCN), Roma (FCO)
+- 🇵🇹 Lisboa (LIS), 🇩🇪 Berlín (BER)
+- 🇺🇸 Miami (MIA), Orlando (MCO), Nueva York (JFK)
+- 🇦🇷 Córdoba (COR)
+
+### Principales Aerolíneas Seguidas
+- Ryanair, Vueling, Iberia
+- Lufthansa, Air Europa
+- EasyJet, LATAM, Aerolíneas Argentinas
 
 ## 🚀 Instalación Rápida
 
-### 1. Clonar el repositorio
-
+### 1. Clonar y Navegar
 ```bash
 git clone https://github.com/RanuK12/Flight-Price-Alert.git
 cd Flight-Price-Alert
 ```
 
-### 2. Instalar dependencias
-
+### 2. Instalar Dependencias
 ```bash
 npm install
 ```
 
-### 3. Configurar variables de entorno
-
-Crear archivo `.env`:
-
-```env
-TELEGRAM_BOT_TOKEN=tu_token_aqui
-TELEGRAM_CHAT_ID=tu_chat_id_aqui
-PRICE_THRESHOLD=500
-```
-
-### 4. Ejecutar el bot
-
+### 3. Configurar Variables de Entorno
+Copiar `.env.example` a `.env`:
 ```bash
-node index.js
+cp .env.example .env
 ```
 
-El bot iniciará y verificará precios automáticamente cada 15 minutos.
-
-## ⚙️ Configuración
-
-### Cambiar rutas monitoreadas
-
-Editar `index.js` y modificar el array `routes`:
-
-```javascript
-const routes = [
-  { origin: 'MAD', destination: 'COR', name: 'Madrid → Córdoba' },
-  { origin: 'BCN', destination: 'COR', name: 'Barcelona → Córdoba' },
-  { origin: 'FCO', destination: 'COR', name: 'Roma → Córdoba' },
-];
+Editar `.env` con tus valores:
+```env
+PORT=3000
+NODE_ENV=development
+TELEGRAM_BOT_TOKEN=  # Opcional
+TELEGRAM_CHAT_ID=    # Opcional
 ```
 
-### Cambiar umbral de precio
+### 4. Iniciar la Aplicación
+```bash
+npm start
+```
 
+La app estará disponible en `http://localhost:3000`
+
+## 📚 Estructura del Proyecto
+
+```
+flight-price-bot/
+├── server/
+│   ├── app.js                 # Servidor principal Express
+│   ├── scrapers/
+│   │   ├── index.js          # Coordinador de scrapers
+│   │   ├── skyscanner.js     # Scraper Skyscanner
+│   │   └── kayak.js          # Scraper Kayak
+│   ├── routes/
+│   │   └── flights.js        # API REST endpoints
+│   ├── database/
+│   │   └── db.js             # Gestión de SQLite
+│   └── utils/                # Utilidades
+├── public/
+│   ├── index.html            # Interfaz HTML
+│   ├── app.js                # JavaScript frontend
+│   └── styles.css            # Estilos CSS
+├── tests/
+│   ├── scraper.test.js
+│   ├── sources.test.js
+│   └── database.test.js
+└── data/
+    └── flights.db            # Base de datos (generada)
+```
+
+## 🔌 API REST
+
+### Buscar Vuelos
+```bash
+GET /api/search?origin=MAD&destination=AEP
+```
+
+Respuesta:
+```json
+{
+  "origin": "MAD",
+  "destination": "AEP",
+  "minPrice": 480,
+  "sources": ["Skyscanner", "Kayak"],
+  "allFlights": [
+    {
+      "airline": "Ryanair",
+      "price": 480,
+      "link": "https://booking-url.com",
+      "source": "Skyscanner",
+      "departureDate": "15 ene"
+    }
+  ],
+  "cheapestFlight": {
+    "airline": "Ryanair",
+    "price": 480,
+    "link": "https://booking-url.com",
+    "source": "Skyscanner",
+    "departureDate": "15 ene"
+  }
+}
+```
+
+### Historial de Precios
+```bash
+GET /api/history/:origin/:destination
+```
+
+### Crear Alerta
+```bash
+POST /api/alert
+Content-Type: application/json
+
+{
+  "origin": "MAD",
+  "destination": "AEP",
+  "threshold": 500
+}
+```
+
+### Alertas Guardadas
+```bash
+GET /api/alerts
+DELETE /api/alert/:id
+```
+
+### Estadísticas
+```bash
+GET /api/stats
+```
+
+## 🧪 Testing
+
+Ejecutar todos los tests:
+```bash
+npm test
+```
+
+Tests específicos:
+```bash
+npm run test:scraper
+npm run test:api
+npm run test:db
+```
+
+## ⚙️ Configuración Avanzada
+
+### Cambiar Umbral de Precio Global
 En `.env`:
 ```env
-PRICE_THRESHOLD=500  # Cambiar a tu valor deseado en EUR
+PRICE_THRESHOLD_EUR=500
 ```
 
-### Cambiar frecuencia de verificación
-
-En `index.js`, modificar la expresión cron:
-
-```javascript
-// Cada 15 minutos (actual)
-cron.schedule('*/15 * * * *', () => { checkPrices(); });
-
-// Cada 30 minutos
-cron.schedule('*/30 * * * *', () => { checkPrices(); });
-
-// Cada hora
-cron.schedule('0 * * * *', () => { checkPrices(); });
+### Habilitar Notificaciones Telegram (Opcional)
+1. Crear bot en Telegram con @BotFather
+2. Obtener Chat ID
+3. Configurar en `.env`:
+```env
+TELEGRAM_BOT_TOKEN=your_token
+TELEGRAM_CHAT_ID=your_chat_id
+ENABLE_CRON=true
 ```
 
-## 📱 Formato de Alertas
+### Conectar a Nuevas Fuentes de Scraping
+1. Crear archivo `server/scrapers/nombre.js`
+2. Implementar función `scrapeNombre(origin, destination)`
+3. Agregar a `server/scrapers/index.js`
 
-Cuando se encuentra un vuelo barato:
+## 🐛 Solución de Problemas
 
+### "No se encuentra Puppeteer"
+```bash
+npm install puppeteer-extra --save
 ```
-✈️ ALERTA DE VUELO BARATO
 
-Ruta: Madrid → Córdoba
-Precio: €380 EUR
-Umbral: €500 EUR
+### Puerto 3000 en uso
+Cambiar en `.env`:
+```env
+PORT=3001
+```
+
+### Errores de conexión a BD
+```bash
+rm data/flights.db
+npm start  # Se recrea automáticamente
+```
+
+## 📈 Roadmap
+
+- [ ] Agregar más fuentes (Google Flights, Kiwi.com)
+- [ ] Alertas por email
+- [ ] Gráficos de tendencias de precios
+- [ ] Geolocalización automática
+- [ ] Búsqueda de viajes de ida y vuelta
+- [ ] App móvil (React Native)
+
+## 🛠️ Stack Tecnológico
+
+**Backend:**
+- Node.js 18+
+- Express 4.x
+- SQLite 3
+- Puppeteer (Web Scraping)
+- Cheerio (HTML Parsing)
+
+**Frontend:**
+- HTML5
+- CSS3 (Responsive Design)
+- Vanilla JavaScript
+- Fetch API
+
+**Testing:**
+- Jest 29.x
+- Supertest (API testing)
+
+## 📝 Licencia
+
+ISC
+
+## 👨‍💻 Contribuciones
+
+Las contribuciones son bienvenidas. Por favor:
+
+1. Fork el repositorio
+2. Crea una rama (`git checkout -b feature/MiFeature`)
+3. Commit cambios (`git commit -m 'Agrega MiFeature'`)
+4. Push a la rama (`git push origin feature/MiFeature`)
+5. Abre un Pull Request
+
+## 📧 Contacto
+
+Para reportar bugs o sugerencias: [Issues](https://github.com/RanuK12/Flight-Price-Alert/issues)
+
+---
+
+**¡Encuentra vuelos baratos con Flight Price Finder!** ✈️
+
 Ahorro: €120 (24%)
 
 ⚠️ Verifica condiciones y equipaje antes de comprar.
