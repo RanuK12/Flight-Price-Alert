@@ -1,29 +1,38 @@
 {
-  "name": "flights-alerts",
-  "version": "1.0.0",
-  "description": "Flight price alert bot for Telegram using LEVEL calendar data.",
-  "main": "index.js",
+  "name": "flight-price-app",
+  "version": "2.0.0",
+  "description": "Web app for monitoring flight prices with multi-source scraping and Telegram alerts.",
+  "main": "server/app.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node index.js",
-    "test": "jest"
+    "start": "node server/app.js",
+    "dev": "node server/app.js",
+    "test": "jest --detectOpenHandles",
+    "test:scraper": "jest server/scrapers --testTimeout=30000",
+    "test:api": "jest server/routes --testTimeout=10000",
+    "test:db": "jest server/database --testTimeout=10000"
   },
   "keywords": [
     "flights",
-    "telegram",
-    "alerts",
-    "level"
+    "price-tracking",
+    "web-app",
+    "scraping",
+    "alerts"
   ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "axios": "^1.7.7",
+    "cheerio": "^1.0.0-rc.12",
+    "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "express": "^4.18.2",
     "node-cron": "^3.0.3",
     "node-telegram-bot-api": "^0.66.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "jest": "^29.7.0"

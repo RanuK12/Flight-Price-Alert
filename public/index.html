@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Price Finder - Busca Vuelos Baratos</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">✈️</span>
+                    <h1>Flight Price Finder</h1>
+                </div>
+                <p class="tagline">Encuentra los vuelos más baratos en tiempo real</p>
+            </div>
+        </header>
+
+        <!-- Search Section -->
+        <section class="search-section">
+            <div class="search-card">
+                <h2>Buscar Vuelos</h2>
+                <form id="searchForm" class="search-form">
+                    <div class="form-group">
+                        <label for="origin">Origen</label>
+                        <input type="text" id="origin" placeholder="Ej: MAD, BCN, JFK" required>
+                        <small>Códigos: MAD, BCN, FCO, LIS, BER, MIA, MCO, JFK</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="destination">Destino</label>
+                        <input type="text" id="destination" placeholder="Ej: AEP, COR, MAD" required>
+                        <small>Destinos populares: AEP (Buenos Aires), COR, MAD, BCN</small>
+                    </div>
+
+                    <button type="submit" class="btn-search">
+                        <span>Buscar Vuelos</span>
+                        <span class="loader" id="searchLoader" style="display:none;">⟳</span>
+                    </button>
+                </form>
+
+                <!-- Quick Routes -->
+                <div class="quick-routes">
+                    <p>Rutas económicas populares:</p>
+                    <div class="route-buttons">
+                        <button class="quick-btn" data-origin="MAD" data-dest="AEP">Madrid → Buenos Aires</button>
+                        <button class="quick-btn" data-origin="BCN" data-dest="AEP">Barcelona → Buenos Aires</button>
+                        <button class="quick-btn" data-origin="MIA" data-dest="AEP">Miami → Buenos Aires</button>
+                        <button class="quick-btn" data-origin="LIS" data-dest="AEP">Lisboa → Buenos Aires</button>
+                        <button class="quick-btn" data-origin="BER" data-dest="AEP">Berlín → Buenos Aires</button>
+                        <button class="quick-btn" data-origin="MCO" data-dest="AEP">Orlando → Buenos Aires</button>
+                        <button class="quick-btn" data-origin="AEP" data-dest="MAD">Buenos Aires → Madrid</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section class="results-section" id="resultsSection" style="display:none;">
+            <div class="results-header">
+                <h2>Resultados para <span id="routeDisplay"></span></h2>
+                <button class="btn-secondary" onclick="location.reload()">Nueva búsqueda</button>
+            </div>
+
+            <!-- Cheapest Flight Highlight -->
+            <div class="cheapest-card" id="cheapestCard" style="display:none;">
+                <div class="cheapest-badge">🏷️ Más Barato</div>
+                <div class="cheapest-content">
+                    <div class="cheapest-left">
+                        <div class="cheapest-price" id="cheapestPrice"></div>
+                        <div class="cheapest-date" id="cheapestDate"></div>
+                    </div>
+                    <div class="cheapest-middle">
+                        <p id="cheapestAirline"></p>
+                    </div>
+                    <a id="cheapestLink" href="#" class="btn-book" target="_blank">Reservar Ahora</a>
+                </div>
+            </div>
+
+            <!-- Source Comparison -->
+            <div class="sources-section">
+                <h3>Precios por Fuente</h3>
+                <div class="sources-grid" id="sourcesGrid"></div>
+            </div>
+
+            <!-- All Flights List -->
+            <div class="flights-section">
+                <h3>Todos los Vuelos Disponibles</h3>
+                <div class="flights-list" id="flightsList"></div>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-section" id="statsSection" style="display:none;">
+                <p class="stats-text">
+                    Se encontraron <strong id="totalFlights"></strong> opciones de vuelo 
+                    con un precio mínimo de <strong id="minPrice">-</strong>
+                </p>
+            </div>
+        </section>
+
+        <!-- Saved Alerts Section -->
+        <section class="alerts-section">
+            <h2>Alertas Guardadas</h2>
+            <div class="alerts-container">
+                <div class="alert-input">
+                    <input type="text" id="alertOrigin" placeholder="Origen (Ej: MAD)">
+                    <input type="text" id="alertDestination" placeholder="Destino (Ej: AEP)">
+                    <input type="number" id="alertThreshold" placeholder="Umbral €" min="50" max="5000">
+                    <button class="btn-secondary" onclick="createAlert()">Crear Alerta</button>
+                </div>
+
+                <div class="alerts-list" id="alertsList"></div>
+            </div>
+        </section>
+
+        <!-- Search History -->
+        <section class="history-section">
+            <h2>Búsquedas Recientes</h2>
+            <div class="history-list" id="historyList"></div>
+        </section>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

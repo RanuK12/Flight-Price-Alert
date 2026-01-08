@@ -1,53 +1,91 @@
-# Changelog - Flight Price Bot
+# Changelog - Flight Price Finder
 
-## [v2.0] - 2024
+## [2.0.0] - 2025-01-08 🚀 MAJOR RELEASE
 
-### ✨ Cambios Importantes
+### 🎉 Complete Application Redesign: Bot → Web Application
 
-#### Refactor Profesional
-- ✅ Reescrito `index.js` de forma limpia y profesional (102 líneas vs 205 anteriores)
-- ✅ Reescrito `database.js` con comentarios en lenguaje natural (sin estilo IA)
-- ✅ Creado nuevo `skyscanner_scraper.js` profesional y optimizado
+#### 🌐 New Web Application
+- ✅ Full-featured responsive web app with modern UI/UX
+- ✅ Express.js backend with REST API
+- ✅ Real-time flight search and price comparison
+- ✅ Interactive dashboard with saved routes and alerts
+- ✅ Search history and price tracking
 
-#### Nueva Funcionalidad
-- ✅ Agregado web scraping de **Skyscanner** (más confiable que LEVEL API)
-- ✅ Sistema de **alertas consolidadas** (un mensaje por ruta)
-- ✅ **3 nuevas rutas** monitoreadas:
-  - Madrid → Córdoba (€500 umbral)
-  - Barcelona → Córdoba (€500 umbral)
-  - Roma → Córdoba (€500 umbral)
+#### 📍 Expanded Route Coverage
+- **Argentina**: Buenos Aires (AEP-Ezeiza) as primary destination
+- **Europe (Budget-Friendly)**: Lisboa (LIS), Berlín (BER)
+- **USA (Direct Connections)**: Miami (MIA), Orlando (MCO), Nueva York (JFK)
+- **Existing**: Madrid, Barcelona, Roma, Córdoba
 
-#### Base de Datos
-- ✅ Migración exitosa de **PostgreSQL → SQLite3**
-- ✅ Base de datos local (`prices.db`) sin dependencias externas
-- ✅ Soporte para historial de precios con timestamps
+#### 🔍 Multi-Source Scraping
+- ✅ Skyscanner integration (primary source)
+- ✅ Kayak integration (price comparison)
+- ✅ Automatic price aggregation across sources
+- ✅ Direct booking links from each provider
 
-#### Testing
-- ✅ 3 pruebas exitosas de alertas en Telegram
-- ✅ Scraping verificado para todos los proveedores
-- ✅ Sistema de scheduling funcionando cada 15 minutos
+#### 💾 Enhanced Database
+- ✅ Modular SQLite schema (flight_prices, saved_routes, alerts, search_history)
+- ✅ Automatic price history tracking
+- ✅ Custom alert thresholds per route
+- ✅ Search statistics and analytics
 
-#### Documentación
-- ✅ README completamente actualizado
-- ✅ Instrucciones claras de instalación
-- ✅ Guía de configuración y rutas
-- ✅ Stack tecnológico documentado
+#### 🧪 Testing & Quality
+- ✅ Comprehensive Jest test suite
+- ✅ Scraper validation tests
+- ✅ API endpoint tests
+- ✅ Database operation tests
+- ✅ Demo script for functionality validation
 
-### 📁 Limpieza del Proyecto
-- ✅ Eliminados archivos innecesarios de desarrollo
-- ✅ Removidos scripts de demostración
-- ✅ Eliminada documentación redundante
-- ✅ Estructura del proyecto ahora profesional
+#### 📚 Documentation
+- ✅ Complete README with API documentation
+- ✅ ARCHITECTURE.md with system design
+- ✅ Installation and setup guide
+- ✅ Troubleshooting section
+- ✅ Developer guide for extending functionality
 
-### 🛠️ Tech Stack
-
+#### 🛠️ Technical Stack
 ```
-Node.js v16+
-├── node-telegram-bot-api v0.66.0  (Bot de Telegram)
-├── sqlite3 v5.1.6                  (Base de datos local)
-├── puppeteer-extra v3.3.6          (Web scraping)
-├── puppeteer-extra-plugin-stealth  (Evasión de detección)
-├── node-cron v4.1.1                (Scheduling)
+Backend:
+├── Node.js + Express.js
+├── SQLite3 (local database)
+├── Puppeteer + Cheerio (web scraping)
+└── CORS + dotenv
+
+Frontend:
+├── HTML5 + CSS3 (responsive design)
+├── Vanilla JavaScript (no heavy frameworks)
+├── Fetch API (REST communication)
+└── Mobile-optimized UI
+
+Testing:
+├── Jest framework
+├── Integration tests
+└── End-to-end validation
+```
+
+### 🎯 Key Improvements Over v1.0
+
+| Feature | v1.0 (Bot) | v2.0 (App) |
+|---------|-----------|-----------|
+| Interface | Telegram Only | Web + Optional Bot |
+| Sources | Skyscanner | Skyscanner + Kayak |
+| Routes | 6 routes | 20+ routes |
+| Price Comparison | Single source | Multi-source |
+| User Experience | Chat-based | Dashboard UI |
+| Mobile Support | Via Telegram | Fully responsive |
+| Alerts | Passive notifications | Active dashboard |
+| Data Visualization | None | Price trends |
+| Booking | Links in messages | Direct integration |
+
+## [1.0.0] - 2024-12-15 (Previous)
+
+### Initial Release
+- Telegram bot for flight price monitoring
+- Skyscanner web scraping
+- SQLite database for price history
+- Automatic checks every 15 minutes
+- Alert notifications via Telegram
+- Spain-Córdoba routes support
 ├── axios v1.4.0                    (HTTP requests)
 └── dotenv v16.0.0                  (Configuración)
 ```
