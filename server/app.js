@@ -2,10 +2,11 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const cron = require('node-cron');
 
 const { initDatabase } = require('./database/db');
 const flightRoutes = require('./routes/flights');
+const { initTelegram } = require('./services/telegram');
+const { startMonitoring, getMonitorStatus } = require('./services/flightMonitor');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,7 +21,11 @@ app.use('/api', flightRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    monitor: getMonitorStatus(),
+  });
 });
 
 // Main page
@@ -34,10 +39,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Inicializar base de datos y comenzar servidor
+// Inicializar y comenzar servidor
 async function startServer() {
   try {
-    console.log('🛫 Inicializando Flight Price App v2.0...\n');
+    console.log('\n' + '='.repeat(60));
+    console.log('🛫 FLIGHT DEAL FINDER v3.0');
+    console.log('='.repeat(60));
+    console.log('');
     
     // Inicializar BD
     const dbReady = await initDatabase();
@@ -45,20 +53,30 @@ async function startServer() {
       throw new Error('No se pudo inicializar la base de datos');
     }
 
+    // Inicializar Telegram (opcional)
+    initTelegram();
+
     // Iniciar servidor
     app.listen(PORT, () => {
-      console.log(`\n✅ Servidor ejecutándose en http://localhost:${PORT}`);
+      console.log('');
+      console.log(`✅ Servidor ejecutándose en http://localhost:${PORT}`);
       console.log(`📡 API disponible en http://localhost:${PORT}/api`);
-      console.log(`🎨 Interfaz en http://localhost:${PORT}\n`);
+      console.log(`🎨 Interfaz en http://localhost:${PORT}`);
+      console.log('');
+      console.log('📋 ENDPOINTS PRINCIPALES:');
+      console.log('   GET  /api/search?origin=MAD&destination=EZE');
+      console.log('   GET  /api/deals');
+      console.log('   GET  /api/routes');
+      console.log('   POST /api/monitor/start');
+      console.log('   GET  /api/monitor/status');
+      console.log('');
     });
 
-    // Tareas programadas (opcional)
-    // Ejecutar verificación cada hora
-    if (process.env.ENABLE_CRON === 'true') {
-      cron.schedule('0 * * * *', () => {
-        console.log('⏰ Ejecutando verificación programada...');
-        // Aquí se ejecutarían búsquedas automáticas si está configurado
-      });
+    // Auto-iniciar monitoreo si está configurado
+    if (process.env.AUTO_MONITOR === 'true') {
+      console.log('🚀 Iniciando monitoreo automático...');
+      const schedule = process.env.MONITOR_SCHEDULE || '0 */4 * * *';
+      startMonitoring(schedule);
     }
 
   } catch (error) {

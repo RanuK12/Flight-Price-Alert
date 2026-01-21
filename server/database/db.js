@@ -98,6 +98,27 @@ async function initDatabase() {
       )
     `);
 
+    // Tabla de ofertas encontradas (deals)
+    await run(`
+      CREATE TABLE IF NOT EXISTS deals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        origin TEXT NOT NULL,
+        destination TEXT NOT NULL,
+        price REAL NOT NULL,
+        deal_level TEXT,
+        outbound_date TEXT,
+        return_date TEXT,
+        trip_type TEXT DEFAULT 'oneway',
+        airline TEXT,
+        booking_url TEXT,
+        savings REAL,
+        savings_percent INTEGER,
+        notified INTEGER DEFAULT 0,
+        found_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(origin, destination, outbound_date, price)
+      )
+    `);
+
     console.log('✅ Esquema de base de datos inicializado');
     return true;
   } catch (error) {
@@ -106,10 +127,149 @@ async function initDatabase() {
   }
 }
 
+/**
+ * Guarda un precio de vuelo
+ */
+async function saveFlightPrice(data) {
+  const { origin, destination, price, date, airline, source } = data;
+  const routeId = `${origin}-${destination}`;
+  
+  return run(`
+    INSERT OR IGNORE INTO flight_prices 
+    (route_id, origin, destination, airline, price, source, departure_date)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, [routeId, origin, destination, airline, price, source, date]);
+}
+
+/**
+ * Guarda una oferta encontrada
+ */
+async function saveDeal(deal) {
+  const {
+    origin,
+    destination,
+    lowestPrice,
+    dealLevel,
+    outboundDate,
+    returnDate,
+    tripType,
+    bookingUrl,
+    savings,
+    savingsPercent,
+  } = deal;
+
+  const airline = deal.bestFlights?.[0]?.airline || 'Multiple';
+
+  return run(`
+    INSERT OR IGNORE INTO deals 
+    (origin, destination, price, deal_level, outbound_date, return_date, trip_type, airline, booking_url, savings, savings_percent)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [origin, destination, lowestPrice, dealLevel, outboundDate, returnDate, tripType, airline, bookingUrl, savings || 0, savingsPercent || 0]);
+}
+
+/**
+ * Obtiene ofertas recientes
+ */
+async function getRecentDeals(limit = 20) {
+  return all(`
+    SELECT * FROM deals 
+    ORDER BY found_at DESC 
+    LIMIT ?
+  `, [limit]);
+}
+
+/**
+ * Obtiene las mejores ofertas por nivel
+ */
+async function getBestDeals(dealLevel = null, limit = 10) {
+  if (dealLevel) {
+    return all(`
+      SELECT * FROM deals 
+      WHERE deal_level = ?
+      ORDER BY price ASC 
+      LIMIT ?
+    `, [dealLevel, limit]);
+  }
+  
+  return all(`
+    SELECT * FROM deals 
+    WHERE deal_level IN ('steal', 'great')
+    ORDER BY 
+      CASE deal_level 
+        WHEN 'steal' THEN 1 
+        WHEN 'great' THEN 2 
+        ELSE 3 
+      END,
+      price ASC
+    LIMIT ?
+  `, [limit]);
+}
+
+/**
+ * Estadísticas de ofertas
+ */
+async function getDealStats() {
+  const stats = await get(`
+    SELECT 
+      COUNT(*) as totalDeals,
+      COUNT(CASE WHEN deal_level = 'steal' THEN 1 END) as steals,
+      COUNT(CASE WHEN deal_level = 'great' THEN 1 END) as great,
+      COUNT(CASE WHEN deal_level = 'good' THEN 1 END) as good,
+      MIN(price) as lowestPrice,
+      AVG(price) as avgPrice,
+      AVG(savings_percent) as avgSavingsPercent
+    FROM deals
+  `);
+
+  const byRoute = await all(`
+    SELECT 
+      origin || ' → ' || destination as route,
+      COUNT(*) as dealCount,
+      MIN(price) as lowestPrice,
+      AVG(price) as avgPrice
+    FROM deals
+    GROUP BY origin, destination
+    ORDER BY dealCount DESC
+    LIMIT 10
+  `);
+
+  return {
+    ...stats,
+    byRoute,
+  };
+}
+
+/**
+ * Historial de precios para una ruta
+ */
+async function getPriceHistory(origin, destination, days = 30) {
+  return all(`
+    SELECT price, departure_date, airline, source, recorded_at
+    FROM flight_prices
+    WHERE origin = ? AND destination = ?
+    AND recorded_at >= datetime('now', '-' || ? || ' days')
+    ORDER BY recorded_at DESC
+  `, [origin, destination, days]);
+}
+
+/**
+ * Marca alerta como enviada
+ */
+async function markAlertSent(dealId) {
+  return run(`UPDATE deals SET notified = 1 WHERE id = ?`, [dealId]);
+}
+
 module.exports = {
   db,
   run,
   get,
   all,
   initDatabase,
+  saveFlightPrice,
+  saveDeal,
+  getRecentDeals,
+  getBestDeals,
+  getDealStats,
+  getPriceHistory,
+  markAlertSent,
 };
