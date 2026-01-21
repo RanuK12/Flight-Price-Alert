@@ -75,6 +75,13 @@ const ROUTES = [
   { origin: 'Madrid', dest: 'Miami', goodOneWay: 320, goodRoundTrip: 480 },
   { origin: 'Barcelona', dest: 'Nueva York', goodOneWay: 320, goodRoundTrip: 480 },
   { origin: 'Londres', dest: 'Nueva York', goodOneWay: 280, goodRoundTrip: 400 },
+  
+  // USA → ARGENTINA
+  { origin: 'Nueva York', dest: 'Buenos Aires', goodOneWay: 450, goodRoundTrip: 650 },
+  { origin: 'Miami', dest: 'Buenos Aires', goodOneWay: 400, goodRoundTrip: 600 },
+  { origin: 'Los Angeles', dest: 'Buenos Aires', goodOneWay: 500, goodRoundTrip: 700 },
+  { origin: 'Nueva York', dest: 'Cordoba Argentina', goodOneWay: 500, goodRoundTrip: 700 },
+  { origin: 'Miami', dest: 'Cordoba Argentina', goodOneWay: 450, goodRoundTrip: 650 },
 ];
 
 // ============================================
@@ -227,15 +234,15 @@ function getReturnDate(departDate) {
 }
 
 function getSearchDates() {
-  const dates = [];
-  const today = new Date();
-  // Buscar para 3, 5 y 7 semanas adelante
-  [21, 35, 49].forEach(days => {
-    const d = new Date(today);
-    d.setDate(d.getDate() + days);
-    dates.push(d.toISOString().split('T')[0]);
-  });
-  return dates;
+  // Fechas específicas: 25 marzo - 15 abril 2026
+  return [
+    '2026-03-25',
+    '2026-03-28',
+    '2026-04-01',
+    '2026-04-05',
+    '2026-04-10',
+    '2026-04-15'
+  ];
 }
 
 // ============================================
