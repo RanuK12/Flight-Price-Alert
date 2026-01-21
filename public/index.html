@@ -1,131 +1,912 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flight Price Finder - Busca Vuelos Baratos</title>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flight Deal Finder 🛫</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #3b82f6;
+      --primary-dark: #2563eb;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --bg: #0f172a;
+      --bg-card: #1e293b;
+      --bg-card-hover: #334155;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --border: #334155;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* Header */
+    header {
+      background: linear-gradient(135deg, var(--bg-card) 0%, #0f172a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 0;
+      margin-bottom: 30px;
+    }
+
+    header .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo h1 {
+      font-size: 24px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo span {
+      font-size: 32px;
+    }
+
+    .status-badges {
+      display: flex;
+      gap: 12px;
+    }
+
+    .badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .badge-success {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--success);
+    }
+
+    .badge-warning {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--warning);
+    }
+
+    .badge-inactive {
+      background: rgba(148, 163, 184, 0.2);
+      color: var(--text-muted);
+    }
+
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    .pulse-green {
+      background: var(--success);
+    }
+
+    .pulse-yellow {
+      background: var(--warning);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Grid Layout */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 20px;
+    }
+
+    .grid-full {
+      grid-column: 1 / -1;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid var(--border);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Search Form */
+    .search-form {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .form-group {
+      flex: 1;
+      min-width: 140px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 12px 16px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    input::placeholder {
+      color: var(--text-muted);
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: white;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: white;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn-outline:hover {
+      background: var(--bg-card-hover);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Deal Cards */
+    .deals-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .deal-card {
+      background: var(--bg);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      transition: transform 0.2s, box-shadow 0.2s;
+      border: 1px solid var(--border);
+    }
+
+    .deal-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .deal-card.steal {
+      border-left: 4px solid var(--danger);
+      background: linear-gradient(90deg, rgba(239, 68, 68, 0.1) 0%, var(--bg) 100%);
+    }
+
+    .deal-card.great {
+      border-left: 4px solid var(--warning);
+      background: linear-gradient(90deg, rgba(245, 158, 11, 0.1) 0%, var(--bg) 100%);
+    }
+
+    .deal-card.good {
+      border-left: 4px solid var(--success);
+    }
+
+    .deal-info {
+      flex: 1;
+    }
+
+    .deal-route {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .deal-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+      display: flex;
+      gap: 12px;
+    }
+
+    .deal-price {
+      text-align: right;
+    }
+
+    .deal-price .amount {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--success);
+    }
+
+    .deal-price .savings {
+      font-size: 12px;
+      color: var(--success);
+    }
+
+    .deal-level {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-top: 8px;
+    }
+
+    .level-steal {
+      background: var(--danger);
+      color: white;
+    }
+
+    .level-great {
+      background: var(--warning);
+      color: black;
+    }
+
+    .level-good {
+      background: var(--success);
+      color: white;
+    }
+
+    /* Routes List */
+    .routes-list {
+      display: grid;
+      gap: 8px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .route-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      background: var(--bg);
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .route-item .price {
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .route-item .price span {
+      color: var(--success);
+    }
+
+    /* Stats */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 16px;
+    }
+
+    .stat-item {
+      text-align: center;
+      padding: 16px;
+      background: var(--bg);
+      border-radius: 12px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Loading */
+    .loading {
+      display: flex;
+      justify-content: center;
+      padding: 40px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+
+    .empty-state .icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    /* Result Card */
+    .result-card {
+      background: var(--bg);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 16px;
+    }
+
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 16px;
+    }
+
+    .result-price {
+      font-size: 32px;
+      font-weight: 700;
+    }
+
+    .result-price.deal {
+      color: var(--success);
+    }
+
+    /* Actions */
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .search-form {
+        flex-direction: column;
+      }
+      
+      .form-group {
+        min-width: 100%;
+      }
+      
+      header .container {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .deal-card {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .deal-price {
+        text-align: center;
+      }
+    }
+  </style>
 </head>
 <body>
+  <header>
     <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <div class="logo">
-                    <span class="logo-icon">✈️</span>
-                    <h1>Flight Price Finder</h1>
-                </div>
-                <p class="tagline">Encuentra los vuelos más baratos en tiempo real</p>
-            </div>
-        </header>
-
-        <!-- Search Section -->
-        <section class="search-section">
-            <div class="search-card">
-                <h2>Buscar Vuelos</h2>
-                <form id="searchForm" class="search-form">
-                    <div class="form-group">
-                        <label for="origin">Origen</label>
-                        <input type="text" id="origin" placeholder="Ej: MAD, BCN, JFK" required>
-                        <small>Códigos: MAD, BCN, FCO, LIS, BER, MIA, MCO, JFK</small>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="destination">Destino</label>
-                        <input type="text" id="destination" placeholder="Ej: AEP, COR, MAD" required>
-                        <small>Destinos populares: AEP (Buenos Aires), COR, MAD, BCN</small>
-                    </div>
-
-                    <button type="submit" class="btn-search">
-                        <span>Buscar Vuelos</span>
-                        <span class="loader" id="searchLoader" style="display:none;">⟳</span>
-                    </button>
-                </form>
-
-                <!-- Quick Routes -->
-                <div class="quick-routes">
-                    <p>Rutas económicas populares:</p>
-                    <div class="route-buttons">
-                        <button class="quick-btn" data-origin="MAD" data-dest="AEP">Madrid → Buenos Aires</button>
-                        <button class="quick-btn" data-origin="BCN" data-dest="AEP">Barcelona → Buenos Aires</button>
-                        <button class="quick-btn" data-origin="MIA" data-dest="AEP">Miami → Buenos Aires</button>
-                        <button class="quick-btn" data-origin="LIS" data-dest="AEP">Lisboa → Buenos Aires</button>
-                        <button class="quick-btn" data-origin="BER" data-dest="AEP">Berlín → Buenos Aires</button>
-                        <button class="quick-btn" data-origin="MCO" data-dest="AEP">Orlando → Buenos Aires</button>
-                        <button class="quick-btn" data-origin="AEP" data-dest="MAD">Buenos Aires → Madrid</button>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Results Section -->
-        <section class="results-section" id="resultsSection" style="display:none;">
-            <div class="results-header">
-                <h2>Resultados para <span id="routeDisplay"></span></h2>
-                <button class="btn-secondary" onclick="location.reload()">Nueva búsqueda</button>
-            </div>
-
-            <!-- Cheapest Flight Highlight -->
-            <div class="cheapest-card" id="cheapestCard" style="display:none;">
-                <div class="cheapest-badge">🏷️ Más Barato</div>
-                <div class="cheapest-content">
-                    <div class="cheapest-left">
-                        <div class="cheapest-price" id="cheapestPrice"></div>
-                        <div class="cheapest-date" id="cheapestDate"></div>
-                    </div>
-                    <div class="cheapest-middle">
-                        <p id="cheapestAirline"></p>
-                    </div>
-                    <a id="cheapestLink" href="#" class="btn-book" target="_blank">Reservar Ahora</a>
-                </div>
-            </div>
-
-            <!-- Source Comparison -->
-            <div class="sources-section">
-                <h3>Precios por Fuente</h3>
-                <div class="sources-grid" id="sourcesGrid"></div>
-            </div>
-
-            <!-- All Flights List -->
-            <div class="flights-section">
-                <h3>Todos los Vuelos Disponibles</h3>
-                <div class="flights-list" id="flightsList"></div>
-            </div>
-
-            <!-- Stats -->
-            <div class="stats-section" id="statsSection" style="display:none;">
-                <p class="stats-text">
-                    Se encontraron <strong id="totalFlights"></strong> opciones de vuelo 
-                    con un precio mínimo de <strong id="minPrice">-</strong>
-                </p>
-            </div>
-        </section>
-
-        <!-- Saved Alerts Section -->
-        <section class="alerts-section">
-            <h2>Alertas Guardadas</h2>
-            <div class="alerts-container">
-                <div class="alert-input">
-                    <input type="text" id="alertOrigin" placeholder="Origen (Ej: MAD)">
-                    <input type="text" id="alertDestination" placeholder="Destino (Ej: AEP)">
-                    <input type="number" id="alertThreshold" placeholder="Umbral €" min="50" max="5000">
-                    <button class="btn-secondary" onclick="createAlert()">Crear Alerta</button>
-                </div>
-
-                <div class="alerts-list" id="alertsList"></div>
-            </div>
-        </section>
-
-        <!-- Search History -->
-        <section class="history-section">
-            <h2>Búsquedas Recientes</h2>
-            <div class="history-list" id="historyList"></div>
-        </section>
+      <div class="logo">
+        <span>✈️</span>
+        <h1>Flight Deal Finder</h1>
+      </div>
+      <div class="status-badges">
+        <div class="badge" id="monitorBadge">
+          <span class="pulse"></span>
+          <span>Cargando...</span>
+        </div>
+        <div class="badge" id="telegramBadge">
+          <span>📱</span>
+          <span>Telegram</span>
+        </div>
+      </div>
     </div>
+  </header>
 
-    <!-- Toast Notification -->
-    <div id="toast" class="toast"></div>
+  <main class="container">
+    <div class="grid">
+      <!-- Búsqueda -->
+      <div class="card grid-full">
+        <div class="card-header">
+          <h2 class="card-title">🔍 Buscar Vuelos</h2>
+        </div>
+        <form class="search-form" id="searchForm">
+          <div class="form-group">
+            <label>Origen</label>
+            <select id="origin" required>
+              <option value="">Seleccionar...</option>
+              <optgroup label="🇪🇸 España">
+                <option value="MAD">Madrid (MAD)</option>
+                <option value="BCN">Barcelona (BCN)</option>
+              </optgroup>
+              <optgroup label="🇵🇹 Portugal">
+                <option value="LIS">Lisboa (LIS)</option>
+              </optgroup>
+              <optgroup label="🇮🇹 Italia">
+                <option value="FCO">Roma (FCO)</option>
+                <option value="MXP">Milán (MXP)</option>
+              </optgroup>
+              <optgroup label="🇫🇷 Francia">
+                <option value="CDG">París (CDG)</option>
+              </optgroup>
+              <optgroup label="🇩🇪 Alemania">
+                <option value="FRA">Frankfurt (FRA)</option>
+              </optgroup>
+              <optgroup label="🇳🇱 Países Bajos">
+                <option value="AMS">Amsterdam (AMS)</option>
+              </optgroup>
+              <optgroup label="🇬🇧 Reino Unido">
+                <option value="LHR">Londres (LHR)</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Destino</label>
+            <select id="destination" required>
+              <option value="">Seleccionar...</option>
+              <optgroup label="🇦🇷 Argentina">
+                <option value="EZE">Buenos Aires (EZE)</option>
+              </optgroup>
+              <optgroup label="🇺🇸 Estados Unidos">
+                <option value="JFK">New York (JFK)</option>
+                <option value="MIA">Miami (MIA)</option>
+                <option value="LAX">Los Angeles (LAX)</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Fecha de ida</label>
+            <input type="date" id="date" required>
+          </div>
+          <div class="form-group" style="display: flex; align-items: flex-end;">
+            <button type="submit" class="btn btn-primary" id="searchBtn">
+              🔍 Buscar
+            </button>
+          </div>
+        </form>
+        <div id="searchResult"></div>
+      </div>
 
-    <script src="app.js"></script>
+      <!-- Ofertas Encontradas -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">🔥 Ofertas Encontradas</h2>
+          <button class="btn btn-outline btn-sm" onclick="loadDeals()">Actualizar</button>
+        </div>
+        <div id="dealsList" class="deals-grid">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <!-- Estadísticas -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">📊 Estadísticas</h2>
+        </div>
+        <div id="statsContainer" class="stats-grid">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <!-- Control de Monitoreo -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">⚙️ Monitoreo</h2>
+        </div>
+        <p style="color: var(--text-muted); margin-bottom: 16px; font-size: 14px;">
+          El monitor busca ofertas automáticamente cada 4 horas y te notifica por Telegram.
+        </p>
+        <div class="actions">
+          <button class="btn btn-success" id="startMonitorBtn" onclick="startMonitor()">
+            ▶️ Iniciar Monitor
+          </button>
+          <button class="btn btn-danger" id="stopMonitorBtn" onclick="stopMonitor()" style="display: none;">
+            ⏹️ Detener
+          </button>
+          <button class="btn btn-outline" onclick="runManualSearch()">
+            🔄 Buscar Ahora
+          </button>
+        </div>
+        <div id="monitorInfo" style="margin-top: 16px; font-size: 13px; color: var(--text-muted);"></div>
+      </div>
+
+      <!-- Rutas Monitoreadas -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">🗺️ Rutas Monitoreadas</h2>
+          <select id="routeFilter" onchange="loadRoutes()">
+            <option value="all">Todas</option>
+            <option value="argentina">→ Argentina</option>
+            <option value="usa">→ USA</option>
+          </select>
+        </div>
+        <div id="routesList" class="routes-list">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API_BASE = '/api';
+
+    // Establecer fecha mínima (hoy) y default (2 semanas)
+    document.addEventListener('DOMContentLoaded', () => {
+      const dateInput = document.getElementById('date');
+      const today = new Date();
+      const twoWeeks = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
+      
+      dateInput.min = today.toISOString().split('T')[0];
+      dateInput.value = twoWeeks.toISOString().split('T')[0];
+
+      // Cargar datos iniciales
+      loadStatus();
+      loadDeals();
+      loadStats();
+      loadRoutes();
+    });
+
+    // Actualizar estado cada 30 segundos
+    setInterval(loadStatus, 30000);
+
+    async function loadStatus() {
+      try {
+        const res = await fetch(`${API_BASE}/monitor/status`);
+        const status = await res.json();
+
+        const monitorBadge = document.getElementById('monitorBadge');
+        const startBtn = document.getElementById('startMonitorBtn');
+        const stopBtn = document.getElementById('stopMonitorBtn');
+        const monitorInfo = document.getElementById('monitorInfo');
+
+        if (status.isMonitoring) {
+          monitorBadge.className = 'badge badge-success';
+          monitorBadge.innerHTML = '<span class="pulse pulse-green"></span><span>Monitor Activo</span>';
+          startBtn.style.display = 'none';
+          stopBtn.style.display = 'inline-flex';
+        } else {
+          monitorBadge.className = 'badge badge-inactive';
+          monitorBadge.innerHTML = '<span class="pulse"></span><span>Monitor Inactivo</span>';
+          startBtn.style.display = 'inline-flex';
+          stopBtn.style.display = 'none';
+        }
+
+        // Info adicional
+        let info = '';
+        if (status.lastSearchTime) {
+          info += `Última búsqueda: ${new Date(status.lastSearchTime).toLocaleString('es-ES')}<br>`;
+        }
+        info += `Ofertas totales encontradas: ${status.totalDealsFound || 0}`;
+        monitorInfo.innerHTML = info;
+
+        // Telegram status
+        const telegramRes = await fetch(`${API_BASE}/telegram/status`);
+        const telegramStatus = await telegramRes.json();
+        const telegramBadge = document.getElementById('telegramBadge');
+        
+        if (telegramStatus.active) {
+          telegramBadge.className = 'badge badge-success';
+        } else if (telegramStatus.configured) {
+          telegramBadge.className = 'badge badge-warning';
+        } else {
+          telegramBadge.className = 'badge badge-inactive';
+        }
+
+      } catch (err) {
+        console.error('Error loading status:', err);
+      }
+    }
+
+    async function loadDeals() {
+      const container = document.getElementById('dealsList');
+      container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/deals?limit=10`);
+        const data = await res.json();
+
+        if (!data.deals || data.deals.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="icon">🔍</div>
+              <p>No hay ofertas encontradas aún</p>
+              <p style="font-size: 12px;">Inicia el monitor para buscar ofertas</p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = data.deals.map(deal => `
+          <div class="deal-card ${deal.deal_level || ''}">
+            <div class="deal-info">
+              <div class="deal-route">${deal.origin} → ${deal.destination}</div>
+              <div class="deal-meta">
+                <span>📅 ${deal.outbound_date || 'N/A'}</span>
+                <span>✈️ ${deal.airline || 'Multiple'}</span>
+              </div>
+              <span class="deal-level level-${deal.deal_level}">${getLevelText(deal.deal_level)}</span>
+            </div>
+            <div class="deal-price">
+              <div class="amount">€${deal.price}</div>
+              ${deal.savings_percent ? `<div class="savings">-${deal.savings_percent}%</div>` : ''}
+              ${deal.booking_url ? `<a href="${deal.booking_url}" target="_blank" class="btn btn-primary btn-sm" style="margin-top: 8px; font-size: 12px;">Ver →</a>` : ''}
+            </div>
+          </div>
+        `).join('');
+
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state"><p>Error cargando ofertas</p></div>`;
+        console.error('Error loading deals:', err);
+      }
+    }
+
+    function getLevelText(level) {
+      const texts = {
+        'steal': '🔥🔥🔥 GANGA',
+        'great': '🔥🔥 MUY BUENA',
+        'good': '🔥 BUENA'
+      };
+      return texts[level] || 'OFERTA';
+    }
+
+    async function loadStats() {
+      const container = document.getElementById('statsContainer');
+      
+      try {
+        const res = await fetch(`${API_BASE}/deals/stats`);
+        const stats = await res.json();
+
+        container.innerHTML = `
+          <div class="stat-item">
+            <div class="stat-value">${stats.totalDeals || 0}</div>
+            <div class="stat-label">Ofertas Totales</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" style="color: var(--danger)">${stats.steals || 0}</div>
+            <div class="stat-label">Gangas 🔥🔥🔥</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" style="color: var(--warning)">${stats.great || 0}</div>
+            <div class="stat-label">Muy Buenas 🔥🔥</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" style="color: var(--success)">€${stats.lowestPrice || '-'}</div>
+            <div class="stat-label">Precio Mínimo</div>
+          </div>
+        `;
+
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state"><p>Error cargando stats</p></div>`;
+      }
+    }
+
+    async function loadRoutes() {
+      const container = document.getElementById('routesList');
+      const filter = document.getElementById('routeFilter').value;
+      
+      try {
+        const res = await fetch(`${API_BASE}/routes?type=${filter}`);
+        const data = await res.json();
+
+        container.innerHTML = data.routes.map(route => {
+          const key = `${route.origin}-${route.destination}`;
+          const threshold = data.priceThresholds[key];
+          return `
+            <div class="route-item">
+              <span>${route.name}</span>
+              <span class="price">
+                ${threshold ? `<span>€${threshold.deal}</span> - €${threshold.typical}` : ''}
+              </span>
+            </div>
+          `;
+        }).join('');
+
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state"><p>Error cargando rutas</p></div>`;
+      }
+    }
+
+    // Búsqueda de vuelos
+    document.getElementById('searchForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const origin = document.getElementById('origin').value;
+      const destination = document.getElementById('destination').value;
+      const date = document.getElementById('date').value;
+      const btn = document.getElementById('searchBtn');
+      const resultDiv = document.getElementById('searchResult');
+
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Buscando...';
+      resultDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/search?origin=${origin}&destination=${destination}&date=${date}`);
+        const data = await res.json();
+
+        if (data.success && data.lowestPrice) {
+          const analysis = data.analysis || {};
+          const isDeal = analysis.isDeal;
+          
+          resultDiv.innerHTML = `
+            <div class="result-card">
+              <div class="result-header">
+                <div>
+                  <div style="font-size: 14px; color: var(--text-muted);">
+                    ${data.originInfo?.city || origin} → ${data.destinationInfo?.city || destination}
+                  </div>
+                  <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                    📅 ${date} • ${data.simulated ? '⚠️ Datos simulados' : '✅ Precio real'}
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <div class="result-price ${isDeal ? 'deal' : ''}">€${data.lowestPrice}</div>
+                  ${analysis.message ? `<div style="font-size: 12px; color: var(--text-muted);">${analysis.message}</div>` : ''}
+                </div>
+              </div>
+              ${isDeal ? `<span class="deal-level level-${analysis.dealLevel}">${analysis.emoji} ${getLevelText(analysis.dealLevel)}</span>` : ''}
+              <div style="margin-top: 16px;">
+                <a href="${data.bookingUrl || '#'}" target="_blank" class="btn btn-primary">
+                  Ver en Google Flights →
+                </a>
+              </div>
+            </div>
+          `;
+        } else {
+          resultDiv.innerHTML = `
+            <div class="result-card">
+              <p style="color: var(--text-muted);">No se encontraron vuelos. ${data.error || ''}</p>
+            </div>
+          `;
+        }
+
+      } catch (err) {
+        resultDiv.innerHTML = `
+          <div class="result-card">
+            <p style="color: var(--danger);">Error en la búsqueda: ${err.message}</p>
+          </div>
+        `;
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = '🔍 Buscar';
+    });
+
+    // Monitor controls
+    async function startMonitor() {
+      try {
+        const res = await fetch(`${API_BASE}/monitor/start`, { method: 'POST' });
+        const data = await res.json();
+        alert(data.message);
+        loadStatus();
+      } catch (err) {
+        alert('Error iniciando monitor: ' + err.message);
+      }
+    }
+
+    async function stopMonitor() {
+      try {
+        const res = await fetch(`${API_BASE}/monitor/stop`, { method: 'POST' });
+        const data = await res.json();
+        alert(data.message);
+        loadStatus();
+      } catch (err) {
+        alert('Error deteniendo monitor: ' + err.message);
+      }
+    }
+
+    async function runManualSearch() {
+      try {
+        const res = await fetch(`${API_BASE}/monitor/search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notify: true, summary: true })
+        });
+        const data = await res.json();
+        alert(data.message);
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+  </script>
 </body>
 </html>
