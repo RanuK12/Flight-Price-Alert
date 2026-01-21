@@ -14,8 +14,34 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const cron = require('node-cron');
 const TelegramBot = require('node-telegram-bot-api');
+const http = require('http');
 
 puppeteer.use(StealthPlugin());
+
+// ============================================
+// SERVIDOR HTTP PARA EVITAR SLEEP
+// ============================================
+
+const PORT = process.env.PORT || 3000;
+
+const server = http.createServer((req, res) => {
+  if (req.url === '/health' || req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      status: 'ok', 
+      bot: 'Flight Deal Bot v3.0',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
+    }));
+  } else {
+    res.writeHead(404);
+    res.end('Not found');
+  }
+});
+
+server.listen(PORT, () => {
+  console.log(`🌐 Health server en puerto ${PORT}`);
+});
 
 // ============================================
 // CONFIGURACIÓN
