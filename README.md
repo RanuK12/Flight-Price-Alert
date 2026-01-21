@@ -1,355 +1,163 @@
-# ✈️ Flight Price Finder
+# ✈️ Flight Deal Finder
 
-Una aplicación web moderna para monitorear y comparar precios de vuelos en tiempo real desde múltiples fuentes. Busca vuelos baratos, guarda alertas y recibe notificaciones.
+Buscador inteligente de ofertas de vuelos desde Europa hacia Argentina y Estados Unidos. Monitorea continuamente los precios y te notifica por Telegram cuando encuentra gangas (precios significativamente por debajo de lo habitual).
 
-## 🎯 Características Principales
+## 🎯 Características
 
-### 🔍 Búsqueda Inteligente
-- **Multi-fuente:** Skyscanner, Kayak (y más en expansión)
-- **Comparación automática:** Encuentra el precio más bajo entre todas las fuentes
-- **Enlaces directos:** Reserva desde la app con un clic
-- **Fechas de salida:** Información específica del día de vuelo
-- **Historial de búsquedas:** Accede a tus rutas recientes
+- **🔍 Búsqueda Real de Vuelos** - Usa Google Flights API (vía SerpApi) para obtener precios reales
+- **📊 Detección de Ofertas** - Compara contra precios típicos para detectar gangas
+- **📱 Alertas Telegram** - Notificaciones instantáneas cuando se encuentra una oferta
+- **🕐 Monitoreo Continuo** - Búsqueda automática cada 4 horas (configurable)
+- **💾 Base de Datos** - Guarda historial de precios y ofertas encontradas
+- **🌐 Interfaz Web** - Dashboard moderno para búsquedas manuales y gestión
 
-### 📊 Monitoreo de Precios
-- **Alertas personalizadas:** Guarda rutas con umbral de precio
-- **Histórico de precios:** Visualiza tendencias
-- **Base de datos SQLite:** Todos tus datos locales
+## 🗺️ Rutas Monitoreadas
 
-### 💻 Interfaz Responsiva
-- Diseño moderno y limpio
-- Funciona en desktop, tablet y móvil
-- Búsqueda rápida con rutas populares
-- Notificaciones en tiempo real
+### Europa → Argentina
+- Madrid (MAD) → Buenos Aires (EZE)
+- Barcelona (BCN) → Buenos Aires (EZE)
+- París (CDG) → Buenos Aires (EZE)
+- Roma (FCO) → Buenos Aires (EZE)
+- Lisboa (LIS) → Buenos Aires (EZE)
+- Frankfurt (FRA) → Buenos Aires (EZE)
+- Y más...
 
-## 🛫 Rutas Disponibles
+### Europa → Estados Unidos
+- Madrid (MAD) → New York (JFK), Miami (MIA), Los Angeles (LAX)
+- Barcelona (BCN) → New York (JFK), Miami (MIA)
+- Londres (LHR) → New York (JFK), Los Angeles (LAX)
+- Y más...
 
-### Destinos Principales
-- **🇦🇷 Buenos Aires (Ezeiza - AEP)** - Principal destino Argentina
-- 🇪🇸 Madrid (MAD), Barcelona (BCN), Roma (FCO)
-- 🇵🇹 Lisboa (LIS), 🇩🇪 Berlín (BER)
-- 🇺🇸 Miami (MIA), Orlando (MCO), Nueva York (JFK)
-- 🇦🇷 Córdoba (COR)
+## 🚀 Instalación
 
-### Principales Aerolíneas Seguidas
-- Ryanair, Vueling, Iberia
-- Lufthansa, Air Europa
-- EasyJet, LATAM, Aerolíneas Argentinas
-
-## 🚀 Instalación Rápida
-
-### 1. Clonar y Navegar
+### 1. Clonar el repositorio
 ```bash
-git clone https://github.com/RanuK12/Flight-Price-Alert.git
-cd Flight-Price-Alert
+git clone https://github.com/tu-usuario/flight-deal-finder.git
+cd flight-deal-finder
 ```
 
-### 2. Instalar Dependencias
+### 2. Instalar dependencias
 ```bash
 npm install
 ```
 
-### 3. Configurar Variables de Entorno
-Copiar `.env.example` a `.env`:
+### 3. Configurar variables de entorno
 ```bash
 cp .env.example .env
 ```
 
-Editar `.env` con tus valores:
+Edita el archivo `.env`:
 ```env
-PORT=3000
-NODE_ENV=development
-TELEGRAM_BOT_TOKEN=  # Opcional
-TELEGRAM_CHAT_ID=    # Opcional
+# API de Google Flights (SerpApi)
+SERPAPI_KEY=tu_api_key
+
+# Telegram
+TELEGRAM_BOT_TOKEN=tu_bot_token
+TELEGRAM_CHAT_ID=tu_chat_id
+
+# Iniciar monitor automáticamente
+AUTO_MONITOR=true
 ```
 
-### 4. Iniciar la Aplicación
+### 4. Iniciar la aplicación
 ```bash
 npm start
 ```
 
-La app estará disponible en `http://localhost:3000`
+Accede a `http://localhost:3000`
 
-## 📚 Estructura del Proyecto
+## 📱 Configurar Telegram
+
+1. **Crear bot:** Habla con [@BotFather](https://t.me/botfather) y crea un nuevo bot
+2. **Obtener token:** BotFather te dará el token del bot
+3. **Obtener chat_id:** Habla con [@userinfobot](https://t.me/userinfobot) para obtener tu ID
+4. **Configurar:** Agrega los valores al archivo `.env`
+
+## 🔑 Obtener API Key de SerpApi
+
+1. Regístrate en [SerpApi.com](https://serpapi.com/)
+2. El plan gratuito incluye **250 búsquedas/mes**
+3. Copia tu API key y agrégala al `.env`
+
+> **Sin API key:** La aplicación funcionará en **modo simulación** con precios ficticios (útil para pruebas)
+
+## 📊 Niveles de Oferta
+
+| Nivel | Descripción | Notificación |
+|-------|-------------|--------------|
+| 🔥🔥🔥 GANGA | 30%+ por debajo del precio de oferta | Telegram + Web |
+| 🔥🔥 MUY BUENA | Por debajo del precio de oferta | Telegram + Web |
+| 🔥 BUENA | Por debajo del precio típico | Solo Web |
+
+## 🖥️ API Endpoints
 
 ```
-flight-price-bot/
+GET  /api/search?origin=MAD&destination=EZE&date=2025-03-15
+GET  /api/deals?limit=10
+GET  /api/deals/stats
+GET  /api/routes?type=argentina|usa|all
+GET  /api/monitor/status
+POST /api/monitor/start
+POST /api/monitor/stop
+POST /api/monitor/search
+GET  /api/telegram/status
+POST /api/telegram/test
+```
+
+## 🏗️ Estructura del Proyecto
+
+```
+flight-deal-finder/
 ├── server/
-│   ├── app.js                 # Servidor principal Express
-│   ├── scrapers/
-│   │   ├── index.js          # Coordinador de scrapers
-│   │   ├── skyscanner.js     # Scraper Skyscanner
-│   │   └── kayak.js          # Scraper Kayak
-│   ├── routes/
-│   │   └── flights.js        # API REST endpoints
+│   ├── app.js                 # Servidor Express
+│   ├── config/
+│   │   └── routes.js          # Rutas y umbrales de precio
 │   ├── database/
-│   │   └── db.js             # Gestión de SQLite
-│   └── utils/                # Utilidades
+│   │   └── db.js              # SQLite operations
+│   ├── routes/
+│   │   └── flights.js         # API endpoints
+│   ├── scrapers/
+│   │   └── googleFlights.js   # SerpApi integration
+│   └── services/
+│       ├── flightMonitor.js   # Monitoring service
+│       └── telegram.js        # Telegram notifications
 ├── public/
-│   ├── index.html            # Interfaz HTML
-│   ├── app.js                # JavaScript frontend
-│   └── styles.css            # Estilos CSS
-├── tests/
-│   ├── scraper.test.js
-│   ├── sources.test.js
-│   └── database.test.js
-└── data/
-    └── flights.db            # Base de datos (generada)
+│   └── index.html             # Web interface
+├── data/                      # SQLite database
+└── .env                       # Configuration
 ```
 
-## 🔌 API REST
+## 🚢 Despliegue en Servidor
 
-### Buscar Vuelos
+### Usando PM2
 ```bash
-GET /api/search?origin=MAD&destination=AEP
+npm install -g pm2
+pm2 start server/app.js --name flight-finder
+pm2 save
+pm2 startup
 ```
 
-Respuesta:
-```json
-{
-  "origin": "MAD",
-  "destination": "AEP",
-  "minPrice": 480,
-  "sources": ["Skyscanner", "Kayak"],
-  "allFlights": [
-    {
-      "airline": "Ryanair",
-      "price": 480,
-      "link": "https://booking-url.com",
-      "source": "Skyscanner",
-      "departureDate": "15 ene"
-    }
-  ],
-  "cheapestFlight": {
-    "airline": "Ryanair",
-    "price": 480,
-    "link": "https://booking-url.com",
-    "source": "Skyscanner",
-    "departureDate": "15 ene"
-  }
-}
-```
-
-### Historial de Precios
-```bash
-GET /api/history/:origin/:destination
-```
-
-### Crear Alerta
-```bash
-POST /api/alert
-Content-Type: application/json
-
-{
-  "origin": "MAD",
-  "destination": "AEP",
-  "threshold": 500
-}
-```
-
-### Alertas Guardadas
-```bash
-GET /api/alerts
-DELETE /api/alert/:id
-```
-
-### Estadísticas
-```bash
-GET /api/stats
-```
-
-## 🧪 Testing
-
-Ejecutar todos los tests:
-```bash
-npm test
-```
-
-Tests específicos:
-```bash
-npm run test:scraper
-npm run test:api
-npm run test:db
-```
-
-## ⚙️ Configuración Avanzada
-
-### Cambiar Umbral de Precio Global
-En `.env`:
+### Variables de entorno para producción
 ```env
-PRICE_THRESHOLD_EUR=500
+AUTO_MONITOR=true
+MONITOR_SCHEDULE=0 */4 * * *
 ```
 
-### Habilitar Notificaciones Telegram (Opcional)
-1. Crear bot en Telegram con @BotFather
-2. Obtener Chat ID
-3. Configurar en `.env`:
-```env
-TELEGRAM_BOT_TOKEN=your_token
-TELEGRAM_CHAT_ID=your_chat_id
-ENABLE_CRON=true
-```
+## 📝 Notas Importantes
 
-### Conectar a Nuevas Fuentes de Scraping
-1. Crear archivo `server/scrapers/nombre.js`
-2. Implementar función `scrapeNombre(origin, destination)`
-3. Agregar a `server/scrapers/index.js`
+- **250 búsquedas/mes gratis** con SerpApi - suficiente para ~6 búsquedas/día
+- El monitor busca rutas de forma escalonada para no consumir todas las búsquedas
+- Los precios de referencia están calibrados para vuelos en clase económica
+- Las fechas de búsqueda se generan automáticamente (próximas 8-12 semanas)
 
-## 🐛 Solución de Problemas
-
-### "No se encuentra Puppeteer"
-```bash
-npm install puppeteer-extra --save
-```
-
-### Puerto 3000 en uso
-Cambiar en `.env`:
-```env
-PORT=3001
-```
-
-### Errores de conexión a BD
-```bash
-rm data/flights.db
-npm start  # Se recrea automáticamente
-```
-
-## 📈 Roadmap
-
-- [ ] Agregar más fuentes (Google Flights, Kiwi.com)
-- [ ] Alertas por email
-- [ ] Gráficos de tendencias de precios
-- [ ] Geolocalización automática
-- [ ] Búsqueda de viajes de ida y vuelta
-- [ ] App móvil (React Native)
-
-## 🛠️ Stack Tecnológico
-
-**Backend:**
-- Node.js 18+
-- Express 4.x
-- SQLite 3
-- Puppeteer (Web Scraping)
-- Cheerio (HTML Parsing)
-
-**Frontend:**
-- HTML5
-- CSS3 (Responsive Design)
-- Vanilla JavaScript
-- Fetch API
-
-**Testing:**
-- Jest 29.x
-- Supertest (API testing)
-
-## 📝 Licencia
-
-ISC
-
-## 👨‍💻 Contribuciones
-
-Las contribuciones son bienvenidas. Por favor:
+## 🤝 Contribuir
 
 1. Fork el repositorio
-2. Crea una rama (`git checkout -b feature/MiFeature`)
-3. Commit cambios (`git commit -m 'Agrega MiFeature'`)
-4. Push a la rama (`git push origin feature/MiFeature`)
+2. Crea tu rama (`git checkout -b feature/nueva-funcionalidad`)
+3. Commit tus cambios (`git commit -m 'Añadir nueva funcionalidad'`)
+4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
 5. Abre un Pull Request
-
-## 📧 Contacto
-
-Para reportar bugs o sugerencias: [Issues](https://github.com/RanuK12/Flight-Price-Alert/issues)
-
----
-
-**¡Encuentra vuelos baratos con Flight Price Finder!** ✈️
-
-Ahorro: €120 (24%)
-
-⚠️ Verifica condiciones y equipaje antes de comprar.
-```
-
-## 🛠️ Stack Tecnológico
-
-| Tecnología | Versión | Propósito |
-|-----------|---------|----------|
-| Node.js | v16+ | Runtime |
-| node-telegram-bot-api | v0.66.0 | Bot Telegram |
-| sqlite3 | v5.1.6 | Base de datos |
-| puppeteer-extra | v3.3.6 | Web scraping |
-| node-cron | v4.1.1 | Scheduling |
-| axios | v1.4.0 | HTTP requests |
-| dotenv | v16.0.0 | Configuración |
-
-## 📂 Estructura del Proyecto
-
-```
-Flight-Price-Alert/
-├── index.js                    # Bot principal
-├── database.js                 # Gestión de SQLite
-├── skyscanner_scraper.js       # Web scraper
-├── package.json               # Dependencias
-├── .env.example               # Ejemplo de configuración
-├── .gitignore                 # Archivos ignorados
-├── README.md                  # Este archivo
-└── CHANGELOG.md               # Historial de cambios
-```
-
-## 🔧 Troubleshooting
-
-### El bot no envía mensajes
-
-1. Verificar que `TELEGRAM_BOT_TOKEN` es válido
-2. Verificar que `TELEGRAM_CHAT_ID` es correcto
-3. Asegurar que el token tiene permisos para enviar mensajes
-
-### No encuentra precios
-
-1. Skyscanner puede estar bloqueando requests. Esperar unos minutos
-2. Verificar que las rutas son válidas (códigos IATA correctos)
-3. Revisar logs del scraper
-
-### Base de datos corrupta
-
-```bash
-rm prices.db
-node index.js
-```
-
-## 📊 Base de Datos
-
-La tabla `prices` almacena:
-
-```sql
-CREATE TABLE prices (
-  id INTEGER PRIMARY KEY,
-  route TEXT,
-  date TEXT,
-  price REAL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(route, date)
-);
-```
-
-## 🤝 Contribuciones
-
-Las contribuciones son bienvenidas. Por favor:
-
-1. Fork el proyecto
-2. Crear una rama: `git checkout -b feature/mejora`
-3. Commit: `git commit -am 'Agrega mejora'`
-4. Push: `git push origin feature/mejora`
-5. Abrir un Pull Request
 
 ## 📄 Licencia
 
-MIT - Ver archivo [LICENSE](LICENSE)
-
-## ✍️ Autor
-
-Creado para encontrar vuelos baratos 🎯
-
----
-
-**Última actualización**: enero 2026  
-**Estado**: Activo y en mantenimiento
+MIT License - ver archivo [LICENSE](LICENSE)
