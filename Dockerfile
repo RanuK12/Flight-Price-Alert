@@ -16,5 +16,8 @@ COPY . .
 # El Chrome está en esta ubicación en la imagen de Puppeteer
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
-# Ejecutar
-CMD ["node", "bot.js"]
+# Puerto
+EXPOSE 3000
+
+# Ejecutar la aplicación web (no el bot)
+CMD ["node", "server/app.js"]
