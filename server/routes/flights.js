@@ -1,5 +1,8 @@
 const express = require('express');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
+
+// Función para generar UUID usando crypto nativo de Node.js
+const uuidv4 = () => crypto.randomUUID();
 
 // Nuevos módulos
 const { searchGoogleFlights, generateBookingUrl, AIRPORTS, REFERENCE_PRICES } = require('../scrapers/googleFlights');
