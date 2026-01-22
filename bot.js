@@ -259,7 +259,7 @@ async function runSearch() {
   try {
     console.log('🌐 Abriendo navegador...');
     
-    // Configuración para cualquier entorno (Windows, Linux, Docker)
+    // Configuración para cualquier entorno (Windows, Linux, Docker, Railway)
     const launchOptions = {
       headless: 'new',
       args: [
@@ -269,26 +269,36 @@ async function runSearch() {
         '--disable-gpu',
         '--disable-extensions',
         '--disable-software-rasterizer',
+        '--single-process',
+        '--no-zygote',
         '--disable-features=IsolateOrigins',
         '--disable-site-isolation-trials'
       ]
     };
     
-    // Intentar usar el Chromium bundled primero
+    // Usar ruta de entorno si está configurada (Railway, Docker, etc)
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+      launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+      console.log(`📍 Usando Chrome configurado: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
+    }
+
+    // Intentar lanzar el navegador
     try {
       browser = await puppeteer.launch(launchOptions);
     } catch (launchError) {
-      console.log('⚠️ Chromium bundled no encontrado, buscando alternativas...');
+      console.log('⚠️ Error al lanzar navegador, buscando alternativas...');
       
       const fs = require('fs');
       const possiblePaths = [
-        process.env.PUPPETEER_EXECUTABLE_PATH,
+        '/nix/store/chromium/bin/chromium',
         '/usr/bin/chromium',
         '/usr/bin/chromium-browser', 
         '/usr/bin/google-chrome',
         '/usr/bin/google-chrome-stable',
         '/snap/bin/chromium',
-      ].filter(p => p && fs.existsSync(p));
+      ].filter(p => {
+        try { return fs.existsSync(p); } catch { return false; }
+      });
 
       if (possiblePaths.length > 0) {
         launchOptions.executablePath = possiblePaths[0];
@@ -300,9 +310,7 @@ async function runSearch() {
     }
   } catch (error) {
     console.error('❌ Error:', error.message);
-    console.log('\n💡 Solución: Instala Chromium en tu servidor:');
-    console.log('   Ubuntu/Debian: sudo apt-get install chromium-browser');
-    console.log('   O configura PUPPETEER_EXECUTABLE_PATH en tu .env');
+    console.log('\n💡 En Railway, configura la variable PUPPETEER_EXECUTABLE_PATH');
     return;
   }
   
