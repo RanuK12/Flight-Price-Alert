@@ -5,9 +5,10 @@
   "main": "server/app.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node bot.js",
+    "start": "node server/app.js",
     "bot": "node bot.js",
     "server": "node server/app.js",
+    "dev": "node server/app.js",
     "test": "jest --detectOpenHandles",
     "test:scraper": "jest server/scrapers --testTimeout=30000",
     "test:api": "jest server/routes --testTimeout=10000",
