@@ -1,0 +1,13 @@
+# Paquetes de sistema necesarios para Puppeteer en Railway
+[phases.setup]
+nixPkgs = ["chromium", "nodejs_18"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[start]
+cmd = "node server/app.js"
+
+[variables]
+PUPPETEER_EXECUTABLE_PATH = "/nix/store/chromium/bin/chromium"
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"

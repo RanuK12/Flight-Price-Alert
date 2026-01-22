@@ -68,7 +68,7 @@ async function scrapeSkyscanner(origin, destination, maxRetries = 2) {
     try {
       console.log('🌐 Abriendo navegador...');
       
-      // Configuración para funcionar en cualquier entorno (Windows, Linux, Docker)
+      // Configuración para funcionar en cualquier entorno (Windows, Linux, Docker, Railway)
       const launchOptions = {
         headless: 'new',
         args: [
@@ -79,27 +79,36 @@ async function scrapeSkyscanner(origin, destination, maxRetries = 2) {
           '--disable-gpu',
           '--disable-extensions',
           '--disable-software-rasterizer',
+          '--single-process',
+          '--no-zygote',
           '--window-size=1920,1080',
         ],
       };
 
-      // Intentar usar el Chromium bundled de Puppeteer primero
-      // Si falla, buscar en rutas comunes del sistema
+      // Usar ruta de entorno si está configurada (Railway, Docker, etc)
+      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+        console.log(`📍 Usando Chrome configurado: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
+      }
+
+      // Intentar lanzar el navegador
       try {
         browser = await puppeteer.launch(launchOptions);
       } catch (launchError) {
-        console.log('⚠️ Chromium bundled no encontrado, intentando rutas alternativas...');
+        console.log('⚠️ Error al lanzar navegador, buscando alternativas...');
         
-        // Buscar Chromium/Chrome en rutas comunes de Linux
+        // Buscar Chromium/Chrome en rutas comunes
         const fs = require('fs');
         const possiblePaths = [
+          '/nix/store/chromium/bin/chromium',
           '/usr/bin/chromium',
           '/usr/bin/chromium-browser',
           '/usr/bin/google-chrome',
           '/usr/bin/google-chrome-stable',
           '/snap/bin/chromium',
-          process.env.PUPPETEER_EXECUTABLE_PATH,
-        ].filter(p => p && fs.existsSync(p));
+        ].filter(p => {
+          try { return fs.existsSync(p); } catch { return false; }
+        });
 
         if (possiblePaths.length > 0) {
           launchOptions.executablePath = possiblePaths[0];
