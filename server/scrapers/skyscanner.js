@@ -66,7 +66,10 @@ async function scrapeSkyscanner(origin, destination, maxRetries = 2) {
 
   while (attempt < maxRetries) {
     try {
-      browser = await puppeteer.launch({
+      console.log('🌐 Abriendo navegador...');
+      
+      // Configuración para funcionar en cualquier entorno (Windows, Linux, Docker)
+      const launchOptions = {
         headless: 'new',
         args: [
           '--no-sandbox',
@@ -74,9 +77,39 @@ async function scrapeSkyscanner(origin, destination, maxRetries = 2) {
           '--disable-blink-features=AutomationControlled',
           '--disable-dev-shm-usage',
           '--disable-gpu',
+          '--disable-extensions',
+          '--disable-software-rasterizer',
           '--window-size=1920,1080',
         ],
-      });
+      };
+
+      // Intentar usar el Chromium bundled de Puppeteer primero
+      // Si falla, buscar en rutas comunes del sistema
+      try {
+        browser = await puppeteer.launch(launchOptions);
+      } catch (launchError) {
+        console.log('⚠️ Chromium bundled no encontrado, intentando rutas alternativas...');
+        
+        // Buscar Chromium/Chrome en rutas comunes de Linux
+        const fs = require('fs');
+        const possiblePaths = [
+          '/usr/bin/chromium',
+          '/usr/bin/chromium-browser',
+          '/usr/bin/google-chrome',
+          '/usr/bin/google-chrome-stable',
+          '/snap/bin/chromium',
+          process.env.PUPPETEER_EXECUTABLE_PATH,
+        ].filter(p => p && fs.existsSync(p));
+
+        if (possiblePaths.length > 0) {
+          launchOptions.executablePath = possiblePaths[0];
+          console.log(`📍 Usando Chrome en: ${possiblePaths[0]}`);
+          browser = await puppeteer.launch(launchOptions);
+        } else {
+          // No se encontró navegador, usar datos de fallback
+          throw new Error('No se encontró ningún navegador instalado. Usando datos de respaldo.');
+        }
+      }
 
       const page = await browser.newPage();
       
