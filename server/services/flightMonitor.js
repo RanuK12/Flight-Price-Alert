@@ -1,14 +1,14 @@
 /**
  * Servicio de Monitoreo de Vuelos
  * 
- * Busca ofertas de vuelos continuamente y envía alertas
+ * Busca ofertas de vuelos usando web scraping (Skyscanner + Kayak)
+ * SIN NECESIDAD DE API DE PAGO
  */
 
 const cron = require('node-cron');
-const { searchGoogleFlights, generateBookingUrl, AIRPORTS } = require('../scrapers/googleFlights');
-const { getAllRoutes, analyzePrice, generateSmartDates, PRICE_THRESHOLDS } = require('../config/routes');
-const { initTelegram, sendDealAlert, sendSearchSummary, sendErrorAlert, sendMonitoringStarted, isActive } = require('./telegram');
-const { saveFlightPrice, saveDeal, getRecentDeals, getDealStats } = require('../database/db');
+const { scrapeAllSources } = require('../scrapers');
+const { sendDealAlert, sendSearchSummary, sendErrorAlert, sendMonitoringStarted, isActive } = require('./telegram');
+const { run, get, all } = require('../database/db');
 
 // Estado del monitor
 let isMonitoring = false;
@@ -16,30 +16,88 @@ let lastSearchTime = null;
 let totalDealsFound = 0;
 let cronJob = null;
 
+// Rutas a monitorear (Europa/USA → Argentina)
+const MONITORED_ROUTES = [
+  // Europa → Buenos Aires
+  { origin: 'MAD', destination: 'EZE', name: 'Madrid → Buenos Aires', referencePrice: 700 },
+  { origin: 'BCN', destination: 'EZE', name: 'Barcelona → Buenos Aires', referencePrice: 750 },
+  { origin: 'FCO', destination: 'EZE', name: 'Roma → Buenos Aires', referencePrice: 750 },
+  { origin: 'CDG', destination: 'EZE', name: 'París → Buenos Aires', referencePrice: 800 },
+  { origin: 'FRA', destination: 'EZE', name: 'Frankfurt → Buenos Aires', referencePrice: 700 },
+  { origin: 'AMS', destination: 'EZE', name: 'Amsterdam → Buenos Aires', referencePrice: 750 },
+  { origin: 'LIS', destination: 'EZE', name: 'Lisboa → Buenos Aires', referencePrice: 650 },
+  
+  // USA → Buenos Aires  
+  { origin: 'MIA', destination: 'EZE', name: 'Miami → Buenos Aires', referencePrice: 500 },
+  { origin: 'JFK', destination: 'EZE', name: 'Nueva York → Buenos Aires', referencePrice: 600 },
+  { origin: 'MCO', destination: 'EZE', name: 'Orlando → Buenos Aires', referencePrice: 550 },
+];
+
+// Umbrales para clasificar ofertas
+const DEAL_THRESHOLDS = {
+  steal: 0.45,  // 45% menos que referencia = GANGA
+  great: 0.30,  // 30% menos = MUY BUENA OFERTA
+  good: 0.15,   // 15% menos = Buena oferta
+};
+
 /**
- * Realiza una búsqueda completa de ofertas
+ * Analiza si un precio es una oferta
+ */
+function analyzePrice(price, referencePrice) {
+  const discount = (referencePrice - price) / referencePrice;
+  const savings = referencePrice - price;
+  
+  if (discount >= DEAL_THRESHOLDS.steal) {
+    return {
+      isDeal: true,
+      dealLevel: 'steal',
+      emoji: '🔥🔥🔥',
+      message: `¡GANGA INCREÍBLE! Ahorras €${Math.round(savings)} (${Math.round(discount * 100)}% menos)`,
+      discount,
+      savings,
+    };
+  } else if (discount >= DEAL_THRESHOLDS.great) {
+    return {
+      isDeal: true,
+      dealLevel: 'great',
+      emoji: '🔥🔥',
+      message: `¡MUY BUENA OFERTA! Ahorras €${Math.round(savings)} (${Math.round(discount * 100)}% menos)`,
+      discount,
+      savings,
+    };
+  } else if (discount >= DEAL_THRESHOLDS.good) {
+    return {
+      isDeal: true,
+      dealLevel: 'good',
+      emoji: '🔥',
+      message: `Buen precio. Ahorras €${Math.round(savings)} (${Math.round(discount * 100)}% menos)`,
+      discount,
+      savings,
+    };
+  }
+  
+  return {
+    isDeal: false,
+    dealLevel: 'normal',
+    emoji: '✈️',
+    message: 'Precio normal',
+    discount,
+    savings,
+  };
+}
+
+/**
+ * Realiza una búsqueda completa de ofertas usando web scraping
  */
 async function runFullSearch(options = {}) {
-  const {
-    routeType = 'all', // 'all', 'argentina', 'usa'
-    maxDates = 6,
-    notifyDeals = true,
-    sendSummary = false,
-  } = options;
+  const { notifyDeals = true, sendSummary = false } = options;
 
   console.log('\n' + '='.repeat(60));
-  console.log('🔍 INICIANDO BÚSQUEDA DE OFERTAS');
+  console.log('🔍 INICIANDO BÚSQUEDA DE OFERTAS (Web Scraping)');
   console.log('='.repeat(60));
   console.log(`⏰ ${new Date().toLocaleString('es-ES')}`);
-  console.log(`📍 Tipo de rutas: ${routeType}`);
-  console.log('');
-
-  const routes = getAllRoutes(routeType);
-  const dates = generateSmartDates({ maxDates });
-  
-  console.log(`📊 Rutas a buscar: ${routes.length}`);
-  console.log(`📅 Fechas por ruta: ${dates.length}`);
-  console.log(`🔢 Total búsquedas: ${routes.length * dates.length}`);
+  console.log(`📊 Rutas a buscar: ${MONITORED_ROUTES.length}`);
+  console.log(`🌐 Fuentes: Skyscanner + Kayak`);
   console.log('');
 
   const results = {
@@ -50,89 +108,85 @@ async function runFullSearch(options = {}) {
     endTime: null,
   };
 
-  let searchCount = 0;
-  const totalSearches = routes.length * dates.length;
-
-  for (const route of routes) {
+  for (const route of MONITORED_ROUTES) {
     console.log(`\n🛫 ${route.name}`);
     
-    for (const date of dates) {
-      searchCount++;
-      const progress = Math.round((searchCount / totalSearches) * 100);
+    try {
+      // Buscar usando nuestros scrapers (Skyscanner + Kayak)
+      const searchResult = await scrapeAllSources(route.origin, route.destination);
       
-      try {
-        // Buscar vuelo
-        const result = await searchGoogleFlights(
-          route.origin,
-          route.destination,
-          date,
-          null, // sin fecha de retorno (solo ida)
-          'oneway'
-        );
+      results.searches.push({
+        route: route.name,
+        success: searchResult.minPrice !== null,
+        ...searchResult,
+      });
 
-        results.searches.push(result);
+      if (searchResult.minPrice && searchResult.cheapestFlight) {
+        const price = Math.round(searchResult.minPrice);
+        const analysis = analyzePrice(price, route.referencePrice);
+        
+        console.log(`  ${analysis.emoji} €${price} - ${analysis.message}`);
+        
+        if (analysis.isDeal) {
+          const deal = {
+            origin: route.origin,
+            destination: route.destination,
+            originCity: route.name.split(' → ')[0],
+            destinationCity: route.name.split(' → ')[1],
+            lowestPrice: price,
+            referencePrice: route.referencePrice,
+            airline: searchResult.cheapestFlight.airline,
+            source: searchResult.cheapestFlight.source,
+            departureDate: searchResult.cheapestFlight.departureDate || 'Flexible',
+            bookingUrl: searchResult.cheapestFlight.link,
+            dealLevel: analysis.dealLevel,
+            discount: analysis.discount,
+            savings: analysis.savings,
+            foundAt: new Date().toISOString(),
+          };
 
-        if (result.success && result.lowestPrice) {
-          // Analizar si es oferta
-          const analysis = analyzePrice(route.origin, route.destination, result.lowestPrice, 'oneway');
-          
-          if (analysis.isDeal) {
-            const deal = {
-              ...result,
-              ...analysis,
-              route: `${route.origin} → ${route.destination}`,
-              routeName: route.name,
-              bookingUrl: generateBookingUrl(route.origin, route.destination, date),
-              foundAt: new Date().toISOString(),
-            };
+          results.deals.push(deal);
+          totalDealsFound++;
 
-            results.deals.push(deal);
-            totalDealsFound++;
-
-            console.log(`  ${analysis.emoji} €${result.lowestPrice} - ${analysis.message}`);
-
-            // Notificar por Telegram
-            if (notifyDeals && isActive()) {
-              await sendDealAlert(deal);
-            }
-
-            // Guardar en base de datos
-            try {
-              await saveDeal(deal);
-            } catch (dbErr) {
-              console.error('  Error guardando deal:', dbErr.message);
-            }
-          } else {
-            console.log(`  ✈️ €${result.lowestPrice} - Precio normal`);
+          // Notificar por Telegram
+          if (notifyDeals && isActive()) {
+            await sendDealAlert(deal);
           }
 
-          // Guardar precio histórico
+          // Guardar en base de datos
           try {
-            await saveFlightPrice({
-              origin: route.origin,
-              destination: route.destination,
-              price: result.lowestPrice,
-              date,
-              airline: result.bestFlights?.[0]?.airline || 'Multiple',
-              source: result.simulated ? 'simulation' : 'google_flights',
-            });
+            await run(
+              `INSERT INTO flight_prices (route_id, origin, destination, airline, price, source, booking_url, departure_date, recorded_at) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+              [
+                `${route.origin}-${route.destination}`,
+                route.origin,
+                route.destination,
+                deal.airline,
+                deal.lowestPrice,
+                deal.source,
+                deal.bookingUrl,
+                deal.departureDate,
+              ]
+            );
           } catch (dbErr) {
             // Ignorar errores de duplicado
           }
         }
-
-      } catch (error) {
-        results.errors.push({
-          route: `${route.origin}-${route.destination}`,
-          date,
-          error: error.message,
-        });
-        console.error(`  ❌ Error: ${error.message}`);
+      } else {
+        console.log(`  ⚠️ Sin resultados disponibles`);
       }
 
-      // Pausa entre búsquedas para no sobrecargar
-      await sleep(1000);
+    } catch (error) {
+      results.errors.push({
+        route: route.name,
+        error: error.message,
+      });
+      console.error(`  ❌ Error: ${error.message}`);
     }
+
+    // Pausa entre rutas para no sobrecargar
+    await sleep(2000);
   }
 
   results.endTime = new Date();
@@ -143,7 +197,7 @@ async function runFullSearch(options = {}) {
   console.log('\n' + '='.repeat(60));
   console.log('📊 RESUMEN DE BÚSQUEDA');
   console.log('='.repeat(60));
-  console.log(`✅ Búsquedas exitosas: ${results.searches.filter(s => s.success).length}/${totalSearches}`);
+  console.log(`✅ Búsquedas exitosas: ${results.searches.filter(s => s.success).length}/${MONITORED_ROUTES.length}`);
   console.log(`🔥 Ofertas encontradas: ${results.deals.length}`);
   console.log(`⏱️ Duración: ${duration.toFixed(1)} segundos`);
   console.log('');
@@ -154,14 +208,14 @@ async function runFullSearch(options = {}) {
       .sort((a, b) => a.lowestPrice - b.lowestPrice)
       .slice(0, 10)
       .forEach((deal, i) => {
-        console.log(`  ${i + 1}. ${deal.route}: €${deal.lowestPrice} (${deal.outboundDate}) ${deal.emoji}`);
+        console.log(`  ${i + 1}. ${deal.originCity} → ${deal.destinationCity}: €${deal.lowestPrice} (${deal.airline})`);
       });
   }
 
   // Enviar resumen por Telegram
-  if (sendSummary && isActive()) {
+  if (sendSummary && isActive() && results.deals.length > 0) {
     await sendSearchSummary({
-      totalSearches,
+      totalSearches: MONITORED_ROUTES.length,
       successfulSearches: results.searches.filter(s => s.success).length,
       dealsFound: results.deals.length,
       deals: results.deals,
@@ -173,45 +227,39 @@ async function runFullSearch(options = {}) {
 }
 
 /**
- * Búsqueda rápida en rutas específicas
+ * Búsqueda rápida para una ruta específica
  */
-async function quickSearch(origins, destinations, dates = null) {
-  const searchDates = dates || generateSmartDates({ maxDates: 3 });
-  const results = [];
-
-  for (const origin of origins) {
-    for (const destination of destinations) {
-      for (const date of searchDates) {
-        try {
-          const result = await searchGoogleFlights(origin, destination, date);
-          if (result.success) {
-            const analysis = analyzePrice(origin, destination, result.lowestPrice);
-            results.push({
-              ...result,
-              ...analysis,
-              bookingUrl: generateBookingUrl(origin, destination, date),
-            });
-          }
-        } catch (err) {
-          console.error(`Error en ${origin}-${destination}:`, err.message);
-        }
-        await sleep(500);
-      }
+async function quickSearch(origin, destination) {
+  try {
+    const result = await scrapeAllSources(origin, destination);
+    
+    // Encontrar precio de referencia si existe
+    const route = MONITORED_ROUTES.find(r => r.origin === origin && r.destination === destination);
+    const referencePrice = route?.referencePrice || 700;
+    
+    if (result.minPrice) {
+      const analysis = analyzePrice(result.minPrice, referencePrice);
+      return {
+        ...result,
+        ...analysis,
+        referencePrice,
+      };
     }
+    
+    return result;
+  } catch (error) {
+    console.error(`Error en búsqueda rápida:`, error.message);
+    throw error;
   }
-
-  return results.sort((a, b) => a.lowestPrice - b.lowestPrice);
 }
 
 /**
  * Inicia el monitoreo continuo
  */
-function startMonitoring(cronSchedule = '0 */4 * * *') {
-  // Por defecto: cada 4 horas
-  // Formatos comunes:
+function startMonitoring(cronSchedule = '0 */30 * * * *') {
+  // Por defecto: cada 30 minutos
+  // '0 */30 * * * *' = cada 30 min
   // '0 */4 * * *' = cada 4 horas
-  // '0 */2 * * *' = cada 2 horas
-  // '0 */6 * * *' = cada 6 horas
   // '0 8,14,20 * * *' = a las 8:00, 14:00, 20:00
 
   if (isMonitoring) {
@@ -219,23 +267,15 @@ function startMonitoring(cronSchedule = '0 */4 * * *') {
     return false;
   }
 
-  // Inicializar Telegram
-  initTelegram();
-
   console.log('\n🚀 INICIANDO MONITOREO CONTINUO');
   console.log(`⏰ Programación: ${cronSchedule}`);
+  console.log('📡 Fuentes: Skyscanner + Kayak (Web Scraping)');
   console.log('');
 
   // Enviar notificación de inicio
   if (isActive()) {
     sendMonitoringStarted();
   }
-
-  // Ejecutar búsqueda inicial
-  runFullSearch({ sendSummary: true }).catch(err => {
-    console.error('Error en búsqueda inicial:', err);
-    if (isActive()) sendErrorAlert(err, 'Búsqueda inicial');
-  });
 
   // Programar búsquedas periódicas
   cronJob = cron.schedule(cronSchedule, async () => {
@@ -281,19 +321,23 @@ function getMonitorStatus() {
     totalDealsFound,
     telegramActive: isActive(),
     uptime: process.uptime(),
+    routes: MONITORED_ROUTES.length,
+    sources: ['Skyscanner', 'Kayak'],
   };
 }
 
 /**
- * Obtiene estadísticas de ofertas
+ * Obtiene estadísticas
  */
 async function getStats() {
   try {
-    const stats = await getDealStats();
-    const recentDeals = await getRecentDeals(10);
+    const totalFlights = await get('SELECT COUNT(*) as count FROM flight_prices');
+    const recentDeals = await all(
+      `SELECT * FROM flight_prices WHERE price < 500 ORDER BY recorded_at DESC LIMIT 10`
+    );
     
     return {
-      ...stats,
+      totalFlights: totalFlights?.count || 0,
       recentDeals,
       monitorStatus: getMonitorStatus(),
     };
@@ -319,4 +363,5 @@ module.exports = {
   stopMonitoring,
   getMonitorStatus,
   getStats,
+  MONITORED_ROUTES,
 };
