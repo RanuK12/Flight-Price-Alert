@@ -259,7 +259,7 @@ async function runSearch() {
   try {
     console.log('🌐 Abriendo navegador...');
     
-    // Configuración para Railway/Docker o local
+    // Configuración para cualquier entorno (Windows, Linux, Docker)
     const launchOptions = {
       headless: 'new',
       args: [
@@ -267,19 +267,42 @@ async function runSearch() {
         '--disable-setuid-sandbox', 
         '--disable-dev-shm-usage', 
         '--disable-gpu',
+        '--disable-extensions',
+        '--disable-software-rasterizer',
         '--disable-features=IsolateOrigins',
         '--disable-site-isolation-trials'
       ]
     };
     
-    // Si estamos en Docker/Railway, usar el Chrome instalado
-    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-      launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    // Intentar usar el Chromium bundled primero
+    try {
+      browser = await puppeteer.launch(launchOptions);
+    } catch (launchError) {
+      console.log('⚠️ Chromium bundled no encontrado, buscando alternativas...');
+      
+      const fs = require('fs');
+      const possiblePaths = [
+        process.env.PUPPETEER_EXECUTABLE_PATH,
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser', 
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/snap/bin/chromium',
+      ].filter(p => p && fs.existsSync(p));
+
+      if (possiblePaths.length > 0) {
+        launchOptions.executablePath = possiblePaths[0];
+        console.log(`📍 Usando Chrome en: ${possiblePaths[0]}`);
+        browser = await puppeteer.launch(launchOptions);
+      } else {
+        throw new Error('No se encontró ningún navegador Chrome/Chromium instalado.');
+      }
     }
-    
-    browser = await puppeteer.launch(launchOptions);
   } catch (error) {
     console.error('❌ Error:', error.message);
+    console.log('\n💡 Solución: Instala Chromium en tu servidor:');
+    console.log('   Ubuntu/Debian: sudo apt-get install chromium-browser');
+    console.log('   O configura PUPPETEER_EXECUTABLE_PATH en tu .env');
     return;
   }
   
