@@ -70,14 +70,27 @@ async function startServer() {
       console.log('   POST /api/monitor/start');
       console.log('   GET  /api/monitor/status');
       console.log('');
-    });
 
-    // Auto-iniciar monitoreo si está configurado
-    if (process.env.AUTO_MONITOR === 'true') {
-      console.log('🚀 Iniciando monitoreo automático...');
-      const schedule = process.env.MONITOR_SCHEDULE || '0 */4 * * *';
-      startMonitoring(schedule);
-    }
+      // Auto-iniciar monitoreo automáticamente en Railway/producción
+      // O si AUTO_MONITOR está configurado
+      const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
+      const autoMonitor = process.env.AUTO_MONITOR !== 'false'; // Por defecto true
+      
+      if (isProduction || autoMonitor) {
+        console.log('🚀 Iniciando monitoreo automático de vuelos...');
+        const schedule = process.env.MONITOR_SCHEDULE || '0 */30 * * * *'; // Cada 30 min por defecto
+        startMonitoring(schedule);
+        console.log(`⏰ Búsquedas programadas: ${schedule}`);
+        console.log('');
+        
+        // Ejecutar primera búsqueda después de 10 segundos
+        setTimeout(() => {
+          console.log('🔍 Ejecutando primera búsqueda inicial...');
+          const { runFullSearch } = require('./services/flightMonitor');
+          runFullSearch().catch(err => console.error('Error en búsqueda inicial:', err.message));
+        }, 10000);
+      }
+    });
 
   } catch (error) {
     console.error('❌ Error iniciando servidor:', error.message);
