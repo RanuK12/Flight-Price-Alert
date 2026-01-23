@@ -7,7 +7,7 @@
 
 const cron = require('node-cron');
 const { scrapeAllSources } = require('../scrapers');
-const { sendDealsReport, sendErrorAlert, sendMonitoringStarted, isActive } = require('./telegram');
+const { sendDealsReport, sendNoDealsMessage, sendErrorAlert, sendMonitoringStarted, isActive } = require('./telegram');
 const { run, get, all } = require('../database/db');
 
 // Estado del monitor
@@ -231,6 +231,9 @@ async function runFullSearch(options = {}) {
     const hasDeals = results.oneWayDeals.length > 0 || results.roundTripDeals.length > 0;
     if (hasDeals) {
       await sendDealsReport(results.oneWayDeals, results.roundTripDeals);
+    } else {
+      // Enviar mensaje de "sin ofertas" para confirmar que funciona
+      await sendNoDealsMessage(results.allSearches.length);
     }
   }
 

@@ -255,6 +255,27 @@ ${context ? `📍 Contexto: ${context}\n` : ''}
 }
 
 /**
+ * Envía mensaje cuando no hay ofertas
+ */
+async function sendNoDealsMessage(totalSearches) {
+  const message = `
+🔍 <b>Búsqueda Completada</b>
+
+✅ Rutas analizadas: ${totalSearches}
+❌ Sin ofertas que cumplan los umbrales:
+
+• Solo ida Europa→Argentina: <€350
+• Solo ida USA→Argentina: <€200
+• Ida y vuelta: <€650
+
+Seguimos monitoreando... 👀
+⏰ ${new Date().toLocaleString('es-ES')}
+`.trim();
+
+  return sendMessage(message);
+}
+
+/**
  * Envía mensaje de inicio de monitoreo
  */
 async function sendMonitoringStarted() {
@@ -320,6 +341,7 @@ module.exports = {
   sendDealAlert,
   sendSearchSummary,
   sendDealsReport,
+  sendNoDealsMessage,
   sendErrorAlert,
   sendMonitoringStarted,
   sendTestMessage,
