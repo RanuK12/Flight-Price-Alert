@@ -1,7 +1,7 @@
 /**
- * Servicio de Notificaciones por Telegram
+ * Servicio de Notificaciones por Telegram v2.0
  * 
- * Envía alertas cuando se encuentran ofertas de vuelos
+ * Envía alertas de ofertas separadas por SOLO IDA e IDA Y VUELTA
  */
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -35,6 +35,92 @@ function initTelegram() {
     console.error('❌ Error inicializando Telegram:', error.message);
     return false;
   }
+}
+
+/**
+ * Envía reporte de ofertas con secciones separadas IDA e IDA+VUELTA
+ */
+async function sendDealsReport(oneWayDeals, roundTripDeals) {
+  const totalDeals = oneWayDeals.length + roundTripDeals.length;
+  
+  if (totalDeals === 0) {
+    return false;
+  }
+
+  let message = `🔥 <b>¡OFERTAS ENCONTRADAS!</b> 🔥\n`;
+  message += `📅 ${new Date().toLocaleString('es-ES')}\n`;
+  message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  // SECCIÓN: SOLO IDA
+  if (oneWayDeals.length > 0) {
+    message += `✈️ <b>SOLO IDA</b> (${oneWayDeals.length} ofertas)\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    
+    // Separar por región
+    const europeDeals = oneWayDeals.filter(d => d.region === 'europe');
+    const usaDeals = oneWayDeals.filter(d => d.region === 'usa');
+    
+    // Europa → Argentina (máx €350)
+    if (europeDeals.length > 0) {
+      message += `\n🇪🇺 <b>Europa → Argentina</b> (máx €350)\n`;
+      for (const deal of europeDeals.slice(0, 8)) {
+        const emoji = deal.price <= 250 ? '🔥🔥🔥' : (deal.price <= 300 ? '🔥🔥' : '🔥');
+        message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
+        if (deal.airline) message += ` • ${deal.airline}`;
+        if (deal.departureDate && deal.departureDate !== 'Flexible') {
+          message += ` • ${deal.departureDate}`;
+        }
+        message += `\n`;
+      }
+      if (europeDeals.length > 8) {
+        message += `   <i>+${europeDeals.length - 8} ofertas más...</i>\n`;
+      }
+    }
+    
+    // USA → Argentina (máx €200)
+    if (usaDeals.length > 0) {
+      message += `\n🇺🇸 <b>USA → Argentina</b> (máx €200)\n`;
+      for (const deal of usaDeals.slice(0, 8)) {
+        const emoji = deal.price <= 150 ? '🔥🔥🔥' : (deal.price <= 180 ? '🔥🔥' : '🔥');
+        message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
+        if (deal.airline) message += ` • ${deal.airline}`;
+        if (deal.departureDate && deal.departureDate !== 'Flexible') {
+          message += ` • ${deal.departureDate}`;
+        }
+        message += `\n`;
+      }
+      if (usaDeals.length > 8) {
+        message += `   <i>+${usaDeals.length - 8} ofertas más...</i>\n`;
+      }
+    }
+  }
+
+  // SECCIÓN: IDA Y VUELTA
+  if (roundTripDeals.length > 0) {
+    message += `\n\n🔄 <b>IDA Y VUELTA</b> (${roundTripDeals.length} ofertas)\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `<i>Máximo €650 para ser oferta</i>\n\n`;
+    
+    for (const deal of roundTripDeals.slice(0, 10)) {
+      const emoji = deal.price <= 450 ? '🔥🔥🔥' : (deal.price <= 550 ? '🔥🔥' : '🔥');
+      message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
+      if (deal.airline) message += ` • ${deal.airline}`;
+      if (deal.departureDate && deal.departureDate !== 'Flexible') {
+        message += ` • ${deal.departureDate}`;
+      }
+      message += `\n`;
+    }
+    if (roundTripDeals.length > 10) {
+      message += `   <i>+${roundTripDeals.length - 10} ofertas más...</i>\n`;
+    }
+  }
+
+  // Footer
+  message += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
+  message += `📊 Total: <b>${totalDeals}</b> ofertas encontradas\n`;
+  message += `🔗 Reserva en Google Flights o Skyscanner`;
+
+  return sendMessage(message);
 }
 
 /**
@@ -173,13 +259,20 @@ ${context ? `📍 Contexto: ${context}\n` : ''}
  */
 async function sendMonitoringStarted() {
   const message = `
-🚀 <b>Monitor de Vuelos Iniciado</b>
+🚀 <b>Monitor de Vuelos Iniciado v2.0</b>
 
-Buscando ofertas en rutas:
-🌍 Europa → 🇦🇷 Argentina
-🌍 Europa → 🇺🇸 Estados Unidos
+📋 <b>Umbrales de ofertas:</b>
+✈️ Solo ida Europa→Argentina: máx €350
+✈️ Solo ida USA→Argentina: máx €200
+🔄 Ida y vuelta: máx €650
 
-Recibirás alertas cuando encontremos vuelos con precios excepcionales.
+📍 <b>Rutas monitoreadas:</b>
+🇪🇺 Madrid, Barcelona, Roma, París, Frankfurt, Amsterdam, Lisboa, Londres
+🇺🇸 Miami, Nueva York, Orlando
+
+Recibirás alertas separadas para:
+• Ofertas de SOLO IDA
+• Ofertas de IDA Y VUELTA
 
 ⏰ ${new Date().toLocaleString('es-ES')}
 `.trim();
@@ -210,6 +303,11 @@ async function sendTestMessage() {
 
 El bot de Flight Deal Finder está funcionando correctamente.
 
+📋 <b>Umbrales configurados:</b>
+• Solo ida Europa→Argentina: €350
+• Solo ida USA→Argentina: €200  
+• Ida y vuelta: €650
+
 ⏰ ${new Date().toLocaleString('es-ES')}
 `.trim();
 
@@ -221,6 +319,7 @@ module.exports = {
   sendMessage,
   sendDealAlert,
   sendSearchSummary,
+  sendDealsReport,
   sendErrorAlert,
   sendMonitoringStarted,
   sendTestMessage,
