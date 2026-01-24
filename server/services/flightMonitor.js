@@ -54,7 +54,7 @@ const ONE_WAY_THRESHOLDS = {
 };
 
 // Umbral para IDA Y VUELTA (Argentina → Europa)
-const ROUND_TRIP_THRESHOLD = 650; // máx €650
+const ROUND_TRIP_THRESHOLD = 600; // máx €600
 
 // Aeropuertos por región
 const EUROPE_AIRPORTS = ['MAD', 'BCN', 'FCO', 'CDG', 'FRA', 'AMS', 'LIS', 'LHR', 'MUC', 'ZRH', 'BRU', 'VIE'];
@@ -156,7 +156,7 @@ async function runFullSearch(options = {}) {
   console.log('📋 UMBRALES:');
   console.log(`   • Solo ida Europa→Argentina: máx €${ONE_WAY_THRESHOLDS.europeToArgentina}`);
   console.log(`   • Solo ida USA→Argentina: máx €${ONE_WAY_THRESHOLDS.usaToArgentina}`);
-  console.log(`   • Ida y vuelta Argentina→Europa: máx €${ROUND_TRIP_THRESHOLD}`);
+  console.log(`   • Ida y vuelta Argentina→Europa: máx €${ROUND_TRIP_THRESHOLD} (< €600)`);
   console.log('');
 
   const results = {
