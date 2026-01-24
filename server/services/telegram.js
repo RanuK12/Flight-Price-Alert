@@ -49,6 +49,7 @@ async function sendDealsReport(oneWayDeals, roundTripDeals) {
 
   let message = `🔥 <b>¡OFERTAS ENCONTRADAS!</b> 🔥\n`;
   message += `📅 ${new Date().toLocaleString('es-ES')}\n`;
+  message += `📆 Fechas: 25 mar - 15 abr 2026\n`;
   message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
   // SECCIÓN: SOLO IDA
@@ -68,7 +69,7 @@ async function sendDealsReport(oneWayDeals, roundTripDeals) {
         message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
         if (deal.airline) message += ` • ${deal.airline}`;
         if (deal.departureDate && deal.departureDate !== 'Flexible') {
-          message += ` • ${deal.departureDate}`;
+          message += ` • ${formatDateShort(deal.departureDate)}`;
         }
         message += `\n`;
       }
@@ -85,7 +86,7 @@ async function sendDealsReport(oneWayDeals, roundTripDeals) {
         message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
         if (deal.airline) message += ` • ${deal.airline}`;
         if (deal.departureDate && deal.departureDate !== 'Flexible') {
-          message += ` • ${deal.departureDate}`;
+          message += ` • ${formatDateShort(deal.departureDate)}`;
         }
         message += `\n`;
       }
@@ -95,32 +96,60 @@ async function sendDealsReport(oneWayDeals, roundTripDeals) {
     }
   }
 
-  // SECCIÓN: IDA Y VUELTA
+  // SECCIÓN: IDA Y VUELTA (Argentina → Europa)
   if (roundTripDeals.length > 0) {
     message += `\n\n🔄 <b>IDA Y VUELTA</b> (${roundTripDeals.length} ofertas)\n`;
     message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    message += `<i>Máximo €650 para ser oferta</i>\n\n`;
+    message += `🇦🇷 <b>Argentina → Europa</b> (máx €650)\n\n`;
     
-    for (const deal of roundTripDeals.slice(0, 10)) {
-      const emoji = deal.price <= 450 ? '🔥🔥🔥' : (deal.price <= 550 ? '🔥🔥' : '🔥');
-      message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
-      if (deal.airline) message += ` • ${deal.airline}`;
-      if (deal.departureDate && deal.departureDate !== 'Flexible') {
-        message += ` • ${deal.departureDate}`;
+    // Separar por origen (Ezeiza vs Córdoba)
+    const ezeDeals = roundTripDeals.filter(d => d.origin === 'EZE');
+    const corDeals = roundTripDeals.filter(d => d.origin === 'COR');
+    
+    if (ezeDeals.length > 0) {
+      message += `<b>Desde Buenos Aires (EZE):</b>\n`;
+      for (const deal of ezeDeals.slice(0, 5)) {
+        const emoji = deal.price <= 450 ? '🔥🔥🔥' : (deal.price <= 550 ? '🔥🔥' : '🔥');
+        message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
+        if (deal.airline) message += ` • ${deal.airline}`;
+        if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
+        message += `\n`;
       }
-      message += `\n`;
     }
-    if (roundTripDeals.length > 10) {
-      message += `   <i>+${roundTripDeals.length - 10} ofertas más...</i>\n`;
+    
+    if (corDeals.length > 0) {
+      message += `\n<b>Desde Córdoba (COR):</b>\n`;
+      for (const deal of corDeals.slice(0, 5)) {
+        const emoji = deal.price <= 500 ? '🔥🔥🔥' : (deal.price <= 600 ? '🔥🔥' : '🔥');
+        message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
+        if (deal.airline) message += ` • ${deal.airline}`;
+        if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
+        message += `\n`;
+      }
     }
   }
 
   // Footer
   message += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
   message += `📊 Total: <b>${totalDeals}</b> ofertas encontradas\n`;
-  message += `🔗 Reserva en Google Flights o Skyscanner`;
+  message += `🔗 Reserva en Google Flights o Kayak`;
 
   return sendMessage(message);
+}
+
+/**
+ * Formatea fecha corta
+ */
+function formatDateShort(dateStr) {
+  if (!dateStr || dateStr === 'Flexible') return '';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    return `${date.getDate()} ${months[date.getMonth()]}`;
+  } catch {
+    return dateStr;
+  }
 }
 
 /**
@@ -280,20 +309,23 @@ Seguimos monitoreando... 👀
  */
 async function sendMonitoringStarted() {
   const message = `
-🚀 <b>Monitor de Vuelos Iniciado v2.0</b>
+🚀 <b>Monitor de Vuelos v3.0</b>
+
+📆 <b>Fechas de búsqueda:</b>
+25 marzo - 15 abril 2026
 
 📋 <b>Umbrales de ofertas:</b>
 ✈️ Solo ida Europa→Argentina: máx €350
 ✈️ Solo ida USA→Argentina: máx €200
-🔄 Ida y vuelta: máx €650
+🔄 Ida y vuelta Argentina→Europa: máx €650
 
-📍 <b>Rutas monitoreadas:</b>
+📍 <b>Rutas SOLO IDA:</b>
 🇪🇺 Madrid, Barcelona, Roma, París, Frankfurt, Amsterdam, Lisboa, Londres
 🇺🇸 Miami, Nueva York, Orlando
 
-Recibirás alertas separadas para:
-• Ofertas de SOLO IDA
-• Ofertas de IDA Y VUELTA
+📍 <b>Rutas IDA Y VUELTA:</b>
+🇦🇷 Buenos Aires (EZE) → Madrid, Barcelona, Roma, París, Lisboa
+🇦🇷 Córdoba (COR) → Madrid, Barcelona, Roma
 
 ⏰ ${new Date().toLocaleString('es-ES')}
 `.trim();
