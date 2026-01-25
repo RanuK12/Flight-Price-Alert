@@ -180,7 +180,8 @@ async function runFullSearch(options = {}) {
     console.log(`\n🛫 ${route.name}`);
     
     try {
-      const searchResult = await scrapeAllSources(route.origin, route.destination);
+      // Pasar false para indicar solo ida
+      const searchResult = await scrapeAllSources(route.origin, route.destination, false);
       
       results.allSearches.push({
         route: route.name,
@@ -196,8 +197,7 @@ async function runFullSearch(options = {}) {
           const threshold = getThreshold(route.origin, 'oneway');
           
           if (price <= threshold) {
-            // Asignar fecha del rango si no tiene
-            const depDate = flight.departureDate || SEARCH_DATES[Math.floor(Math.random() * SEARCH_DATES.length)];
+            const depDate = flight.departureDate || '2026-03-28';
             
             results.oneWayDeals.push({
               origin: route.origin,
@@ -212,11 +212,13 @@ async function runFullSearch(options = {}) {
               tripType: 'oneway',
               threshold,
             });
-            console.log(`  🔥 OFERTA: €${price} (${flight.airline}) - ${formatDate(depDate)}`);
+            console.log(`  🔥 OFERTA REAL: €${price} (${flight.airline}) - ${formatDate(depDate)}`);
+          } else {
+            console.log(`  ✈️ €${price} (${flight.airline}) - no es oferta (máx €${threshold})`);
           }
         }
       } else {
-        console.log(`  ⚠️ Sin resultados`);
+        console.log(`  ⚠️ Sin precios reales encontrados`);
       }
     } catch (error) {
       results.errors.push({ route: route.name, error: error.message });
@@ -235,7 +237,8 @@ async function runFullSearch(options = {}) {
     console.log(`\n🛫 ${route.name} (ida y vuelta)`);
     
     try {
-      const searchResult = await scrapeAllSources(route.origin, route.destination);
+      // Pasar true para indicar ida y vuelta - busca precios REALES de ida y vuelta
+      const searchResult = await scrapeAllSources(route.origin, route.destination, true);
       
       results.allSearches.push({
         route: route.name,
@@ -247,23 +250,19 @@ async function runFullSearch(options = {}) {
 
       if (searchResult.allFlights && searchResult.allFlights.length > 0) {
         for (const flight of searchResult.allFlights) {
-          // Para ida y vuelta, multiplicar precio por ~1.8
-          const basePrice = Math.round(flight.price);
-          const roundTripPrice = Math.round(basePrice * 1.8);
+          // El precio ya viene como ida y vuelta del scraper
+          const price = Math.round(flight.price);
           
-          if (roundTripPrice <= ROUND_TRIP_THRESHOLD) {
-            const depDate = SEARCH_DATES[Math.floor(Math.random() * SEARCH_DATES.length)];
-            // Vuelta 14 días después
-            const retDate = new Date(depDate);
-            retDate.setDate(retDate.getDate() + 14);
-            const returnDate = retDate.toISOString().split('T')[0];
+          if (price <= ROUND_TRIP_THRESHOLD) {
+            const depDate = flight.departureDate || '2026-03-28';
+            const returnDate = flight.returnDate || '2026-04-11';
             
             results.roundTripDeals.push({
               origin: route.origin,
               destination: route.destination,
               routeName: route.name,
               region: route.region,
-              price: roundTripPrice,
+              price,
               airline: flight.airline,
               source: flight.source,
               departureDate: depDate,
@@ -272,11 +271,13 @@ async function runFullSearch(options = {}) {
               tripType: 'roundtrip',
               threshold: ROUND_TRIP_THRESHOLD,
             });
-            console.log(`  🔥 OFERTA: €${roundTripPrice} (${flight.airline}) - ${formatDate(depDate)} ↔ ${formatDate(returnDate)}`);
+            console.log(`  🔥 OFERTA REAL I+V: €${price} (${flight.airline}) - ${formatDate(depDate)} ↔ ${formatDate(returnDate)}`);
+          } else {
+            console.log(`  ✈️ €${price} (${flight.airline}) - no es oferta (máx €${ROUND_TRIP_THRESHOLD})`);
           }
         }
       } else {
-        console.log(`  ⚠️ Sin resultados`);
+        console.log(`  ⚠️ Sin precios reales encontrados`);
       }
     } catch (error) {
       results.errors.push({ route: route.name, error: error.message });
