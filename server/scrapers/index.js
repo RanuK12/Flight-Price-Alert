@@ -1,13 +1,15 @@
-const { scrapeSkyscanner } = require('./skyscanner');
+const { scrapeGoogleFlights } = require('./skyscanner');
 const { scrapeKayak } = require('./kayak');
 
 // Coordinar múltiples fuentes de scraping
-async function scrapeAllSources(origin, destination) {
-  console.log(`\n🔍 Buscando vuelos: ${origin} → ${destination}`);
+async function scrapeAllSources(origin, destination, isRoundTrip = false) {
+  const tripType = isRoundTrip ? 'ida y vuelta' : 'solo ida';
+  console.log(`\n🔍 Buscando vuelos: ${origin} → ${destination} (${tripType})`);
   
   const results = {
     origin,
     destination,
+    isRoundTrip,
     sources: [],
     minPrice: Infinity,
     cheapestFlight: null,
@@ -15,51 +17,51 @@ async function scrapeAllSources(origin, destination) {
   };
 
   try {
-    // Scrape Skyscanner
+    // Scrape Google Flights (más confiable)
     try {
-      const skyscannerResult = await scrapeSkyscanner(origin, destination);
+      const googleResult = await scrapeGoogleFlights(origin, destination, isRoundTrip);
       results.sources.push({
-        name: 'Skyscanner',
-        minPrice: skyscannerResult.minPrice,
-        flightCount: skyscannerResult.flights.length,
-        success: skyscannerResult.success,
+        name: 'Google Flights',
+        minPrice: googleResult.minPrice,
+        flightCount: googleResult.flights?.length || 0,
+        success: googleResult.success,
       });
       
-      if (skyscannerResult.flights) {
-        results.allFlights.push(...skyscannerResult.flights);
-      }
-      
-      if (skyscannerResult.minPrice < results.minPrice) {
-        results.minPrice = skyscannerResult.minPrice;
-        results.cheapestFlight = skyscannerResult.flights[0];
+      if (googleResult.flights && googleResult.flights.length > 0) {
+        results.allFlights.push(...googleResult.flights);
+        
+        if (googleResult.minPrice && googleResult.minPrice < results.minPrice) {
+          results.minPrice = googleResult.minPrice;
+          results.cheapestFlight = googleResult.flights[0];
+        }
       }
     } catch (err) {
-      console.error(`Skyscanner error: ${err.message}`);
+      console.error(`Google Flights error: ${err.message}`);
     }
 
-    // Scrape Kayak
+    // Scrape Kayak (backup)
     try {
-      const kayakResult = await scrapeKayak(origin, destination);
+      const kayakResult = await scrapeKayak(origin, destination, isRoundTrip ? '2026-04-11' : null);
       results.sources.push({
         name: 'Kayak',
         minPrice: kayakResult.minPrice,
-        flightCount: kayakResult.flights.length,
+        flightCount: kayakResult.flights?.length || 0,
         success: kayakResult.success,
       });
       
-      if (kayakResult.flights) {
+      if (kayakResult.flights && kayakResult.flights.length > 0) {
         results.allFlights.push(...kayakResult.flights);
-      }
-      
-      if (kayakResult.minPrice < results.minPrice) {
-        results.minPrice = kayakResult.minPrice;
-        results.cheapestFlight = kayakResult.flights[0];
+        
+        if (kayakResult.minPrice && kayakResult.minPrice < results.minPrice) {
+          results.minPrice = kayakResult.minPrice;
+          results.cheapestFlight = kayakResult.flights[0];
+        }
       }
     } catch (err) {
       console.error(`Kayak error: ${err.message}`);
     }
 
-    // Remover vuelos duplicados (mismo precio, misma aerolínea)
+    // Remover vuelos duplicados
     const uniqueFlights = [];
     const seen = new Set();
 
@@ -75,9 +77,9 @@ async function scrapeAllSources(origin, destination) {
 
     if (results.minPrice === Infinity) {
       results.minPrice = null;
-      console.log(`❌ No se encontraron vuelos`);
+      console.log(`⚠️ No se encontraron precios reales`);
     } else {
-      console.log(`✅ Mínimo encontrado: €${results.minPrice}`);
+      console.log(`✅ Precio mínimo REAL: €${results.minPrice}`);
     }
 
     return results;
