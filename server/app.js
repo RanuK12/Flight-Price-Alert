@@ -78,7 +78,7 @@ async function startServer() {
       
       if (isProduction || autoMonitor) {
         console.log('🚀 Iniciando monitoreo automático de vuelos...');
-        const schedule = process.env.MONITOR_SCHEDULE || '0 */30 * * * *'; // Cada 30 min por defecto
+        const schedule = process.env.MONITOR_SCHEDULE || '0 */2 * * *'; // Cada 2 horas por defecto
         startMonitoring(schedule);
         console.log(`⏰ Búsquedas programadas: ${schedule}`);
         console.log('');
