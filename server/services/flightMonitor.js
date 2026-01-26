@@ -47,14 +47,14 @@ const SEARCH_DATES = generateSearchDates();
 // CONFIGURACIÓN DE UMBRALES DE OFERTAS
 // =============================================
 
-// Umbrales para SOLO IDA (Europa/USA → Argentina)
+// Umbrales personalizados por el usuario
 const ONE_WAY_THRESHOLDS = {
-  europeToArgentina: 350,  // Europa → Argentina: máx €350
-  usaToArgentina: 200,     // USA → Argentina: máx €200
+  europeToArgentina: 300,   // Europa → Argentina: máx €300 (solo ida)
+  usaToArgentina: 180,      // USA → Argentina: máx €180 (solo ida)
+  usaToArgentinaToARG: 250, // USA → Argentina: máx €250 (solo ida, desde USA a ARG)
 };
 
-// Umbral para IDA Y VUELTA (Argentina → Europa)
-const ROUND_TRIP_THRESHOLD = 600; // máx €600
+const ROUND_TRIP_THRESHOLD = 500; // Argentina → Europa: máx €500 (ida y vuelta)
 
 // Aeropuertos por región
 const EUROPE_AIRPORTS = ['MAD', 'BCN', 'FCO', 'CDG', 'FRA', 'AMS', 'LIS', 'LHR', 'MUC', 'ZRH', 'BRU', 'VIE'];
@@ -99,17 +99,27 @@ const MONITORED_ROUTES = [
  * Determina si un precio es una oferta según el tipo de vuelo
  */
 function isGoodDeal(price, origin, tripType = 'oneway') {
-  if (tripType === 'roundtrip') {
+  // Ida y vuelta Argentina → Europa
+  if (tripType === 'roundtrip' && ARGENTINA_AIRPORTS.includes(origin)) {
     return price <= ROUND_TRIP_THRESHOLD;
   }
-  
-  // Solo ida
-  if (EUROPE_AIRPORTS.includes(origin)) {
-    return price <= ONE_WAY_THRESHOLDS.europeToArgentina;
-  } else if (USA_AIRPORTS.includes(origin)) {
+
+  // Solo ida Europa → USA
+  if (EUROPE_AIRPORTS.includes(origin) && USA_AIRPORTS.includes(destination)) {
     return price <= ONE_WAY_THRESHOLDS.usaToArgentina;
   }
-  
+
+  // Solo ida USA → Argentina
+  if (USA_AIRPORTS.includes(origin) && ARGENTINA_AIRPORTS.includes(destination)) {
+    return price <= ONE_WAY_THRESHOLDS.usaToArgentinaToARG;
+  }
+
+  // Solo ida Europa → Argentina
+  if (EUROPE_AIRPORTS.includes(origin) && ARGENTINA_AIRPORTS.includes(destination)) {
+    return price <= ONE_WAY_THRESHOLDS.europeToArgentina;
+  }
+
+  // Por defecto, usar el umbral de Europa → Argentina
   return price <= ONE_WAY_THRESHOLDS.europeToArgentina;
 }
 
