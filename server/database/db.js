@@ -119,12 +119,98 @@ async function initDatabase() {
       )
     `);
 
+    // Cache de respuestas de búsqueda (para ahorrar requests de SerpApi)
+    await run(`
+      CREATE TABLE IF NOT EXISTS flight_search_cache (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        provider TEXT NOT NULL,
+        cache_key TEXT NOT NULL,
+        response_json TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME NOT NULL,
+        UNIQUE(provider, cache_key)
+      )
+    `);
+
+    // Uso diario por provider (control de presupuesto)
+    await run(`
+      CREATE TABLE IF NOT EXISTS provider_daily_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        provider TEXT NOT NULL,
+        usage_date TEXT NOT NULL, -- YYYY-MM-DD en timezone objetivo
+        used INTEGER NOT NULL DEFAULT 0,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(provider, usage_date)
+      )
+    `);
+
     console.log('✅ Esquema de base de datos inicializado');
     return true;
   } catch (error) {
     console.error('Error inicializando base de datos:', error.message);
     return false;
   }
+}
+
+/**
+ * Cache helpers
+ */
+async function getCachedResponse(provider, cacheKey) {
+  const row = await get(
+    `SELECT response_json, expires_at FROM flight_search_cache WHERE provider = ? AND cache_key = ?`,
+    [provider, cacheKey]
+  );
+  if (!row) return null;
+
+  // Validar expiración
+  const now = new Date();
+  const expiresAt = new Date(row.expires_at);
+  if (isNaN(expiresAt.getTime()) || expiresAt <= now) {
+    // limpiar cache vencida
+    try {
+      await run(`DELETE FROM flight_search_cache WHERE provider = ? AND cache_key = ?`, [provider, cacheKey]);
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  try {
+    return JSON.parse(row.response_json);
+  } catch {
+    return null;
+  }
+}
+
+async function setCachedResponse(provider, cacheKey, responseObj, ttlMs) {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + ttlMs);
+  const responseJson = JSON.stringify(responseObj);
+
+  return run(
+    `INSERT OR REPLACE INTO flight_search_cache (provider, cache_key, response_json, created_at, expires_at)
+     VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)`,
+    [provider, cacheKey, responseJson, expiresAt.toISOString()]
+  );
+}
+
+/**
+ * Provider usage helpers
+ */
+async function getProviderUsage(provider, usageDate) {
+  const row = await get(
+    `SELECT used FROM provider_daily_usage WHERE provider = ? AND usage_date = ?`,
+    [provider, usageDate]
+  );
+  return row?.used ?? 0;
+}
+
+async function incrementProviderUsage(provider, usageDate, by = 1) {
+  await run(
+    `INSERT INTO provider_daily_usage (provider, usage_date, used, updated_at)
+     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(provider, usage_date)
+     DO UPDATE SET used = used + ?, updated_at = CURRENT_TIMESTAMP`,
+    [provider, usageDate, by, by]
+  );
 }
 
 /**
@@ -272,4 +358,8 @@ module.exports = {
   getDealStats,
   getPriceHistory,
   markAlertSent,
+  getCachedResponse,
+  setCachedResponse,
+  getProviderUsage,
+  incrementProviderUsage,
 };
