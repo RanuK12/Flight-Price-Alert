@@ -6,9 +6,43 @@
  */
 
 const axios = require('axios');
+const crypto = require('crypto');
+const { getCachedResponse, setCachedResponse, getProviderUsage, incrementProviderUsage } = require('../database/db');
 
 // API Key de SerpApi (plan gratuito: 250 búsquedas/mes)
 const SERPAPI_KEY = process.env.SERPAPI_KEY || '';
+const PROVIDER_NAME = 'serpapi_google_flights';
+
+// Presupuesto diario (por defecto: 8/día para plan 250/mes)
+const SERPAPI_DAILY_BUDGET = parseInt(process.env.SERPAPI_DAILY_BUDGET || '8', 10);
+
+// Cache TTL (horas)
+const SERPAPI_CACHE_TTL_HOURS = parseFloat(process.env.SERPAPI_CACHE_TTL_HOURS || '12');
+
+// Timezone objetivo (Italia)
+const MONITOR_TIMEZONE = process.env.MONITOR_TIMEZONE || 'Europe/Rome';
+
+function getDateInTimeZone(timeZone) {
+  // YYYY-MM-DD según timezone dado
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const y = parts.find(p => p.type === 'year')?.value;
+  const m = parts.find(p => p.type === 'month')?.value;
+  const d = parts.find(p => p.type === 'day')?.value;
+  return `${y}-${m}-${d}`;
+}
+
+function buildCacheKey(params) {
+  // evitar guardar api_key y normalizar orden
+  const safe = { ...params };
+  delete safe.api_key;
+  const keyStr = JSON.stringify(safe);
+  return crypto.createHash('sha256').update(keyStr).digest('hex');
+}
 
 /**
  * Códigos IATA de aeropuertos principales
@@ -114,14 +148,45 @@ async function searchGoogleFlights(origin, destination, outboundDate, returnDate
   }
 
   try {
-    console.log(`  🔍 Buscando ${origin} → ${destination} (${outboundDate})...`);
-    
-    const response = await axios.get('https://serpapi.com/search', { params });
+    // Cache-first
+    const cacheKey = buildCacheKey(params);
+    const cached = await getCachedResponse(PROVIDER_NAME, cacheKey);
+    if (cached) {
+      console.log(`  🧠 Cache hit: ${origin}→${destination} ${outboundDate} (${tripType})`);
+      return parseGoogleFlightsResponse(cached, origin, destination, outboundDate, returnDate, tripType);
+    }
+
+    // Budget check
+    const usageDate = getDateInTimeZone(MONITOR_TIMEZONE);
+    const used = await getProviderUsage(PROVIDER_NAME, usageDate);
+    if (used >= SERPAPI_DAILY_BUDGET) {
+      return {
+        success: false,
+        budgetExceeded: true,
+        error: `Presupuesto diario agotado (${SERPAPI_DAILY_BUDGET}/día). Usado: ${used} el ${usageDate} (${MONITOR_TIMEZONE})`,
+        origin,
+        destination,
+        outboundDate,
+        returnDate,
+        tripType,
+      };
+    }
+
+    console.log(`  🔍 SerpApi: ${origin} → ${destination} (${outboundDate}) [${used + 1}/${SERPAPI_DAILY_BUDGET} hoy]...`);
+
+    const response = await axios.get('https://serpapi.com/search', { params, timeout: 30000 });
     const data = response.data;
 
     if (!data) {
       throw new Error('Sin respuesta de SerpApi');
     }
+
+    // contabilizar uso SOLO si hubo request real
+    await incrementProviderUsage(PROVIDER_NAME, usageDate, 1);
+
+    // Guardar cache
+    const ttlMs = Math.max(1, SERPAPI_CACHE_TTL_HOURS) * 60 * 60 * 1000;
+    await setCachedResponse(PROVIDER_NAME, cacheKey, data, ttlMs);
 
     return parseGoogleFlightsResponse(data, origin, destination, outboundDate, returnDate, tripType);
     

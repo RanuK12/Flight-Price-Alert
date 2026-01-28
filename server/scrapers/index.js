@@ -1,14 +1,15 @@
 /**
  * Coordinador de búsqueda de vuelos - APIs REALES
- * Usa Amadeus y Kiwi.com para obtener precios reales
+ * Usa SerpApi (Google Flights) + Amadeus + Kiwi.com para obtener precios reales
  */
 
 const amadeus = require('./amadeus');
 const kiwi = require('./kiwi');
+const { searchGoogleFlights, generateBookingUrl } = require('./googleFlights');
 
 // Fechas de búsqueda por defecto
-const DEFAULT_DEPARTURE = '2026-03-28';
-const DEFAULT_RETURN = '2026-04-11';
+const DEFAULT_DEPARTURE = process.env.SEARCH_DATE_DEFAULT_DEPARTURE || '2026-03-28';
+const DEFAULT_RETURN = process.env.SEARCH_DATE_DEFAULT_RETURN || '2026-04-04';
 
 /**
  * Buscar vuelos en todas las fuentes disponibles
@@ -35,6 +36,44 @@ async function scrapeAllSources(origin, destination, isRoundTrip = false, depart
   };
 
   const searchPromises = [];
+
+  // 0. SerpApi Google Flights (recomendado para empezar; incluye price_insights)
+  if (process.env.SERPAPI_KEY) {
+    const trip = isRoundTrip ? 'roundtrip' : 'oneway';
+    const serpPromise = searchGoogleFlights(origin, destination, departureDate, isRoundTrip ? returnDate : null, trip)
+      .then(result => {
+        // Convertir al formato { flights: [] } esperado por el agregador
+        if (!result?.success || !result.lowestPrice) {
+          return { flights: [], error: result?.error || 'Sin resultados SerpApi', meta: result };
+        }
+
+        const airline = result.bestFlights?.[0]?.airline || 'Multiple';
+        const bookingUrl = result.bookingUrl || generateBookingUrl(origin, destination, departureDate, isRoundTrip ? returnDate : null);
+
+        // Un "vuelo" representando el mínimo (para umbrales/notificación)
+        return {
+          flights: [{
+            price: result.lowestPrice,
+            airline,
+            link: bookingUrl,
+            departureDate,
+            returnDate: isRoundTrip ? returnDate : null,
+            meta: {
+              priceInsights: result.priceInsights || null,
+              dealLevel: result.dealLevel || null,
+            }
+          }],
+          meta: result,
+        };
+      })
+      .catch(err => ({ flights: [], error: err.message }));
+
+    searchPromises.push(
+      serpPromise.then(result => ({ source: 'SerpApi (Google Flights)', result }))
+    );
+  } else {
+    console.log('⚠️ SerpApi: Sin credenciales (SERPAPI_KEY)');
+  }
 
   // 1. Buscar en Amadeus
   if (process.env.AMADEUS_API_KEY) {
@@ -71,6 +110,12 @@ async function scrapeAllSources(origin, destination, isRoundTrip = false, depart
     console.log('\n❌ NO HAY APIs CONFIGURADAS');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('Para obtener precios REALES necesitas configurar al menos una API:');
+    console.log('');
+    console.log('📌 OPCIÓN 0: SerpApi Google Flights (250 búsquedas/mes)');
+    console.log('   1. Registrarse en: https://serpapi.com/');
+    console.log('   2. Obtener API key');
+    console.log('   3. Añadir en Railway:');
+    console.log('      SERPAPI_KEY=tu_api_key');
     console.log('');
     console.log('📌 OPCIÓN 1: Amadeus (Recomendado, 2000 llamadas gratis/mes)');
     console.log('   1. Registrarse en: https://developers.amadeus.com/');
