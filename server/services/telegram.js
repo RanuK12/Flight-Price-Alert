@@ -100,7 +100,7 @@ async function sendDealsReport(oneWayDeals, roundTripDeals) {
   if (roundTripDeals.length > 0) {
     message += `\n\n🔄 <b>IDA Y VUELTA</b> (${roundTripDeals.length} ofertas)\n`;
     message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    message += `🇦🇷 <b>Argentina → Europa</b> (< €600)\n\n`;
+    message += `🇦🇷 <b>Argentina → Europa</b> (≤ €600)\n\n`;
     
     // Separar por origen (Ezeiza vs Córdoba)
     const ezeDeals = roundTripDeals.filter(d => d.origin === 'EZE');
@@ -293,9 +293,9 @@ async function sendNoDealsMessage(totalSearches) {
 ✅ Rutas analizadas: ${totalSearches}
 ❌ Sin ofertas que cumplan los umbrales:
 
-• Solo ida Europa→Argentina: <€350
-• Solo ida USA→Argentina: <€200
-• Ida y vuelta: <€650
+• Solo ida Europa→Argentina: ≤ €350
+• Solo ida USA→Argentina: ≤ €200
+• Ida y vuelta: ≤ €650
 
 Seguimos monitoreando... 👀
 ⏰ ${new Date().toLocaleString('es-ES')}
@@ -317,7 +317,7 @@ async function sendMonitoringStarted() {
 📋 <b>Umbrales de ofertas:</b>
 ✈️ Solo ida Europa→Argentina: máx €350
 ✈️ Solo ida USA→Argentina: máx €200
-🔄 Ida y vuelta Argentina→Europa: < €600
+🔄 Ida y vuelta Argentina→Europa: ≤ €600
 
 📍 <b>Rutas SOLO IDA:</b>
 🇪🇺 Madrid, Barcelona, Roma, París, Frankfurt, Amsterdam, Lisboa, Londres
