@@ -195,9 +195,9 @@ router.get('/deals/stats', async (req, res) => {
  */
 router.post('/monitor/start', async (req, res) => {
   try {
-    const { schedule = '0 */4 * * *' } = req.body;
+    const { schedule = '15 8,15,22 * * *', timezone = process.env.MONITOR_TIMEZONE || 'Europe/Rome' } = req.body;
     
-    const started = startMonitoring(schedule);
+    const started = startMonitoring(schedule, timezone);
     
     res.json({
       success: started,
