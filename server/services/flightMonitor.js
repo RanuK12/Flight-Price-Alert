@@ -5,13 +5,13 @@
  * - Europa/USA → Argentina: SOLO IDA
  * - Argentina (EZE/COR) → Europa: IDA Y VUELTA
  * 
- * Fechas de búsqueda: 25 marzo - 15 abril 2026
+ * Fechas de búsqueda: 25 marzo - 8 abril 2026
  */
 
 const cron = require('node-cron');
 const { scrapeAllSources } = require('../scrapers');
 const { sendDealsReport, sendNoDealsMessage, sendErrorAlert, sendMonitoringStarted, isActive } = require('./telegram');
-const { run, get, all } = require('../database/db');
+const { run, get, all, getProviderUsage } = require('../database/db');
 
 // Estado del monitor
 let isMonitoring = false;
@@ -20,12 +20,64 @@ let totalDealsFound = 0;
 let cronJob = null;
 
 // =============================================
+// CONFIG: TIMEZONE + PRESUPUESTO SERPAPI
+// =============================================
+
+// Timezone objetivo (Italia)
+const MONITOR_TIMEZONE = process.env.MONITOR_TIMEZONE || 'Europe/Rome';
+
+// Presupuesto SerpApi (plan 250/mes ≈ 8/día)
+const SERPAPI_PROVIDER = 'serpapi_google_flights';
+const SERPAPI_DAILY_BUDGET = parseInt(process.env.SERPAPI_DAILY_BUDGET || '8', 10);
+
+// Presupuesto por corrida (default: 3 + 3 + 2 = 8/día)
+const RUN_BUDGET_MORNING = parseInt(process.env.MONITOR_RUN_BUDGET_MORNING || '3', 10);    // 08:15
+const RUN_BUDGET_AFTERNOON = parseInt(process.env.MONITOR_RUN_BUDGET_AFTERNOON || '3', 10); // 15:15
+const RUN_BUDGET_NIGHT = parseInt(process.env.MONITOR_RUN_BUDGET_NIGHT || '2', 10);        // 22:15
+
+function getDateInTimeZone(tz = MONITOR_TIMEZONE, date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const y = parts.find(p => p.type === 'year')?.value;
+  const m = parts.find(p => p.type === 'month')?.value;
+  const d = parts.find(p => p.type === 'day')?.value;
+  return `${y}-${m}-${d}`;
+}
+
+function getHourInTimeZone(tz = MONITOR_TIMEZONE, date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: tz,
+    hour: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const h = parts.find(p => p.type === 'hour')?.value;
+  return parseInt(h, 10);
+}
+
+function getRunBudgetForNow() {
+  const hour = getHourInTimeZone(MONITOR_TIMEZONE);
+  if (hour >= 6 && hour < 12) return RUN_BUDGET_MORNING;
+  if (hour >= 12 && hour < 19) return RUN_BUDGET_AFTERNOON;
+  return RUN_BUDGET_NIGHT;
+}
+
+function addDays(dateStr, days) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
+// =============================================
 // CONFIGURACIÓN DE FECHAS
 // =============================================
 
 // Rango de fechas para buscar ofertas
 const SEARCH_DATE_START = '2026-03-25';
-const SEARCH_DATE_END = '2026-04-15';
+const SEARCH_DATE_END = '2026-04-08';
 
 // Generar fechas de búsqueda (cada 3 días)
 function generateSearchDates() {
@@ -42,6 +94,34 @@ function generateSearchDates() {
 }
 
 const SEARCH_DATES = generateSearchDates();
+
+// =============================================
+// ROTACIÓN: rutas + fechas dentro del rango 25-mar → 8-abr
+// =============================================
+
+const rotationState = {
+  europeArg: 0,
+  argEuRoundTrip: 0,
+  usaArg: 0,
+};
+
+function rotatePick(list, stateKey, count) {
+  if (!Array.isArray(list) || list.length === 0 || count <= 0) return [];
+  const picked = [];
+  for (let i = 0; i < count; i++) {
+    const idx = rotationState[stateKey] % list.length;
+    picked.push(list[idx]);
+    rotationState[stateKey] = (rotationState[stateKey] + 1) % list.length;
+  }
+  return picked;
+}
+
+function pickRotatedDateForRoute(route) {
+  const todayIdx = Math.abs(new Date().getDate()) % SEARCH_DATES.length;
+  const routeIdx = Math.abs((route.origin.charCodeAt(0) + route.destination.charCodeAt(0)) % SEARCH_DATES.length);
+  const dateIdx = (todayIdx + routeIdx) % SEARCH_DATES.length;
+  return SEARCH_DATES[dateIdx];
+}
 
 // =============================================
 // CONFIGURACIÓN DE UMBRALES DE OFERTAS
@@ -98,7 +178,7 @@ const MONITORED_ROUTES = [
 /**
  * Determina si un precio es una oferta según el tipo de vuelo
  */
-function isGoodDeal(price, origin, tripType = 'oneway') {
+function isGoodDeal(price, origin, destination, tripType = 'oneway') {
   // Ida y vuelta Argentina → Europa
   if (tripType === 'roundtrip' && ARGENTINA_AIRPORTS.includes(origin)) {
     return price <= ROUND_TRIP_THRESHOLD;
@@ -154,7 +234,16 @@ function formatDate(dateStr) {
  * Realiza una búsqueda completa de ofertas
  */
 async function runFullSearch(options = {}) {
-  const { notifyDeals = true } = options;
+  const { notifyDeals = true, maxRequests } = options;
+
+  // Presupuesto por corrida (adaptativo a la hora Italia)
+  const runBudget = typeof maxRequests === 'number' ? maxRequests : getRunBudgetForNow();
+
+  // Presupuesto restante del día (según DB, en timezone Italia)
+  const usageDate = getDateInTimeZone(MONITOR_TIMEZONE);
+  const usedToday = await getProviderUsage(SERPAPI_PROVIDER, usageDate);
+  const remainingToday = Math.max(0, SERPAPI_DAILY_BUDGET - usedToday);
+  const allowedThisRun = Math.max(0, Math.min(runBudget, remainingToday));
 
   console.log('\n' + '='.repeat(60));
   console.log('🔍 BÚSQUEDA DE OFERTAS DE VUELOS v3.0');
@@ -162,6 +251,8 @@ async function runFullSearch(options = {}) {
   console.log(`⏰ ${new Date().toLocaleString('es-ES')}`);
   console.log(`📊 Rutas: ${MONITORED_ROUTES.length}`);
   console.log(`📅 Fechas: ${SEARCH_DATE_START} al ${SEARCH_DATE_END}`);
+  console.log(`🕒 Timezone: ${MONITOR_TIMEZONE}`);
+  console.log(`📦 Presupuesto SerpApi: ${usedToday}/${SERPAPI_DAILY_BUDGET} hoy | Run: ${allowedThisRun}/${runBudget}`);
   console.log('');
   console.log('📋 UMBRALES:');
   console.log(`   • Solo ida Europa→Argentina: máx €${ONE_WAY_THRESHOLDS.europeToArgentina}`);
@@ -177,52 +268,110 @@ async function runFullSearch(options = {}) {
     startTime: new Date(),
   };
 
-  // Separar rutas por tipo
+  // Separar rutas por tipo y prioridad
   const oneWayRoutes = MONITORED_ROUTES.filter(r => r.tripType === 'oneway');
   const roundTripRoutes = MONITORED_ROUTES.filter(r => r.tripType === 'roundtrip');
 
+  const europeArgRoutes = oneWayRoutes.filter(r => r.region === 'europe');      // prioridad 1
+  const argEuRoutes = roundTripRoutes.filter(r => r.region === 'argentina');   // prioridad 2
+  const usaArgRoutes = oneWayRoutes.filter(r => r.region === 'usa');           // prioridad 3
+
+  // Plan de búsquedas para esta corrida (weights: EU→ARG > ARG↔EU > USA→ARG)
+  const plan = [];
+  if (allowedThisRun > 0) {
+    // base: EU + RT
+    const euCount = allowedThisRun === 2 ? 1 : 2;
+    const rtCount = 1;
+
+    plan.push(...rotatePick(europeArgRoutes, 'europeArg', euCount));
+    plan.push(...rotatePick(argEuRoutes, 'argEuRoundTrip', rtCount));
+
+    // Extra: 1 USA→ARG en la ventana de tarde, día sí / día no, si queda hueco
+    const hour = getHourInTimeZone(MONITOR_TIMEZONE);
+    const isAfternoonWindow = hour >= 12 && hour < 19;
+    const shouldIncludeUsa = isAfternoonWindow && (new Date().getDate() % 2 === 0);
+    if (shouldIncludeUsa && plan.length < allowedThisRun) {
+      plan.push(...rotatePick(usaArgRoutes, 'usaArg', 1));
+    }
+
+    plan.splice(allowedThisRun);
+  }
+
   console.log('═══════════════════════════════════════');
-  console.log('✈️  BUSCANDO SOLO IDA');
+  console.log('✈️  BUSCANDO (PRESUPUESTO OPTIMIZADO)');
   console.log('═══════════════════════════════════════');
 
-  // Buscar rutas SOLO IDA
-  for (const route of oneWayRoutes) {
-    console.log(`\n🛫 ${route.name}`);
-    
+  if (allowedThisRun <= 0) {
+    console.log('⚠️ Sin presupuesto disponible para esta corrida. (Si hay cache, igual puede haber hits)');
+  }
+
+  // Ejecutar plan (mezcla one-way + roundtrip según prioridad)
+  for (const route of plan) {
+    const isRoundTrip = route.tripType === 'roundtrip';
+    const departureDate = pickRotatedDateForRoute(route);
+    const returnDate = isRoundTrip ? addDays(departureDate, 14) : null;
+
+    console.log(`\n🛫 ${route.name} ${isRoundTrip ? '(ida y vuelta)' : '(solo ida)'}`);
+    console.log(`   📅 ${departureDate}${returnDate ? ` ↔ ${returnDate}` : ''}`);
+
     try {
-      // Pasar false para indicar solo ida
-      const searchResult = await scrapeAllSources(route.origin, route.destination, false);
-      
+      const searchResult = await scrapeAllSources(
+        route.origin,
+        route.destination,
+        isRoundTrip,
+        departureDate,
+        isRoundTrip ? returnDate : undefined
+      );
+
       results.allSearches.push({
         route: route.name,
         origin: route.origin,
         destination: route.destination,
-        tripType: 'oneway',
+        tripType: isRoundTrip ? 'roundtrip' : 'oneway',
         success: searchResult.minPrice !== null,
       });
 
       if (searchResult.allFlights && searchResult.allFlights.length > 0) {
         for (const flight of searchResult.allFlights) {
           const price = Math.round(flight.price);
-          const threshold = getThreshold(route.origin, 'oneway');
-          
+          const threshold = isRoundTrip ? ROUND_TRIP_THRESHOLD : getThreshold(route.origin, 'oneway');
+
           if (price <= threshold) {
-            const depDate = flight.departureDate || '2026-03-28';
-            
-            results.oneWayDeals.push({
-              origin: route.origin,
-              destination: route.destination,
-              routeName: route.name,
-              region: route.region,
-              price,
-              airline: flight.airline,
-              source: flight.source,
-              departureDate: depDate,
-              bookingUrl: flight.link,
-              tripType: 'oneway',
-              threshold,
-            });
-            console.log(`  🔥 OFERTA REAL: €${price} (${flight.airline}) - ${formatDate(depDate)}`);
+            const depDate = flight.departureDate || departureDate;
+            const rtDate = isRoundTrip ? (flight.returnDate || returnDate) : null;
+
+            if (isRoundTrip) {
+              results.roundTripDeals.push({
+                origin: route.origin,
+                destination: route.destination,
+                routeName: route.name,
+                region: route.region,
+                price,
+                airline: flight.airline,
+                source: flight.source,
+                departureDate: depDate,
+                returnDate: rtDate,
+                bookingUrl: flight.link,
+                tripType: 'roundtrip',
+                threshold,
+              });
+              console.log(`  🔥 OFERTA REAL I+V: €${price} (${flight.airline}) - ${formatDate(depDate)} ↔ ${formatDate(rtDate)}`);
+            } else {
+              results.oneWayDeals.push({
+                origin: route.origin,
+                destination: route.destination,
+                routeName: route.name,
+                region: route.region,
+                price,
+                airline: flight.airline,
+                source: flight.source,
+                departureDate: depDate,
+                bookingUrl: flight.link,
+                tripType: 'oneway',
+                threshold,
+              });
+              console.log(`  🔥 OFERTA REAL: €${price} (${flight.airline}) - ${formatDate(depDate)}`);
+            }
           } else {
             console.log(`  ✈️ €${price} (${flight.airline}) - no es oferta (máx €${threshold})`);
           }
@@ -235,66 +384,7 @@ async function runFullSearch(options = {}) {
       console.error(`  ❌ Error: ${error.message}`);
     }
 
-    await sleep(1500);
-  }
-
-  console.log('\n═══════════════════════════════════════');
-  console.log('🔄 BUSCANDO IDA Y VUELTA');
-  console.log('═══════════════════════════════════════');
-
-  // Buscar rutas IDA Y VUELTA (Argentina → Europa)
-  for (const route of roundTripRoutes) {
-    console.log(`\n🛫 ${route.name} (ida y vuelta)`);
-    
-    try {
-      // Pasar true para indicar ida y vuelta - busca precios REALES de ida y vuelta
-      const searchResult = await scrapeAllSources(route.origin, route.destination, true);
-      
-      results.allSearches.push({
-        route: route.name,
-        origin: route.origin,
-        destination: route.destination,
-        tripType: 'roundtrip',
-        success: searchResult.minPrice !== null,
-      });
-
-      if (searchResult.allFlights && searchResult.allFlights.length > 0) {
-        for (const flight of searchResult.allFlights) {
-          // El precio ya viene como ida y vuelta del scraper
-          const price = Math.round(flight.price);
-          
-          if (price <= ROUND_TRIP_THRESHOLD) {
-            const depDate = flight.departureDate || '2026-03-28';
-            const returnDate = flight.returnDate || '2026-04-11';
-            
-            results.roundTripDeals.push({
-              origin: route.origin,
-              destination: route.destination,
-              routeName: route.name,
-              region: route.region,
-              price,
-              airline: flight.airline,
-              source: flight.source,
-              departureDate: depDate,
-              returnDate,
-              bookingUrl: flight.link,
-              tripType: 'roundtrip',
-              threshold: ROUND_TRIP_THRESHOLD,
-            });
-            console.log(`  🔥 OFERTA REAL I+V: €${price} (${flight.airline}) - ${formatDate(depDate)} ↔ ${formatDate(returnDate)}`);
-          } else {
-            console.log(`  ✈️ €${price} (${flight.airline}) - no es oferta (máx €${ROUND_TRIP_THRESHOLD})`);
-          }
-        }
-      } else {
-        console.log(`  ⚠️ Sin precios reales encontrados`);
-      }
-    } catch (error) {
-      results.errors.push({ route: route.name, error: error.message });
-      console.error(`  ❌ Error: ${error.message}`);
-    }
-
-    await sleep(1500);
+    await sleep(350);
   }
 
   results.endTime = new Date();
@@ -409,7 +499,7 @@ async function quickSearch(origin, destination) {
 /**
  * Inicia el monitoreo continuo
  */
-function startMonitoring(cronSchedule = '0 */30 * * * *') {
+function startMonitoring(cronSchedule = '15 8,15,22 * * *', timezone = 'Europe/Rome') {
   if (isMonitoring) {
     console.log('⚠️ El monitoreo ya está activo');
     return false;
@@ -438,7 +528,7 @@ function startMonitoring(cronSchedule = '0 */30 * * * *') {
     }
   }, {
     scheduled: true,
-    timezone: 'Europe/Madrid',
+    timezone,
   });
 
   isMonitoring = true;

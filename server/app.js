@@ -78,9 +78,12 @@ async function startServer() {
       
       if (isProduction || autoMonitor) {
         console.log('🚀 Iniciando monitoreo automático de vuelos...');
-        const schedule = process.env.MONITOR_SCHEDULE || '0 */2 * * *'; // Cada 2 horas por defecto
-        startMonitoring(schedule);
-        console.log(`⏰ Búsquedas programadas: ${schedule}`);
+        // Ventanas recomendadas (Italia): 08:15, 15:15, 22:15
+        // Se puede sobreescribir con MONITOR_SCHEDULE
+        const schedule = process.env.MONITOR_SCHEDULE || '15 8,15,22 * * *';
+        const timezone = process.env.MONITOR_TIMEZONE || 'Europe/Rome';
+        startMonitoring(schedule, timezone);
+        console.log(`⏰ Búsquedas programadas: ${schedule} (${timezone})`);
         console.log('');
         
         // Ejecutar primera búsqueda después de 10 segundos
