@@ -9,7 +9,7 @@ const { initTelegram } = require('./services/telegram');
 const { startMonitoring, getMonitorStatus } = require('./services/flightMonitor');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 // Middlewares
 app.use(cors());
@@ -78,9 +78,8 @@ async function startServer() {
       
       if (isProduction || autoMonitor) {
         console.log('🚀 Iniciando monitoreo automático de vuelos...');
-        // Ventanas recomendadas (Italia): 08:15, 15:15, 22:15
-        // Se puede sobreescribir con MONITOR_SCHEDULE
-        const schedule = process.env.MONITOR_SCHEDULE || '15 8,15,22 * * *';
+        // Buscar cada 2 horas por defecto
+        const schedule = process.env.MONITOR_SCHEDULE || '0 */2 * * *';
         const timezone = process.env.MONITOR_TIMEZONE || 'Europe/Rome';
         startMonitoring(schedule, timezone);
         console.log(`⏰ Búsquedas programadas: ${schedule} (${timezone})`);
