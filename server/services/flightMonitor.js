@@ -96,7 +96,8 @@ function generateSearchDates() {
 const SEARCH_DATES = generateSearchDates();
 
 // =============================================
-// ROTACIÓN: rutas + fechas dentro del rango 25-mar → 8-abr
+// =============================================
+// Procesar TODAS las rutas configuradas en cada búsqueda
 // =============================================
 
 const rotationState = {
