@@ -1,7 +1,7 @@
 /**
  * Servicio de Monitoreo de Vuelos v3.0
  * 
- * Busca ofertas de vuelos usando web scraping (Skyscanner + Kayak)
+ * Busca ofertas de vuelos usando web scraping (Puppeteer Google Flights)
  * - Europa/USA → Argentina: SOLO IDA
  * - Argentina (EZE/COR) → Europa: IDA Y VUELTA
  * 
@@ -10,8 +10,8 @@
 
 const cron = require('node-cron');
 const { scrapeAllSources } = require('../scrapers');
-const { sendDealsReport, sendNoDealsMessage, sendErrorAlert, sendMonitoringStarted, isActive } = require('./telegram');
-const { run, get, all, getProviderUsage } = require('../database/db');
+const { sendDealsReport, sendErrorAlert, sendMonitoringStarted, isActive } = require('./telegram');
+const { run, get, all, getProviderUsage, wasRecentlyAlerted, isNewHistoricalLow } = require('../database/db');
 
 // Estado del monitor
 let isMonitoring = false;
@@ -337,9 +337,26 @@ async function runFullSearch(options = {}) {
           const price = Math.round(flight.price);
           const threshold = isRoundTrip ? ROUND_TRIP_THRESHOLD : getThreshold(route.origin, 'oneway');
 
+          // ══════════════════════════════════════════════════════════════
+          // VALIDACIÓN DE PRECIOS REALISTAS (evitar falsos positivos)
+          // ══════════════════════════════════════════════════════════════
+          if (price < 50 || price > 5000) {
+            console.log(`  ⚠️ Precio irreal ignorado: €${price}`);
+            continue;
+          }
+
           if (price <= threshold) {
             const depDate = flight.departureDate || departureDate;
             const rtDate = isRoundTrip ? (flight.returnDate || returnDate) : null;
+
+            // ══════════════════════════════════════════════════════════════
+            // ANTI-SPAM: Verificar si ya alertamos precio similar (±5%)
+            // ══════════════════════════════════════════════════════════════
+            const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
+            if (recentlyAlerted) {
+              console.log(`  🔕 €${price} ya alertado recientemente (anti-spam)`);
+              continue;
+            }
 
             if (isRoundTrip) {
               results.roundTripDeals.push({
@@ -399,13 +416,20 @@ async function runFullSearch(options = {}) {
 
   // Mostrar resumen
   const duration = (results.endTime - results.startTime) / 1000;
+  const successfulSearches = results.allSearches.filter(s => s.success).length;
+  const failedSearches = results.errors.length;
+  
   console.log('\n' + '='.repeat(60));
   console.log('📊 RESUMEN');
   console.log('='.repeat(60));
-  console.log(`✅ Búsquedas: ${results.allSearches.filter(s => s.success).length}/${MONITORED_ROUTES.length}`);
+  console.log(`✅ Búsquedas exitosas: ${successfulSearches}/${plan.length}`);
+  if (failedSearches > 0) {
+    console.log(`❌ Búsquedas fallidas: ${failedSearches}`);
+  }
   console.log(`🔥 Ofertas SOLO IDA: ${results.oneWayDeals.length}`);
   console.log(`🔥 Ofertas IDA+VUELTA: ${results.roundTripDeals.length}`);
   console.log(`⏱️ Duración: ${duration.toFixed(1)}s`);
+  console.log(`📅 Próxima búsqueda: según schedule configurado`);
 
   // Mostrar mejores ofertas
   if (results.oneWayDeals.length > 0) {
@@ -422,14 +446,15 @@ async function runFullSearch(options = {}) {
     });
   }
 
-  // Enviar reporte a Telegram
+  // Enviar reporte a Telegram SOLO SI HAY OFERTAS (anti-spam)
   if (notifyDeals && isActive()) {
     const hasDeals = results.oneWayDeals.length > 0 || results.roundTripDeals.length > 0;
     if (hasDeals) {
       await sendDealsReport(results.oneWayDeals, results.roundTripDeals);
+      console.log('📱 Notificación Telegram enviada con ofertas');
     } else {
-      // Enviar mensaje de "sin ofertas" para confirmar que funciona
-      await sendNoDealsMessage(results.allSearches.length);
+      // NO enviar mensaje cuando no hay ofertas (evita spam)
+      console.log('📴 Sin ofertas - no se envía notificación (anti-spam)');
     }
   }
 
