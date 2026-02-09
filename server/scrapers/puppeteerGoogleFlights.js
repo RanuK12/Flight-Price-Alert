@@ -3,6 +3,7 @@
  * 
  * Scraping REAL de precios de vuelos sin necesidad de API keys.
  * Usa Puppeteer con stealth plugin para evitar detección.
+ * Incluye circuit breaker para evitar sobrecarga cuando falla repetidamente.
  */
 
 const puppeteer = require('puppeteer-extra');
@@ -14,6 +15,46 @@ puppeteer.use(StealthPlugin());
 const HEADLESS = process.env.PUPPETEER_HEADLESS !== 'false';
 const TIMEOUT = parseInt(process.env.PUPPETEER_TIMEOUT || '60000', 10);
 const MAX_RETRIES = parseInt(process.env.PUPPETEER_RETRIES || '2', 10);
+
+// ══════════════════════════════════════════════════════════════
+// CIRCUIT BREAKER - Pausar scraping cuando falla repetidamente
+// ══════════════════════════════════════════════════════════════
+const circuitBreaker = {
+  failures: 0,
+  lastFailure: null,
+  isOpen: false,
+  threshold: 5,           // Abrir circuit después de 5 fallos consecutivos
+  resetTimeout: 10 * 60 * 1000, // Reintentar después de 10 minutos
+  
+  recordFailure() {
+    this.failures++;
+    this.lastFailure = Date.now();
+    if (this.failures >= this.threshold) {
+      this.isOpen = true;
+      console.log(`  🔴 Circuit breaker ABIERTO (${this.failures} fallos). Pausando 10 min.`);
+    }
+  },
+  
+  recordSuccess() {
+    this.failures = 0;
+    this.isOpen = false;
+  },
+  
+  canProceed() {
+    if (!this.isOpen) return true;
+    
+    // Verificar si pasó el tiempo de reset
+    if (Date.now() - this.lastFailure > this.resetTimeout) {
+      console.log('  🟡 Circuit breaker: intentando reconexión...');
+      this.isOpen = false;
+      this.failures = 0;
+      return true;
+    }
+    
+    console.log('  🔴 Circuit breaker ABIERTO - saltando scraping');
+    return false;
+  }
+};
 
 // Cache en memoria para evitar búsquedas repetidas (TTL: 2 horas)
 const searchCache = new Map();
@@ -234,6 +275,24 @@ async function scrapeGoogleFlights(origin, destination, departureDate, returnDat
     return cached.data;
   }
   
+  // ══════════════════════════════════════════════════════════════
+  // CIRCUIT BREAKER CHECK - Si hay muchos fallos, pausar
+  // ══════════════════════════════════════════════════════════════
+  if (!circuitBreaker.canProceed()) {
+    return {
+      success: false,
+      flights: [],
+      minPrice: null,
+      origin,
+      destination,
+      departureDate,
+      returnDate,
+      tripType,
+      error: 'Circuit breaker open - too many failures',
+      searchUrl: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
+    };
+  }
+  
   const url = buildGoogleFlightsUrl(origin, destination, departureDate, returnDate);
   console.log(`  🔍 Scraping: ${origin} → ${destination} (${departureDate}${returnDate ? ' ↔ ' + returnDate : ''})`);
   
@@ -371,6 +430,7 @@ async function scrapeGoogleFlights(origin, destination, departureDate, returnDat
       
       if (flights.length > 0) {
         console.log(`  ✅ ${flights.length} precios encontrados (min: €${result.minPrice})`);
+        circuitBreaker.recordSuccess(); // ✅ Reset circuit breaker on success
       } else {
         console.log(`  ⚠️ Sin precios encontrados`);
       }
@@ -394,6 +454,7 @@ async function scrapeGoogleFlights(origin, destination, departureDate, returnDat
   
   // Todos los intentos fallaron
   console.error(`  ❌ Error scraping ${origin}-${destination}: ${lastError?.message}`);
+  circuitBreaker.recordFailure(); // ❌ Incrementar contador de fallos
   
   return {
     success: false,
