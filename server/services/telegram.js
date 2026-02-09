@@ -357,12 +357,89 @@ async function sendTestMessage() {
 El bot de Flight Deal Finder está funcionando correctamente.
 
 📋 <b>Umbrales configurados:</b>
-• Solo ida Europa→Argentina: €350
-• Solo ida USA→Argentina: €200  
-• Ida y vuelta: €650
+• Solo ida Europa→Argentina: €300
+• Solo ida USA→Argentina: €180 / €250  
+• Ida y vuelta Argentina→Europa: €500
 
 ⏰ ${new Date().toLocaleString('es-ES')}
 `.trim();
+
+  return sendMessage(message);
+}
+
+/**
+ * Envía alerta de NUEVO MÍNIMO HISTÓRICO
+ * Solo se envía cuando encontramos un precio menor a todos los anteriores
+ */
+async function sendHistoricalLowAlert(deal) {
+  const {
+    origin,
+    destination,
+    price,
+    previousMin,
+    improvement,
+    improvementPercent,
+    airline,
+    departureDate,
+    tripType,
+    link,
+  } = deal;
+
+  const tripTypeText = tripType === 'roundtrip' ? 'Ida y Vuelta' : 'Solo Ida';
+  const savings = previousMin ? `€${Math.round(improvement)} menos que el anterior mínimo (€${previousMin})` : 'Primera vez que encontramos esta ruta';
+
+  const message = `
+🏆 <b>¡NUEVO MÍNIMO HISTÓRICO!</b> 🏆
+
+🛫 <b>${origin} → ${destination}</b>
+💰 <b>€${Math.round(price)}</b>
+${airline ? `✈️ Aerolínea: ${airline}` : ''}
+📅 ${departureDate || 'Fechas flexibles'}
+🎫 ${tripTypeText}
+
+📉 <b>${savings}</b>
+${improvementPercent ? `💪 ${improvementPercent}% de ahorro vs histórico` : ''}
+
+🔗 <a href="${link || generateGoogleFlightsUrl(origin, destination, departureDate || '2026-03-28')}">Ver en Google Flights</a>
+
+⏰ ${new Date().toLocaleString('es-ES')}
+`.trim();
+
+  return sendMessage(message);
+}
+
+/**
+ * Envía resumen diario (solo si hay ofertas interesantes)
+ */
+async function sendDailySummary(stats) {
+  const {
+    routesSearched,
+    totalFlights,
+    bestDeals,
+    newLows,
+  } = stats;
+
+  if (bestDeals.length === 0 && newLows === 0) {
+    // No enviar nada si no hay nada interesante
+    return false;
+  }
+
+  let message = `
+📊 <b>Resumen del Día</b>
+
+🔍 Rutas analizadas: ${routesSearched}
+✈️ Vuelos encontrados: ${totalFlights}
+🏆 Nuevos mínimos: ${newLows}
+`.trim();
+
+  if (bestDeals.length > 0) {
+    message += `\n\n<b>🔥 Mejores precios hoy:</b>`;
+    for (const deal of bestDeals.slice(0, 5)) {
+      message += `\n• ${deal.origin}→${deal.destination}: €${deal.price}`;
+    }
+  }
+
+  message += `\n\n⏰ ${new Date().toLocaleString('es-ES')}`;
 
   return sendMessage(message);
 }
@@ -377,5 +454,7 @@ module.exports = {
   sendErrorAlert,
   sendMonitoringStarted,
   sendTestMessage,
+  sendHistoricalLowAlert,
+  sendDailySummary,
   isActive,
 };

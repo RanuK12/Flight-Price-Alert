@@ -345,6 +345,90 @@ async function markAlertSent(dealId) {
   return run(`UPDATE deals SET notified = 1 WHERE id = ?`, [dealId]);
 }
 
+/**
+ * Obtiene el precio mínimo histórico para una ruta
+ */
+async function getHistoricalMinPrice(origin, destination, tripType = 'oneway') {
+  const row = await get(`
+    SELECT MIN(price) as minPrice, recorded_at
+    FROM flight_prices
+    WHERE origin = ? AND destination = ?
+  `, [origin, destination]);
+  
+  return row?.minPrice || null;
+}
+
+/**
+ * Detecta si un precio es un nuevo mínimo histórico
+ */
+async function isNewHistoricalLow(origin, destination, currentPrice, tripType = 'oneway') {
+  const historicalMin = await getHistoricalMinPrice(origin, destination, tripType);
+  
+  if (historicalMin === null) {
+    // Primera vez que vemos esta ruta
+    return { isNewLow: true, previousMin: null, improvement: null };
+  }
+  
+  if (currentPrice < historicalMin) {
+    const improvement = historicalMin - currentPrice;
+    const improvementPercent = Math.round((improvement / historicalMin) * 100);
+    return { 
+      isNewLow: true, 
+      previousMin: historicalMin, 
+      improvement,
+      improvementPercent,
+    };
+  }
+  
+  return { isNewLow: false, previousMin: historicalMin };
+}
+
+/**
+ * Verifica si ya se envió alerta para este precio/ruta recientemente
+ * Evita spam de alertas cuando el precio es similar
+ */
+async function wasRecentlyAlerted(origin, destination, price, hoursWindow = 24) {
+  const row = await get(`
+    SELECT id, price FROM deals
+    WHERE origin = ? AND destination = ?
+    AND notified = 1
+    AND found_at >= datetime('now', '-' || ? || ' hours')
+    ORDER BY found_at DESC
+    LIMIT 1
+  `, [origin, destination, hoursWindow]);
+  
+  if (!row) return false;
+  
+  // Si el precio es muy similar (±5%), no alertar de nuevo
+  const priceDiff = Math.abs(row.price - price) / row.price;
+  return priceDiff < 0.05;
+}
+
+/**
+ * Guarda precio y devuelve análisis
+ */
+async function savePriceWithAnalysis(origin, destination, price, airline, source, departureDate, tripType = 'oneway') {
+  // Guardar el precio
+  await saveFlightPrice(origin, destination, price, airline, source, null, departureDate);
+  
+  // Analizar
+  const historicalAnalysis = await isNewHistoricalLow(origin, destination, price, tripType);
+  const recentlyAlerted = await wasRecentlyAlerted(origin, destination, price);
+  
+  return {
+    price,
+    origin,
+    destination,
+    airline,
+    source,
+    departureDate,
+    tripType,
+    ...historicalAnalysis,
+    shouldAlert: historicalAnalysis.isNewLow && !recentlyAlerted,
+    recentlyAlerted,
+  };
+}
+
 module.exports = {
   db,
   run,
@@ -362,4 +446,9 @@ module.exports = {
   setCachedResponse,
   getProviderUsage,
   incrementProviderUsage,
+  // Nuevas funciones para detección de mínimos
+  getHistoricalMinPrice,
+  isNewHistoricalLow,
+  wasRecentlyAlerted,
+  savePriceWithAnalysis,
 };

@@ -1,11 +1,38 @@
 /**
- * Coordinador de búsqueda de vuelos - APIs REALES
- * Usa SerpApi (Google Flights) + Amadeus + Kiwi.com para obtener precios reales
+ * Coordinador de búsqueda de vuelos - PRECIOS REALES
+ * 
+ * Prioridad de fuentes:
+ * 1. Puppeteer (Google Flights) - No requiere API key, siempre disponible
+ * 2. SerpApi (Google Flights) - Si hay SERPAPI_KEY
+ * 3. Amadeus - Si hay AMADEUS_API_KEY
+ * 4. Kiwi - Si hay KIWI_API_KEY
  */
 
-const amadeus = require('./amadeus');
-const kiwi = require('./kiwi');
-const { searchGoogleFlights, generateBookingUrl } = require('./googleFlights');
+const { scrapeGoogleFlights } = require('./puppeteerGoogleFlights');
+
+// APIs opcionales (solo si hay credenciales)
+let amadeus = null;
+let kiwi = null;
+let serpApiSearch = null;
+
+try {
+  if (process.env.AMADEUS_API_KEY) {
+    amadeus = require('./amadeus');
+  }
+} catch (e) { /* Módulo no disponible */ }
+
+try {
+  if (process.env.KIWI_API_KEY) {
+    kiwi = require('./kiwi');
+  }
+} catch (e) { /* Módulo no disponible */ }
+
+try {
+  if (process.env.SERPAPI_KEY) {
+    const gf = require('./googleFlights');
+    serpApiSearch = gf.searchGoogleFlights;
+  }
+} catch (e) { /* Módulo no disponible */ }
 
 // Fechas de búsqueda por defecto
 const DEFAULT_DEPARTURE = process.env.SEARCH_DATE_DEFAULT_DEPARTURE || '2026-03-28';
@@ -13,6 +40,8 @@ const DEFAULT_RETURN = process.env.SEARCH_DATE_DEFAULT_RETURN || '2026-04-04';
 
 /**
  * Buscar vuelos en todas las fuentes disponibles
+ * Prioridad: Puppeteer (siempre) > SerpApi > Amadeus > Kiwi
+ * 
  * @param {string} origin - Código IATA origen
  * @param {string} destination - Código IATA destino  
  * @param {boolean} isRoundTrip - Si es ida y vuelta
@@ -21,7 +50,7 @@ const DEFAULT_RETURN = process.env.SEARCH_DATE_DEFAULT_RETURN || '2026-04-04';
  */
 async function scrapeAllSources(origin, destination, isRoundTrip = false, departureDate = DEFAULT_DEPARTURE, returnDate = DEFAULT_RETURN) {
   const tripType = isRoundTrip ? 'ida y vuelta' : 'solo ida';
-  console.log(`\n🔍 Buscando vuelos REALES: ${origin} → ${destination} (${tripType})`);
+  console.log(`\n🔍 Buscando vuelos: ${origin} → ${destination} (${tripType})`);
   
   const results = {
     origin,
@@ -35,143 +64,147 @@ async function scrapeAllSources(origin, destination, isRoundTrip = false, depart
     allFlights: [],
   };
 
-  const searchPromises = [];
-
-  // 0. SerpApi Google Flights (recomendado para empezar; incluye price_insights)
-  if (process.env.SERPAPI_KEY) {
-    const trip = isRoundTrip ? 'roundtrip' : 'oneway';
-    const serpPromise = searchGoogleFlights(origin, destination, departureDate, isRoundTrip ? returnDate : null, trip)
-      .then(result => {
-        // Convertir al formato { flights: [] } esperado por el agregador
-        if (!result?.success || !result.lowestPrice) {
-          return { flights: [], error: result?.error || 'Sin resultados SerpApi', meta: result };
-        }
-
-        const airline = result.bestFlights?.[0]?.airline || 'Multiple';
-        const bookingUrl = result.bookingUrl || generateBookingUrl(origin, destination, departureDate, isRoundTrip ? returnDate : null);
-
-        // Un "vuelo" representando el mínimo (para umbrales/notificación)
-        return {
-          flights: [{
-            price: result.lowestPrice,
-            airline,
-            link: bookingUrl,
-            departureDate,
-            returnDate: isRoundTrip ? returnDate : null,
-            meta: {
-              priceInsights: result.priceInsights || null,
-              dealLevel: result.dealLevel || null,
-            }
-          }],
-          meta: result,
-        };
-      })
-      .catch(err => ({ flights: [], error: err.message }));
-
-    searchPromises.push(
-      serpPromise.then(result => ({ source: 'SerpApi (Google Flights)', result }))
+  // ══════════════════════════════════════════════════════════════
+  // FUENTE PRINCIPAL: Puppeteer (Google Flights) - Sin API key
+  // ══════════════════════════════════════════════════════════════
+  try {
+    const puppeteerResult = await scrapeGoogleFlights(
+      origin, 
+      destination, 
+      departureDate, 
+      isRoundTrip ? returnDate : null
     );
-  } else {
-    console.log('⚠️ SerpApi: Sin credenciales (SERPAPI_KEY)');
-  }
-
-  // 1. Buscar en Amadeus
-  if (process.env.AMADEUS_API_KEY) {
-    const amadeusPromise = isRoundTrip
-      ? amadeus.searchRoundTrip(origin, destination, departureDate, returnDate)
-      : amadeus.searchOneWay(origin, destination, departureDate);
     
-    searchPromises.push(
-      amadeusPromise
-        .then(result => ({ source: 'Amadeus', result }))
-        .catch(err => ({ source: 'Amadeus', result: { flights: [], error: err.message } }))
-    );
-  } else {
-    console.log('⚠️ Amadeus: Sin credenciales (AMADEUS_API_KEY)');
-  }
-
-  // 2. Buscar en Kiwi
-  if (process.env.KIWI_API_KEY) {
-    const kiwiPromise = isRoundTrip
-      ? kiwi.searchRoundTrip(origin, destination, departureDate, returnDate)
-      : kiwi.searchOneWay(origin, destination, departureDate);
-    
-    searchPromises.push(
-      kiwiPromise
-        .then(result => ({ source: 'Kiwi', result }))
-        .catch(err => ({ source: 'Kiwi', result: { flights: [], error: err.message } }))
-    );
-  } else {
-    console.log('⚠️ Kiwi: Sin credenciales (KIWI_API_KEY)');
-  }
-
-  // Si no hay ninguna API configurada, dar instrucciones
-  if (searchPromises.length === 0) {
-    console.log('\n❌ NO HAY APIs CONFIGURADAS');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('Para obtener precios REALES necesitas configurar al menos una API:');
-    console.log('');
-    console.log('📌 OPCIÓN 0: SerpApi Google Flights (250 búsquedas/mes)');
-    console.log('   1. Registrarse en: https://serpapi.com/');
-    console.log('   2. Obtener API key');
-    console.log('   3. Añadir en Railway:');
-    console.log('      SERPAPI_KEY=tu_api_key');
-    console.log('');
-    console.log('📌 OPCIÓN 1: Amadeus (Recomendado, 2000 llamadas gratis/mes)');
-    console.log('   1. Registrarse en: https://developers.amadeus.com/');
-    console.log('   2. Crear una app en el dashboard');
-    console.log('   3. Añadir en Railway:');
-    console.log('      AMADEUS_API_KEY=tu_api_key');
-    console.log('      AMADEUS_API_SECRET=tu_api_secret');
-    console.log('');
-    console.log('📌 OPCIÓN 2: Kiwi.com/Tequila (Gratis)');
-    console.log('   1. Registrarse en: https://tequila.kiwi.com/');
-    console.log('   2. Obtener API key del dashboard');
-    console.log('   3. Añadir en Railway:');
-    console.log('      KIWI_API_KEY=tu_api_key');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    
-    return results;
-  }
-
-  // Ejecutar búsquedas en paralelo
-  const searchResults = await Promise.all(searchPromises);
-
-  // Procesar resultados
-  for (const { source, result } of searchResults) {
     results.sources.push({
-      name: source,
-      minPrice: result.flights?.length > 0 ? Math.min(...result.flights.map(f => f.price)) : null,
-      flightCount: result.flights?.length || 0,
-      success: result.flights?.length > 0,
-      error: result.error || null,
+      name: 'Puppeteer (Google Flights)',
+      minPrice: puppeteerResult.minPrice,
+      flightCount: puppeteerResult.flights?.length || 0,
+      success: puppeteerResult.success,
+      error: puppeteerResult.error || null,
     });
-
-    if (result.flights && result.flights.length > 0) {
-      // Añadir source a cada vuelo
-      const flightsWithSource = result.flights.map(f => ({
-        ...f,
-        source: source,
-      }));
+    
+    if (puppeteerResult.flights && puppeteerResult.flights.length > 0) {
+      results.allFlights.push(...puppeteerResult.flights);
       
-      results.allFlights.push(...flightsWithSource);
-
-      const sourceMinPrice = Math.min(...result.flights.map(f => f.price));
-      if (sourceMinPrice < results.minPrice) {
-        results.minPrice = sourceMinPrice;
-        results.cheapestFlight = result.flights.find(f => f.price === sourceMinPrice);
+      if (puppeteerResult.minPrice && puppeteerResult.minPrice < results.minPrice) {
+        results.minPrice = puppeteerResult.minPrice;
+        results.cheapestFlight = puppeteerResult.flights[0];
       }
+    }
+  } catch (err) {
+    console.error(`  ❌ Error Puppeteer: ${err.message}`);
+    results.sources.push({
+      name: 'Puppeteer (Google Flights)',
+      success: false,
+      error: err.message,
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // FUENTES ADICIONALES (solo si hay API keys configuradas)
+  // ══════════════════════════════════════════════════════════════
+  
+  // SerpApi (si está configurado)
+  if (serpApiSearch && process.env.SERPAPI_KEY) {
+    try {
+      const trip = isRoundTrip ? 'roundtrip' : 'oneway';
+      const serpResult = await serpApiSearch(origin, destination, departureDate, isRoundTrip ? returnDate : null, trip);
+      
+      if (serpResult?.success && serpResult.lowestPrice) {
+        const flight = {
+          price: serpResult.lowestPrice,
+          airline: serpResult.bestFlights?.[0]?.airline || 'Multiple',
+          source: 'SerpApi',
+          departureDate,
+          returnDate: isRoundTrip ? returnDate : null,
+          link: serpResult.bookingUrl || serpResult.searchUrl,
+        };
+        
+        results.allFlights.push(flight);
+        results.sources.push({
+          name: 'SerpApi',
+          minPrice: serpResult.lowestPrice,
+          success: true,
+        });
+        
+        if (serpResult.lowestPrice < results.minPrice) {
+          results.minPrice = serpResult.lowestPrice;
+          results.cheapestFlight = flight;
+        }
+      }
+    } catch (err) {
+      console.log(`  ⚠️ SerpApi: ${err.message}`);
     }
   }
 
-  // Eliminar duplicados y ordenar por precio
+  // Amadeus (si está configurado)
+  if (amadeus && process.env.AMADEUS_API_KEY) {
+    try {
+      const amadeusResult = isRoundTrip
+        ? await amadeus.searchRoundTrip(origin, destination, departureDate, returnDate)
+        : await amadeus.searchOneWay(origin, destination, departureDate);
+      
+      if (amadeusResult.flights && amadeusResult.flights.length > 0) {
+        const flightsWithSource = amadeusResult.flights.map(f => ({ ...f, source: 'Amadeus' }));
+        results.allFlights.push(...flightsWithSource);
+        
+        const minPrice = Math.min(...amadeusResult.flights.map(f => f.price));
+        results.sources.push({
+          name: 'Amadeus',
+          minPrice,
+          flightCount: amadeusResult.flights.length,
+          success: true,
+        });
+        
+        if (minPrice < results.minPrice) {
+          results.minPrice = minPrice;
+          results.cheapestFlight = flightsWithSource.find(f => f.price === minPrice);
+        }
+      }
+    } catch (err) {
+      console.log(`  ⚠️ Amadeus: ${err.message}`);
+    }
+  }
+
+  // Kiwi (si está configurado)
+  if (kiwi && process.env.KIWI_API_KEY) {
+    try {
+      const kiwiResult = isRoundTrip
+        ? await kiwi.searchRoundTrip(origin, destination, departureDate, returnDate)
+        : await kiwi.searchOneWay(origin, destination, departureDate);
+      
+      if (kiwiResult.flights && kiwiResult.flights.length > 0) {
+        const flightsWithSource = kiwiResult.flights.map(f => ({ ...f, source: 'Kiwi' }));
+        results.allFlights.push(...flightsWithSource);
+        
+        const minPrice = Math.min(...kiwiResult.flights.map(f => f.price));
+        results.sources.push({
+          name: 'Kiwi',
+          minPrice,
+          flightCount: kiwiResult.flights.length,
+          success: true,
+        });
+        
+        if (minPrice < results.minPrice) {
+          results.minPrice = minPrice;
+          results.cheapestFlight = flightsWithSource.find(f => f.price === minPrice);
+        }
+      }
+    } catch (err) {
+      console.log(`  ⚠️ Kiwi: ${err.message}`);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // POST-PROCESAMIENTO: Deduplicar y ordenar
+  // ══════════════════════════════════════════════════════════════
+  
   const uniqueFlights = [];
   const seen = new Set();
 
   results.allFlights
     .sort((a, b) => a.price - b.price)
     .forEach(flight => {
-      // Clave única: aerolínea + precio + fecha
       const key = `${flight.airline}-${Math.round(flight.price)}-${flight.departureDate}`;
       if (!seen.has(key)) {
         seen.add(key);
@@ -184,42 +217,50 @@ async function scrapeAllSources(origin, destination, isRoundTrip = false, depart
   // Resumen
   if (results.minPrice === Infinity) {
     results.minPrice = null;
-    console.log(`⚠️ Sin resultados de ninguna API`);
+    console.log(`  ⚠️ Sin resultados`);
   } else {
-    console.log(`\n✅ PRECIO MÍNIMO REAL: €${results.minPrice} (${results.cheapestFlight?.airline || 'N/A'})`);
-    console.log(`📊 Total vuelos encontrados: ${results.allFlights.length}`);
+    console.log(`  ✅ Precio mínimo: €${results.minPrice} (${results.cheapestFlight?.airline || 'N/A'})`);
   }
 
   return results;
 }
 
 /**
- * Buscar vuelos con fechas flexibles (solo Kiwi)
+ * Buscar vuelos con fechas flexibles
  */
 async function searchFlexible(origin, destination, dateFrom, dateTo, isRoundTrip = false) {
-  if (!process.env.KIWI_API_KEY) {
-    console.log('⚠️ Búsqueda flexible requiere KIWI_API_KEY');
-    return { flights: [], error: 'No Kiwi API key' };
+  // Generar fechas cada 3 días dentro del rango
+  const dates = [];
+  let current = new Date(dateFrom);
+  const end = new Date(dateTo);
+  
+  while (current <= end) {
+    dates.push(current.toISOString().split('T')[0]);
+    current.setDate(current.getDate() + 3);
   }
-
-  if (isRoundTrip) {
-    // Para ida y vuelta, buscar con rango de fechas para la vuelta también
-    const returnFrom = new Date(dateFrom);
-    returnFrom.setDate(returnFrom.getDate() + 7);
-    const returnTo = new Date(dateTo);
-    returnTo.setDate(returnTo.getDate() + 14);
+  
+  const allResults = [];
+  
+  for (const date of dates) {
+    const returnDate = isRoundTrip 
+      ? new Date(new Date(date).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      : null;
     
-    return kiwi.searchFlexible(
-      origin, 
-      destination, 
-      dateFrom, 
-      dateTo,
-      returnFrom.toISOString().split('T')[0],
-      returnTo.toISOString().split('T')[0]
-    );
+    const result = await scrapeAllSources(origin, destination, isRoundTrip, date, returnDate);
+    
+    if (result.allFlights.length > 0) {
+      allResults.push(...result.allFlights);
+    }
+    
+    // Pequeña pausa entre búsquedas para no sobrecargar
+    await new Promise(r => setTimeout(r, 2000));
   }
-
-  return kiwi.searchFlexible(origin, destination, dateFrom, dateTo);
+  
+  // Ordenar por precio y devolver
+  return {
+    flights: allResults.sort((a, b) => a.price - b.price),
+    dateRange: { from: dateFrom, to: dateTo },
+  };
 }
 
 module.exports = {
