@@ -240,9 +240,15 @@ async function scrapeGoogleFlights(origin, destination, departureDate, returnDat
   let browser = null;
   let lastError = null;
   
+  // Detectar path del navegador según entorno
+  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || 
+                         (require('fs').existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined) ||
+                         (require('fs').existsSync('/usr/bin/chromium-browser') ? '/usr/bin/chromium-browser' : undefined) ||
+                         (require('fs').existsSync('/usr/bin/google-chrome-stable') ? '/usr/bin/google-chrome-stable' : undefined);
+  
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      browser = await puppeteer.launch({
+      const launchOptions = {
         headless: HEADLESS ? 'new' : false,
         args: [
           '--no-sandbox',
@@ -255,7 +261,15 @@ async function scrapeGoogleFlights(origin, destination, departureDate, returnDat
           '--disable-features=IsolateOrigins,site-per-process',
         ],
         defaultViewport: { width: 1920, height: 1080 },
-      });
+      };
+      
+      // Usar executablePath solo si está definido
+      if (executablePath) {
+        launchOptions.executablePath = executablePath;
+        if (attempt === 1) console.log(`  🖥️ Usando: ${executablePath}`);
+      }
+      
+      browser = await puppeteer.launch(launchOptions);
       
       const page = await browser.newPage();
       
