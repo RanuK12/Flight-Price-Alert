@@ -9,5 +9,4 @@ cmds = ["npm install"]
 cmd = "node server/app.js"
 
 [variables]
-PUPPETEER_EXECUTABLE_PATH = "/nix/store/chromium/bin/chromium"
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
