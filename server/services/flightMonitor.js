@@ -10,7 +10,7 @@
 
 const cron = require('node-cron');
 const { scrapeAllSources } = require('../scrapers');
-const { sendDealsReport, sendErrorAlert, sendMonitoringStarted, isActive } = require('./telegram');
+const { sendDealsReport, sendErrorAlert, sendNearDealAlert, isActive } = require('./telegram');
 const { run, get, all, getProviderUsage, wasRecentlyAlerted, isNewHistoricalLow } = require('../database/db');
 
 // Estado del monitor
@@ -130,12 +130,14 @@ function pickRotatedDateForRoute(route) {
 
 // Umbrales personalizados por el usuario
 const ONE_WAY_THRESHOLDS = {
-  europeToArgentina: 300,   // Europa → Argentina: máx €300 (solo ida)
-  usaToArgentina: 180,      // USA → Argentina: máx €180 (solo ida)
+  europeToArgentina: 350,   // Europa → Argentina: máx €350 (solo ida)
+  usaToArgentina: 200,      // USA → Argentina: máx €200 (solo ida)
   usaToArgentinaToARG: 250, // USA → Argentina: máx €250 (solo ida, desde USA a ARG)
 };
 
-const ROUND_TRIP_THRESHOLD = 500; // Argentina → Europa: máx €500 (ida y vuelta)
+const ROUND_TRIP_THRESHOLD = 600; // Argentina → Europa: máx €600 (ida y vuelta)
+const NEAR_DEAL_RT_MIN = 650;     // Excepción ida+vuelta: alerta "casi oferta" desde €650
+const NEAR_DEAL_RT_MAX = 800;     // Excepción ida+vuelta: hasta €800
 
 // Aeropuertos por región
 const EUROPE_AIRPORTS = ['MAD', 'BCN', 'FCO', 'CDG', 'FRA', 'AMS', 'LIS', 'LHR', 'MUC', 'ZRH', 'BRU', 'VIE'];
@@ -258,7 +260,8 @@ async function runFullSearch(options = {}) {
   console.log('📋 UMBRALES:');
   console.log(`   • Solo ida Europa→Argentina: máx €${ONE_WAY_THRESHOLDS.europeToArgentina}`);
   console.log(`   • Solo ida USA→Argentina: máx €${ONE_WAY_THRESHOLDS.usaToArgentina}`);
-  console.log(`   • Ida y vuelta Argentina→Europa: máx €${ROUND_TRIP_THRESHOLD} (< €600)`);
+  console.log(`   • Ida y vuelta Argentina→Europa: máx €${ROUND_TRIP_THRESHOLD}`);
+  console.log(`   • Casi oferta I+V: €${NEAR_DEAL_RT_MIN}-€${NEAR_DEAL_RT_MAX} (alerta aparte)`);
   console.log('');
 
   const results = {
@@ -390,6 +393,34 @@ async function runFullSearch(options = {}) {
               });
               console.log(`  🔥 OFERTA REAL: €${price} (${flight.airline}) - ${formatDate(depDate)}`);
             }
+          } else if (isRoundTrip && price >= NEAR_DEAL_RT_MIN && price <= NEAR_DEAL_RT_MAX) {
+            // ══════════════════════════════════════════════════════════════
+            // EXCEPCIÓN: Ida+vuelta Argentina→Europa entre €650-€800
+            // Enviar alerta aparte "casi oferta"
+            // ══════════════════════════════════════════════════════════════
+            const depDate = flight.departureDate || departureDate;
+            const rtDate = flight.returnDate || returnDate;
+
+            const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
+            if (recentlyAlerted) {
+              console.log(`  🔕 €${price} (casi oferta) ya alertado (anti-spam)`);
+              continue;
+            }
+
+            results.nearDeals = results.nearDeals || [];
+            results.nearDeals.push({
+              origin: route.origin,
+              destination: route.destination,
+              routeName: route.name,
+              price,
+              airline: flight.airline,
+              source: flight.source,
+              departureDate: depDate,
+              returnDate: rtDate,
+              bookingUrl: flight.link,
+              tripType: 'roundtrip',
+            });
+            console.log(`  🟡 CASI OFERTA I+V: €${price} (${flight.airline}) - ${formatDate(depDate)} ↔ ${formatDate(rtDate)}`);
           } else {
             console.log(`  ✈️ €${price} (${flight.airline}) - no es oferta (máx €${threshold})`);
           }
@@ -446,6 +477,14 @@ async function runFullSearch(options = {}) {
     });
   }
 
+  const nearDeals = results.nearDeals || [];
+  if (nearDeals.length > 0) {
+    console.log('\n🟡 CASI OFERTAS I+V (€650-€800):');
+    nearDeals.slice(0, 5).forEach((d, i) => {
+      console.log(`  ${i + 1}. ${d.routeName}: €${d.price} (${d.airline})`);
+    });
+  }
+
   // Enviar reporte a Telegram SOLO SI HAY OFERTAS (anti-spam)
   if (notifyDeals && isActive()) {
     const hasDeals = results.oneWayDeals.length > 0 || results.roundTripDeals.length > 0;
@@ -456,11 +495,18 @@ async function runFullSearch(options = {}) {
       // NO enviar mensaje cuando no hay ofertas (evita spam)
       console.log('📴 Sin ofertas - no se envía notificación (anti-spam)');
     }
+
+    // Enviar alerta aparte para "casi ofertas" ida+vuelta €650-€800
+    if (nearDeals.length > 0) {
+      await sendNearDealAlert(nearDeals);
+      console.log('📱 Alerta "Casi Oferta" enviada a Telegram');
+    }
   }
 
   // Guardar en base de datos
   await saveDealsToDatabase(results.oneWayDeals);
   await saveDealsToDatabase(results.roundTripDeals);
+  await saveDealsToDatabase(nearDeals);
 
   return results;
 }
@@ -537,11 +583,11 @@ function startMonitoring(cronSchedule = '15 8,15,22 * * *', timezone = 'Europe/R
   console.log(`   • Solo ida Europa→Argentina: €${ONE_WAY_THRESHOLDS.europeToArgentina}`);
   console.log(`   • Solo ida USA→Argentina: €${ONE_WAY_THRESHOLDS.usaToArgentina}`);
   console.log(`   • Ida y vuelta: €${ROUND_TRIP_THRESHOLD}`);
+  console.log(`   • Casi oferta I+V: €${NEAR_DEAL_RT_MIN}-€${NEAR_DEAL_RT_MAX}`);
   console.log('');
 
-  if (isActive()) {
-    sendMonitoringStarted();
-  }
+  // No enviamos mensaje de inicio (anti-spam)
+  // Solo se notifica cuando hay ofertas reales
 
   // Programar búsquedas
   cronJob = cron.schedule(cronSchedule, async () => {
@@ -628,4 +674,6 @@ module.exports = {
   MONITORED_ROUTES,
   ONE_WAY_THRESHOLDS,
   ROUND_TRIP_THRESHOLD,
+  NEAR_DEAL_RT_MIN,
+  NEAR_DEAL_RT_MAX,
 };
