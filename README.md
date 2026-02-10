@@ -1,117 +1,106 @@
-# ✈️ Flight Price Alert (Flight Deal Finder)
+# Flight Price Alert
 
-Personal flight deal tracker for **Europe ↔ Argentina**, plus **USA ↔ Argentina**. It checks prices on a schedule and sends Telegram alerts when something looks like a real deal.
+Monitor de precios de vuelos entre Europa, USA y Argentina con alertas por Telegram.
 
-This project is built to be **API-first** (SerpApi Google Flights), so it runs reliably on Railway without depending on brittle browser scraping.
+Busca ofertas reales en Google Flights usando Puppeteer y envía notificaciones cuando encuentra precios por debajo de los umbrales configurados.
 
-## 🎯 Features
+## Qué hace
 
-- **Real flight prices (API-first)**: Google Flights via SerpApi (`engine=google_flights`)
-- **Deal detection**: combines SerpApi `price_insights` with route reference thresholds
-- **Telegram alerts**: instant notifications
-- **Budget-aware monitoring**: optimized for SerpApi Free plan (250 searches/month)
-- **SQLite storage**: price history + simple deal tracking
-- **Web dashboard**: manual searches + stats
+- Monitorea rutas Europa → Argentina, USA → Argentina (solo ida) y Argentina → Europa (ida y vuelta)
+- Ejecuta búsquedas automáticas 3 veces al día (configurable)
+- Envía alertas por Telegram solo cuando encuentra ofertas reales
+- Alerta separada para vuelos ida+vuelta que están "casi en oferta" (€650–€800)
+- Guarda historial de precios en SQLite
+- Dashboard web con búsquedas manuales y estadísticas
 
-## 🗺️ Monitored routes (current focus)
+## Rutas monitoreadas
 
-- **Europe → Argentina (one-way)**: MAD/BCN/FCO/CDG/FRA/AMS/LIS/LHR → EZE
-- **Argentina → Europe (roundtrip)**: EZE/COR → MAD/BCN/FCO/CDG/LIS
-- **USA → Argentina (one-way)**: MIA/JFK/MCO → EZE
+**Solo ida Europa → Argentina (máx €350)**
+Madrid, Barcelona, Roma, París, Frankfurt, Amsterdam, Lisboa, Londres → Buenos Aires
 
-## 📅 Date range
+**Solo ida USA → Argentina (máx €200)**
+Miami, Nueva York, Orlando → Buenos Aires
 
-Current monitoring window is **2026-03-25 → 2026-04-08**. Dates are **rotated** inside this range so we don’t burn the monthly budget repeating the same exact combinations.
+**Ida y vuelta Argentina → Europa (máx €600)**
+Buenos Aires (EZE) → Madrid, Barcelona, Roma, París, Lisboa
+Córdoba (COR) → Madrid, Barcelona, Roma
 
-## 🚀 Quickstart
+Además, si un vuelo ida+vuelta está entre €650 y €800, llega una alerta aparte como "casi oferta".
 
-### 1) Clone
+## Fechas de búsqueda
+
+Ventana actual: **25 marzo – 8 abril 2026**. Las fechas rotan automáticamente para no repetir las mismas combinaciones.
+
+## Instalación
 
 ```bash
 git clone https://github.com/RanuK12/Flight-Price-Alert.git
 cd Flight-Price-Alert
-```
-
-### 2) Install
-
-```bash
 npm install
 ```
 
-### 3) Configure env
+## Configuración
 
-Create a `.env` file in the project root:
+Crear un archivo `.env` en la raíz del proyecto:
 
 ```env
-# --- SerpApi (Google Flights) ---
-SERPAPI_KEY=your_serpapi_key
+# Telegram
+TELEGRAM_BOT_TOKEN=tu_token
+TELEGRAM_CHAT_ID=tu_chat_id
 
-# Budget guard (Free plan: 250/month ≈ 8/day)
-SERPAPI_DAILY_BUDGET=8
-
-# Cache TTL (hours) to avoid wasting searches
-SERPAPI_CACHE_TTL_HOURS=12
-
-# Monitoring
+# Monitoreo
 AUTO_MONITOR=true
 MONITOR_TIMEZONE=Europe/Rome
 MONITOR_SCHEDULE=15 8,15,22 * * *
-MONITOR_RUN_BUDGET_MORNING=3
-MONITOR_RUN_BUDGET_AFTERNOON=3
-MONITOR_RUN_BUDGET_NIGHT=2
 
-# Telegram (optional)
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=your_chat_id
+# SerpApi (opcional, para Google Flights API)
+SERPAPI_KEY=tu_key
+SERPAPI_DAILY_BUDGET=8
+SERPAPI_CACHE_TTL_HOURS=12
 ```
 
-### 4) Run
+## Uso
 
 ```bash
 npm start
 ```
 
-Open `http://localhost:3000`
+Abre `http://localhost:4000` para el dashboard.
 
-## ⏰ Monitoring schedule (Italy timezone)
+El monitor arranca automáticamente y ejecuta búsquedas a las 08:15, 15:15 y 22:15 (hora Italia). Solo envía mensajes a Telegram cuando encuentra algo.
 
-Default schedule is optimized for **8 searches/day**:
-
-- 08:15 → 3 searches
-- 15:15 → 3 searches
-- 22:15 → 2 searches
-
-Each run prioritizes:
-
-1) **Europe → Argentina (one-way)**  
-2) **Argentina → Europe (roundtrip)**  
-3) **USA → Argentina (one-way)** (only when there’s budget left in the afternoon window)
-
-## 🧠 Budget + cache (how we make 250/month work)
-
-- **Daily budget guard**: tracked in SQLite (`provider_daily_usage`) and enforced in `server/scrapers/googleFlights.js`
-- **Cache-first**: SerpApi responses are cached with TTL in SQLite (`flight_search_cache`) so repeated checks don’t consume extra searches
-
-## 🖥️ API endpoints
+## Endpoints
 
 ```
-GET  /api/search?origin=MAD&destination=EZE&date=2026-03-28&tripType=oneway
-GET  /api/deals?limit=10
-GET  /api/deals/stats
-GET  /api/routes?type=argentina|usa|all
+GET  /api/search?origin=MAD&destination=EZE
+GET  /api/deals
+GET  /api/routes
 GET  /api/monitor/status
 POST /api/monitor/start
 POST /api/monitor/stop
-POST /api/monitor/search
-GET  /api/telegram/status
-POST /api/telegram/test
 ```
 
-## 📌 Notes
+## PoC (Puppeteer)
 
-- SerpApi Free plan: **250 searches/month** (non-commercial). This repo is tuned for ~**8/day**.
-- If `SERPAPI_KEY` is missing, the app may fall back to simulation (useful for dev, not for real deals).
+En la carpeta `poc/` hay un scraper independiente basado en Puppeteer para Google Flights. Incluye test harness, schema de Postgres y su propia documentación.
 
-## 📄 License
+```bash
+node poc/test-harness.mjs
+```
 
-MIT License — see [LICENSE](LICENSE)
+## Estructura
+
+```
+server/
+  services/
+    flightMonitor.js    # lógica principal de búsqueda y umbrales
+    telegram.js         # plantillas de notificación
+  scrapers/             # scrapers (Puppeteer, SerpApi)
+  database/             # SQLite
+  config/               # rutas y configuración
+poc/                    # PoC con Puppeteer + test harness
+```
+
+## Licencia
+
+MIT
