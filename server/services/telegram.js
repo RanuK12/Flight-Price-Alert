@@ -100,7 +100,7 @@ async function sendDealsReport(oneWayDeals, roundTripDeals) {
   if (roundTripDeals.length > 0) {
     message += `\n\n🔄 <b>IDA Y VUELTA</b> (${roundTripDeals.length} ofertas)\n`;
     message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    message += `🇦🇷 <b>Argentina → Europa</b> (≤ €600)\n\n`;
+    message += `🇦🇷 <b>Argentina → Europa</b> (≤ €600 oferta | €650-€800 aviso)\n\n`;
     
     // Separar por origen (Ezeiza vs Córdoba)
     const ezeDeals = roundTripDeals.filter(d => d.origin === 'EZE');
@@ -295,7 +295,7 @@ async function sendNoDealsMessage(totalSearches) {
 
 • Solo ida Europa→Argentina: ≤ €350
 • Solo ida USA→Argentina: ≤ €200
-• Ida y vuelta: ≤ €650
+• Ida y vuelta: ≤ €600 (aviso €650-€800)
 
 Seguimos monitoreando... 👀
 ⏰ ${new Date().toLocaleString('es-ES')}
@@ -318,6 +318,7 @@ async function sendMonitoringStarted() {
 ✈️ Solo ida Europa→Argentina: máx €350
 ✈️ Solo ida USA→Argentina: máx €200
 🔄 Ida y vuelta Argentina→Europa: ≤ €600
+🟡 Casi oferta I+V: €650-€800 (aviso aparte)
 
 📍 <b>Rutas SOLO IDA:</b>
 🇪🇺 Madrid, Barcelona, Roma, París, Frankfurt, Amsterdam, Lisboa, Londres
@@ -357,9 +358,9 @@ async function sendTestMessage() {
 El bot de Flight Deal Finder está funcionando correctamente.
 
 📋 <b>Umbrales configurados:</b>
-• Solo ida Europa→Argentina: €300
-• Solo ida USA→Argentina: €180 / €250  
-• Ida y vuelta Argentina→Europa: €500
+• Solo ida Europa→Argentina: €350
+• Solo ida USA→Argentina: €200 / €250  
+• Ida y vuelta Argentina→Europa: ≤ €600 (aviso €650-€800)
 
 ⏰ ${new Date().toLocaleString('es-ES')}
 `.trim();
@@ -503,6 +504,52 @@ async function sendBlockedAlert(data) {
   return sendMessage(message);
 }
 
+/**
+ * Envía alerta "Casi Oferta" para ida+vuelta Argentina→Europa entre €650-€800.
+ * Es un mensaje aparte, separado del reporte principal de ofertas.
+ */
+async function sendNearDealAlert(nearDeals) {
+  if (!nearDeals || nearDeals.length === 0) return false;
+
+  let message = `🟡 <b>CASI OFERTA — Ida y Vuelta</b>\n`;
+  message += `📅 ${new Date().toLocaleString('es-ES')}\n`;
+  message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  message += `🇦🇷 <b>Argentina → Europa (€650-€800)</b>\n`;
+  message += `<i>No llega al umbral de oferta (≤€600) pero está cerca:</i>\n\n`;
+
+  const ezeDeals = nearDeals.filter(d => d.origin === 'EZE');
+  const corDeals = nearDeals.filter(d => d.origin === 'COR');
+
+  if (ezeDeals.length > 0) {
+    message += `<b>Desde Buenos Aires (EZE):</b>\n`;
+    for (const deal of ezeDeals.slice(0, 5)) {
+      message += `🟡 <b>€${deal.price}</b> → ${deal.destination}`;
+      if (deal.airline) message += ` • ${deal.airline}`;
+      if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
+      if (deal.returnDate) message += ` ↔ ${formatDateShort(deal.returnDate)}`;
+      message += `\n`;
+    }
+  }
+
+  if (corDeals.length > 0) {
+    if (ezeDeals.length > 0) message += `\n`;
+    message += `<b>Desde Córdoba (COR):</b>\n`;
+    for (const deal of corDeals.slice(0, 5)) {
+      message += `🟡 <b>€${deal.price}</b> → ${deal.destination}`;
+      if (deal.airline) message += ` • ${deal.airline}`;
+      if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
+      if (deal.returnDate) message += ` ↔ ${formatDateShort(deal.returnDate)}`;
+      message += `\n`;
+    }
+  }
+
+  message += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
+  message += `💡 <i>Si baja a ≤€600 se convertirá en oferta confirmada</i>\n`;
+  message += `🔗 Verificar en Google Flights`;
+
+  return sendMessage(message);
+}
+
 module.exports = {
   initTelegram,
   sendMessage,
@@ -517,5 +564,6 @@ module.exports = {
   sendDailySummary,
   sendSearchRunReport,
   sendBlockedAlert,
+  sendNearDealAlert,
   isActive,
 };
