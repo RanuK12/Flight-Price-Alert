@@ -10,6 +10,10 @@ yarn-error.log*
 .env.*
 !.env.example
 
+# PoC debug artifacts
+poc/debug/
+poc/report_*.json
+
 # Python
 __pycache__/
 *.py[cod]
