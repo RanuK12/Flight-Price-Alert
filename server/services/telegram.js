@@ -369,40 +369,43 @@ El bot de Flight Deal Finder está funcionando correctamente.
 
 /**
  * Envía alerta de NUEVO MÍNIMO HISTÓRICO
- * Solo se envía cuando encontramos un precio menor a todos los anteriores
+ * Solo se envía cuando encontramos un precio menor a todos los anteriores.
+ * Usa normalized_hash + historical min check para idempotencia.
  */
 async function sendHistoricalLowAlert(deal) {
   const {
     origin,
     destination,
     price,
+    currency = 'EUR',
     previousMin,
+    pctChange,
     improvement,
     improvementPercent,
     airline,
     departureDate,
+    returnDate,
     tripType,
     link,
   } = deal;
 
   const tripTypeText = tripType === 'roundtrip' ? 'Ida y Vuelta' : 'Solo Ida';
-  const savings = previousMin ? `€${Math.round(improvement)} menos que el anterior mínimo (€${previousMin})` : 'Primera vez que encontramos esta ruta';
+  const dateStr = returnDate ? `${departureDate} — ${returnDate}` : (departureDate || 'Flexible');
+  const prevMinStr = previousMin ? `${previousMin} ${currency}` : 'N/A (primera vez)';
+  const pctStr = pctChange || improvementPercent ? `${pctChange || improvementPercent}%` : 'N/A';
 
   const message = `
-🏆 <b>¡NUEVO MÍNIMO HISTÓRICO!</b> 🏆
+🔥 <b>NUEVO MÍNIMO HISTÓRICO detected!</b>
 
-🛫 <b>${origin} → ${destination}</b>
-💰 <b>€${Math.round(price)}</b>
-${airline ? `✈️ Aerolínea: ${airline}` : ''}
-📅 ${departureDate || 'Fechas flexibles'}
-🎫 ${tripTypeText}
+✈️ Ruta: <b>${origin} → ${destination}</b>
+📅 Fechas: ${dateStr}
+💶 Precio actual: <b>${Math.round(price)} ${currency}</b>
+📉 Mínimo previo: ${prevMinStr} (${pctStr})
+${airline ? `✈️ Aerolínea: ${airline}\n` : ''}🎫 Tipo: ${tripTypeText}
+⏱️ Detectado: ${new Date().toLocaleString('es-ES')}
+🔗 <a href="${link || generateGoogleFlightsUrl(origin, destination, departureDate || '2026-03-28')}">Reservar en Google Flights</a>
 
-📉 <b>${savings}</b>
-${improvementPercent ? `💪 ${improvementPercent}% de ahorro vs histórico` : ''}
-
-🔗 <a href="${link || generateGoogleFlightsUrl(origin, destination, departureDate || '2026-03-28')}">Ver en Google Flights</a>
-
-⏰ ${new Date().toLocaleString('es-ES')}
+📌 <i>Datos extraídos por Puppeteer (uso personal). Si aparece CAPTCHA o bloqueo, no se reintentará automáticamente.</i>
 `.trim();
 
   return sendMessage(message);
@@ -444,6 +447,62 @@ async function sendDailySummary(stats) {
   return sendMessage(message);
 }
 
+/**
+ * Envía resumen de ejecución de búsqueda (Search Run Report)
+ * Se envía después de cada búsqueda programada.
+ */
+async function sendSearchRunReport(data) {
+  const {
+    runId = 'N/A',
+    searchTs,
+    routesChecked = 0,
+    resultsCount = 0,
+    blockedCount = 0,
+    durationMs = 0,
+    topDeals = [],
+  } = data;
+
+  let message = `🚀 <b>Monitor de Vuelos — Search Report</b>\n`;
+  message += `🗓️ Fecha: ${searchTs || new Date().toLocaleString('es-ES')}\n`;
+  message += `🔎 Rutas chequeadas: ${routesChecked}\n`;
+  message += `✅ Resultados encontrados: ${resultsCount}\n`;
+  message += `⚠️ Bloqueos/Captchas: ${blockedCount}\n`;
+  message += `⏱️ Duración total: ${durationMs} ms\n`;
+  message += `ID Run: <code>${runId}</code>`;
+
+  if (topDeals.length > 0) {
+    message += `\n\n<b>🔥 Mejores precios:</b>`;
+    for (const deal of topDeals.slice(0, 5)) {
+      message += `\n• ${deal.origin}→${deal.destination}: €${deal.price}`;
+      if (deal.airline) message += ` (${deal.airline})`;
+    }
+  }
+
+  return sendMessage(message);
+}
+
+/**
+ * Envía alerta de bloqueo/CAPTCHA.
+ * Se para la búsqueda para esa ruta y se notifica al operador.
+ */
+async function sendBlockedAlert(data) {
+  const {
+    origin = '???',
+    destination = '???',
+    searchTs,
+    diagnostics = 'Desconocido',
+    pauseHours = 24,
+  } = data;
+
+  const message = `⛔️ <b>SEARCH BLOCKED / CAPTCHA</b>\n\n` +
+    `✈️ Ruta: ${origin} → ${destination}\n` +
+    `🕐 Hora: ${searchTs || new Date().toLocaleString('es-ES')}\n` +
+    `🔍 Diagnóstico: ${diagnostics}\n\n` +
+    `⚠️ <b>Acción:</b> Pausando búsquedas para esta ruta por ${pauseHours} horas. Revisa manualmente.`;
+
+  return sendMessage(message);
+}
+
 module.exports = {
   initTelegram,
   sendMessage,
@@ -456,5 +515,7 @@ module.exports = {
   sendTestMessage,
   sendHistoricalLowAlert,
   sendDailySummary,
+  sendSearchRunReport,
+  sendBlockedAlert,
   isActive,
 };
