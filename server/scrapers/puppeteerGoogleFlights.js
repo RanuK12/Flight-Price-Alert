@@ -1,417 +1,536 @@
 /**
- * Google Flights Scraper con Puppeteer
- * 
- * Scraping REAL de precios de vuelos sin necesidad de API keys.
- * Usa Puppeteer con stealth plugin para evitar detección.
- * Incluye circuit breaker para evitar sobrecarga cuando falla repetidamente.
+ * Google Flights Scraper v2 — Puppeteer
+ *
+ * Extrae precios reales de Google Flights sin API keys.
+ * Compatible con Railway (Nixpacks), Docker y desarrollo local.
+ *
+ * v2: detección dinámica de Chromium, extracción rica de aria-labels,
+ *     consentimiento multi-idioma, detección de bloqueo, circuit breaker.
  */
 
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 puppeteer.use(StealthPlugin());
 
-// Configuración
+// ═══════════════════════════════════════════════════════════════
+// CONFIGURACIÓN
+// ═══════════════════════════════════════════════════════════════
 const HEADLESS = process.env.PUPPETEER_HEADLESS !== 'false';
-const TIMEOUT = parseInt(process.env.PUPPETEER_TIMEOUT || '60000', 10);
-const MAX_RETRIES = parseInt(process.env.PUPPETEER_RETRIES || '2', 10);
+const TIMEOUT = parseInt(process.env.PUPPETEER_TIMEOUT || '45000', 10);
+const MAX_RETRIES = parseInt(process.env.PUPPETEER_RETRIES || '3', 10);
 
-// ══════════════════════════════════════════════════════════════
-// CIRCUIT BREAKER - Pausar scraping cuando falla repetidamente
-// ══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// CIRCUIT BREAKER
+// ═══════════════════════════════════════════════════════════════
 const circuitBreaker = {
   failures: 0,
   lastFailure: null,
   isOpen: false,
-  threshold: 5,           // Abrir circuit después de 5 fallos consecutivos
-  resetTimeout: 10 * 60 * 1000, // Reintentar después de 10 minutos
-  
+  threshold: 5,
+  resetTimeout: 10 * 60 * 1000, // 10 minutos
+
   recordFailure() {
     this.failures++;
     this.lastFailure = Date.now();
     if (this.failures >= this.threshold) {
       this.isOpen = true;
-      console.log(`  🔴 Circuit breaker ABIERTO (${this.failures} fallos). Pausando 10 min.`);
+      console.log(`  🔴 Circuit breaker ABIERTO (${this.failures} fallos). Pausa 10 min.`);
     }
   },
-  
+
   recordSuccess() {
     this.failures = 0;
     this.isOpen = false;
   },
-  
+
   canProceed() {
     if (!this.isOpen) return true;
-    
-    // Verificar si pasó el tiempo de reset
     if (Date.now() - this.lastFailure > this.resetTimeout) {
-      console.log('  🟡 Circuit breaker: intentando reconexión...');
+      console.log('  🟡 Circuit breaker: reconectando...');
       this.isOpen = false;
       this.failures = 0;
       return true;
     }
-    
-    console.log('  🔴 Circuit breaker ABIERTO - saltando scraping');
+    console.log('  🔴 Circuit breaker abierto — saltando');
     return false;
-  }
+  },
 };
 
-// Cache en memoria para evitar búsquedas repetidas (TTL: 2 horas)
-const searchCache = new Map();
-const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 horas
+// ═══════════════════════════════════════════════════════════════
+// DETECCIÓN DE CHROMIUM
+// ═══════════════════════════════════════════════════════════════
+let _cachedChromePath = null;
 
-/**
- * Genera URL de Google Flights
- */
-function buildGoogleFlightsUrl(origin, destination, departureDate, returnDate = null) {
-  // Formato: https://www.google.com/travel/flights?q=Flights%20from%20MAD%20to%20EZE%20on%202026-03-28
-  const baseUrl = 'https://www.google.com/travel/flights';
-  
-  let query = `Flights from ${origin} to ${destination} on ${departureDate}`;
-  if (returnDate) {
-    query += ` return ${returnDate}`;
+function findChromium() {
+  if (_cachedChromePath !== null) return _cachedChromePath || undefined;
+
+  // 1. Variable de entorno (máxima prioridad)
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    _cachedChromePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    return _cachedChromePath;
   }
-  
-  return `${baseUrl}?q=${encodeURIComponent(query)}&curr=EUR&hl=es`;
+
+  // 2. Buscar en PATH con `which` (Linux/Mac/Nixpacks/Docker)
+  if (process.platform !== 'win32') {
+    const names = ['chromium', 'chromium-browser', 'google-chrome-stable', 'google-chrome'];
+    for (const name of names) {
+      try {
+        const found = execSync(`which ${name} 2>/dev/null`).toString().trim();
+        if (found) {
+          _cachedChromePath = found;
+          return found;
+        }
+      } catch (e) { /* no encontrado */ }
+    }
+  } else {
+    // Windows: buscar con where y rutas comunes
+    const winPaths = [
+      process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    ].filter(Boolean);
+    for (const p of winPaths) {
+      try { if (fs.existsSync(p)) { _cachedChromePath = p; return p; } } catch (e) {}
+    }
+  }
+
+  // 3. Rutas hardcoded Linux
+  const linuxPaths = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome-stable', '/snap/bin/chromium'];
+  for (const p of linuxPaths) {
+    try { if (fs.existsSync(p)) { _cachedChromePath = p; return p; } } catch (e) {}
+  }
+
+  // 4. Puppeteer bundled (sin path custom)
+  _cachedChromePath = false;
+  return undefined;
 }
 
-/**
- * Parsea precio de texto a número
- */
-function parsePrice(priceText) {
-  if (!priceText) return null;
-  
-  // Eliminar todo excepto números y coma/punto
-  const cleaned = priceText.replace(/[^\d.,]/g, '');
-  
-  // Manejar formato europeo (1.234,56) vs americano (1,234.56)
+// ═══════════════════════════════════════════════════════════════
+// OPCIONES DE LAUNCH
+// ═══════════════════════════════════════════════════════════════
+function getLaunchOptions() {
+  const opts = {
+    headless: HEADLESS ? 'new' : false,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--disable-gpu',
+      '--window-size=1920,1080',
+      '--disable-web-security',
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--lang=es-ES',
+    ],
+    defaultViewport: { width: 1920, height: 1080 },
+    timeout: TIMEOUT,
+  };
+
+  const chromePath = findChromium();
+  if (chromePath) {
+    opts.executablePath = chromePath;
+  }
+
+  return opts;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CONSENTIMIENTO COOKIES
+// ═══════════════════════════════════════════════════════════════
+async function handleConsent(page) {
+  try {
+    const clicked = await page.evaluate(() => {
+      // IDs y selectores conocidos de Google consent
+      const selectors = ['#L2AGLb', 'button[jsname="b3VHJd"]', 'button[jsname="higCR"]'];
+      for (const sel of selectors) {
+        const btn = document.querySelector(sel);
+        if (btn) { btn.click(); return true; }
+      }
+
+      // Por texto en múltiples idiomas
+      const buttons = document.querySelectorAll('button');
+      for (const btn of buttons) {
+        const text = (btn.innerText || '').toLowerCase().trim();
+        if (
+          text.includes('aceptar todo') || text.includes('accept all') ||
+          text.includes('accetta tutto') || text.includes('alle akzeptieren') ||
+          text.includes('accepter tout') || text === 'aceptar' || text === 'accept' ||
+          text === 'acepto' || text.includes('agree')
+        ) {
+          btn.click();
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (clicked) await new Promise(r => setTimeout(r, 2000));
+    return clicked;
+  } catch (e) {
+    return false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DETECCIÓN DE BLOQUEO
+// ═══════════════════════════════════════════════════════════════
+async function detectBlock(page) {
+  const url = page.url();
+  if (url.includes('/sorry') || url.includes('recaptcha') || url.includes('ServiceLogin')) {
+    return { blocked: true, reason: `redirect: ${url}` };
+  }
+
+  try {
+    const hasBlock = await page.evaluate(() => {
+      const text = (document.body?.innerText || '').substring(0, 2000).toLowerCase();
+      return /unusual traffic|captcha|robot|automated|verificar que no eres|verifica di non essere/.test(text);
+    });
+    if (hasBlock) return { blocked: true, reason: 'captcha/block text detected' };
+  } catch (e) {}
+
+  return { blocked: false };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// URL
+// ═══════════════════════════════════════════════════════════════
+function buildGoogleFlightsUrl(origin, destination, departureDate, returnDate = null) {
+  let query = `Flights from ${origin} to ${destination} on ${departureDate}`;
+  if (returnDate) query += ` return ${returnDate}`;
+  return `https://www.google.com/travel/flights?q=${encodeURIComponent(query)}&curr=EUR&hl=es`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PARSE PRECIO
+// ═══════════════════════════════════════════════════════════════
+function parsePrice(text) {
+  if (!text) return null;
+  const cleaned = text.replace(/[^\d.,]/g, '');
+
   if (cleaned.includes(',') && cleaned.includes('.')) {
-    // Formato europeo: 1.234,56
+    // Formato europeo (1.234,56) vs americano (1,234.56)
     if (cleaned.lastIndexOf(',') > cleaned.lastIndexOf('.')) {
       return parseFloat(cleaned.replace(/\./g, '').replace(',', '.'));
     }
-    // Formato americano: 1,234.56
     return parseFloat(cleaned.replace(/,/g, ''));
   } else if (cleaned.includes(',')) {
-    // Solo coma - puede ser decimal o miles
     const parts = cleaned.split(',');
-    if (parts[parts.length - 1].length === 2) {
-      // Es decimal: 234,56
+    if (parts[parts.length - 1].length <= 2) {
       return parseFloat(cleaned.replace(',', '.'));
     }
-    // Es miles: 1,234
     return parseFloat(cleaned.replace(',', ''));
   }
-  
+
   return parseFloat(cleaned) || null;
 }
 
-/**
- * Extrae información de vuelos del DOM - métodos múltiples
- */
-async function extractFlightData(page, debugMode = false) {
-  // Método 1: Buscar precios en aria-labels (más confiable)
-  let flights = await page.evaluate(() => {
-    const results = [];
-    
-    // Buscar todos los elementos con aria-label que contengan precio
-    const allElements = document.querySelectorAll('[aria-label]');
-    
-    for (const el of allElements) {
+// ═══════════════════════════════════════════════════════════════
+// EXTRACCIÓN DE VUELOS (v2 — aria-label + fallbacks)
+// ═══════════════════════════════════════════════════════════════
+async function extractFlights(page) {
+  return page.evaluate(() => {
+    const flights = [];
+    const seen = new Set();
+
+    // ── Aerolíneas conocidas ──
+    const AIRLINES = [
+      'Iberia', 'LATAM', 'Air Europa', 'Aerolíneas Argentinas', 'Aerolineas Argentinas',
+      'Level', 'LEVEL', 'Vueling', 'Norwegian', 'Air France', 'KLM', 'Lufthansa',
+      'SWISS', 'Swiss International', 'TAP Portugal', 'TAP', 'British Airways',
+      'ITA Airways', 'ITA', 'Avianca', 'Copa Airlines', 'Copa',
+      'American Airlines', 'American', 'United Airlines', 'United',
+      'Delta Air Lines', 'Delta', 'JetBlue', 'Turkish Airlines', 'Turkish',
+      'Emirates', 'Qatar Airways', 'Qatar', 'Ethiopian Airlines', 'Ethiopian',
+      'Aeroméxico', 'Aeromexico', 'Azul', 'GOL', 'Condor', 'Edelweiss',
+      'Eurowings', 'Wizz Air', 'Ryanair', 'easyJet', 'Plus Ultra',
+      'JetSMART', 'Jetsmart', 'Flybondi', 'Sky Airline', 'Air Canada',
+      'Royal Air Maroc', 'Wamos Air', 'World2Fly', 'Iberojet',
+      'Air Italy', 'Privilege Style', 'Alitalia', 'Aer Lingus',
+    ];
+
+    function findAirline(text) {
+      for (const name of AIRLINES) {
+        if (text.includes(name)) return name;
+      }
+      return '';
+    }
+
+    // ── STRATEGY 1: aria-label (datos más ricos) ──
+    const labeled = document.querySelectorAll('[aria-label]');
+    for (const el of labeled) {
       const label = el.getAttribute('aria-label') || '';
-      
-      // Buscar patrones como "1.234 €" o "€1,234" o "1234 euros"
-      const priceMatch = label.match(/(\d{1,3}(?:[.,]\d{3})*)\s*(?:€|euros?)/i) ||
-                        label.match(/(?:€|EUR)\s*(\d{1,3}(?:[.,]\d{3})*)/i);
-      
-      if (priceMatch) {
-        results.push({
-          priceText: priceMatch[1],
-          airline: 'Google Flights',
-          source: 'aria-label'
+
+      // Precio en euros obligatorio
+      const pm = label.match(/(\d{1,3}(?:[.,]\d{3})*)\s*(?:€|euros?)/i) ||
+                 label.match(/(?:€)\s*(\d{1,3}(?:[.,]\d{3})*)/i);
+      if (!pm) continue;
+
+      const priceStr = pm[1];
+      const priceNum = parseInt(priceStr.replace(/\D/g, ''));
+      if (priceNum < 50 || priceNum > 10000) continue;
+
+      const airline = findAirline(label);
+      const dedupeKey = `${priceStr}-${airline}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+
+      // Escalas
+      let stops = -1;
+      if (/sin escalas?|nonstop|directo|direct/i.test(label)) {
+        stops = 0;
+      } else {
+        const sm = label.match(/(\d+)\s*(?:escalas?|stops?|paradas?)/i);
+        if (sm) stops = parseInt(sm[1]);
+      }
+
+      // Horarios
+      const times = label.match(/(\d{1,2}:\d{2})/g);
+
+      // Duración
+      const dm = label.match(/(\d+)\s*h\s*(?:(\d+)\s*min)?/);
+      const durationMin = dm ? parseInt(dm[1]) * 60 + (parseInt(dm[2]) || 0) : null;
+
+      flights.push({
+        priceText: priceStr,
+        airline: airline || '',
+        stops,
+        departureTime: times?.[0] || null,
+        arrivalTime: times?.[1] || null,
+        durationMin,
+        source: 'aria-label',
+      });
+    }
+
+    // ── STRATEGY 2: list items con precio ──
+    if (flights.length === 0) {
+      const items = document.querySelectorAll('li, [role="listitem"]');
+      for (const item of items) {
+        const text = item.innerText || '';
+        const pm = text.match(/(\d{1,3}(?:[.,]\d{3})*)\s*€/);
+        if (!pm) continue;
+
+        const priceStr = pm[1];
+        if (seen.has(priceStr)) continue;
+        seen.add(priceStr);
+
+        flights.push({
+          priceText: priceStr,
+          airline: findAirline(text),
+          source: 'list-item',
         });
       }
     }
-    
-    return results;
-  });
-  
-  if (flights.length > 0 && debugMode) {
-    console.log(`  📊 Método aria-label: ${flights.length} precios`);
-  }
-  
-  // Método 2: Buscar en el texto de la página directamente
-  if (flights.length === 0) {
-    flights = await page.evaluate(() => {
-      const results = [];
-      const bodyText = document.body.innerText || '';
-      
-      // Regex más amplio para encontrar precios en euros
-      const pricePatterns = [
-        /(\d{3,4})\s*€/g,                    // 234 € o 1234 €
-        /(\d{1,3}\.\d{3})\s*€/g,             // 1.234 €
-        /€\s*(\d{3,4})/g,                     // € 1234
-        /desde\s+(\d{3,4})\s*€/gi,           // desde 234 €
-      ];
-      
-      const foundPrices = new Set();
-      
-      for (const pattern of pricePatterns) {
-        let match;
-        while ((match = pattern.exec(bodyText)) !== null) {
-          const priceStr = match[1];
-          if (!foundPrices.has(priceStr)) {
-            foundPrices.add(priceStr);
-            results.push({
-              priceText: priceStr,
-              airline: 'Google Flights',
-              source: 'body-text'
-            });
-          }
+
+    // ── STRATEGY 3: spans/divs con precio exacto ──
+    if (flights.length === 0) {
+      const els = document.querySelectorAll('span, div');
+      for (const el of els) {
+        const text = (el.textContent || '').trim();
+        if (text.length > 30) continue;
+        const pm = text.match(/^(\d{1,3}(?:[.,]\d{3})*)\s*€$/);
+        if (!pm) continue;
+
+        const priceStr = pm[1];
+        if (seen.has(priceStr)) continue;
+        seen.add(priceStr);
+
+        const parent = el.closest('[data-ved]') || el.parentElement?.parentElement;
+        const parentText = parent?.innerText || '';
+
+        flights.push({
+          priceText: priceStr,
+          airline: findAirline(parentText),
+          source: 'span-exact',
+        });
+      }
+    }
+
+    // ── STRATEGY 4: body text regex (último recurso) ──
+    if (flights.length === 0) {
+      const text = document.body.innerText || '';
+      const priceRegex = /(\d{3,4})\s*€/g;
+      let m;
+      while ((m = priceRegex.exec(text)) !== null) {
+        const priceStr = m[1];
+        if (!seen.has(priceStr)) {
+          seen.add(priceStr);
+          flights.push({ priceText: priceStr, airline: '', source: 'body-text' });
         }
       }
-      
-      return results;
-    });
-    
-    if (flights.length > 0 && debugMode) {
-      console.log(`  📊 Método body-text: ${flights.length} precios`);
     }
-  }
-  
-  // Método 3: Buscar elementos con clases conocidas de Google Flights
-  if (flights.length === 0) {
-    flights = await page.evaluate(() => {
-      const results = [];
-      const selectors = [
-        '.YMlIz.FpEdX',
-        'span[data-gs]',
-        '.BVAVmf',
-        '.pIav2d',
-        '.JMnxgf span',
-        '[jscontroller] [data-ved]',
-      ];
-      
-      for (const selector of selectors) {
-        try {
-          const elements = document.querySelectorAll(selector);
-          for (const el of elements) {
-            const text = el.innerText || el.textContent || '';
-            const match = text.match(/(\d{1,3}(?:[.,]\d{3})*)\s*€/);
-            if (match) {
-              results.push({
-                priceText: match[1],
-                airline: 'Google Flights',
-                source: 'css-selector'
-              });
-            }
-          }
-          if (results.length > 0) break;
-        } catch (e) {}
-      }
-      
-      return results;
-    });
-  }
-  
-  return flights;
+
+    return flights;
+  });
 }
 
-/**
- * Espera a que la página cargue completamente
- */
-async function waitForFlightResults(page) {
+// ═══════════════════════════════════════════════════════════════
+// ESPERA DE RESULTADOS
+// ═══════════════════════════════════════════════════════════════
+async function waitForResults(page) {
   try {
-    // Scroll para cargar contenido dinámico
-    await page.evaluate(() => {
-      window.scrollTo(0, 500);
-    });
-    
-    await new Promise(r => setTimeout(r, 2000));
-    
-    // Esperar a que aparezcan resultados
+    // Scroll para activar lazy loading
+    await page.evaluate(() => window.scrollTo(0, 500));
+    await new Promise(r => setTimeout(r, 1500));
+
     await Promise.race([
       page.waitForSelector('[data-gs]', { timeout: 15000 }),
       page.waitForSelector('[role="listitem"]', { timeout: 15000 }),
-      page.waitForSelector('.YMlIz', { timeout: 15000 }),
-      page.waitForFunction(() => {
-        const text = document.body.innerText || '';
-        return text.includes('€') && text.match(/\d{3,4}\s*€/);
-      }, { timeout: 15000 }),
+      page.waitForFunction(
+        () => (document.body.innerText || '').match(/\d{3,4}\s*€/),
+        { timeout: 15000 },
+      ),
     ]);
-    
-    // Scroll adicional para asegurar carga
-    await page.evaluate(() => {
-      window.scrollTo(0, 1000);
-    });
-    
-    await new Promise(r => setTimeout(r, 3000));
-    
+
+    // Scroll adicional para cargar más resultados
+    await page.evaluate(() => window.scrollTo(0, 1200));
+    await new Promise(r => setTimeout(r, 2500));
+
     return true;
   } catch (e) {
-    console.log('  ⏳ Timeout esperando resultados, intentando extraer datos disponibles...');
     await new Promise(r => setTimeout(r, 2000));
     return false;
   }
 }
 
-/**
- * Busca vuelos en Google Flights usando Puppeteer
- * 
- * @param {string} origin - Código IATA origen (ej: MAD)
- * @param {string} destination - Código IATA destino (ej: EZE)
- * @param {string} departureDate - Fecha de ida YYYY-MM-DD
- * @param {string} returnDate - Fecha de vuelta (opcional, para ida y vuelta)
- * @returns {Object} Resultado con vuelos encontrados
- */
+// ═══════════════════════════════════════════════════════════════
+// CACHE
+// ═══════════════════════════════════════════════════════════════
+const cache = new Map();
+const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 horas
+
+function getCached(key) {
+  const entry = cache.get(key);
+  if (entry && Date.now() - entry.ts < CACHE_TTL) return entry.data;
+  cache.delete(key);
+  return null;
+}
+
+function setCache(key, data) {
+  cache.set(key, { data, ts: Date.now() });
+}
+
+function cleanCache() {
+  const now = Date.now();
+  for (const [k, v] of cache) {
+    if (now - v.ts > CACHE_TTL) cache.delete(k);
+  }
+}
+
+setInterval(cleanCache, 60 * 60 * 1000);
+
+// ═══════════════════════════════════════════════════════════════
+// SCRAPE UNA RUTA
+// ═══════════════════════════════════════════════════════════════
 async function scrapeGoogleFlights(origin, destination, departureDate, returnDate = null) {
   const tripType = returnDate ? 'roundtrip' : 'oneway';
-  const cacheKey = `${origin}-${destination}-${departureDate}-${returnDate || 'oneway'}`;
-  
-  // Verificar caché
-  const cached = searchCache.get(cacheKey);
-  if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
-    console.log(`  🧠 Cache hit: ${origin}→${destination}`);
-    return cached.data;
+  const cacheKey = `${origin}-${destination}-${departureDate}-${returnDate || 'ow'}`;
+
+  // Cache
+  const cached = getCached(cacheKey);
+  if (cached) {
+    console.log(`  🧠 Puppeteer cache: ${origin}→${destination} ${departureDate}`);
+    return cached;
   }
-  
-  // ══════════════════════════════════════════════════════════════
-  // CIRCUIT BREAKER CHECK - Si hay muchos fallos, pausar
-  // ══════════════════════════════════════════════════════════════
+
+  // Circuit breaker
   if (!circuitBreaker.canProceed()) {
-    return {
-      success: false,
-      flights: [],
-      minPrice: null,
-      origin,
-      destination,
-      departureDate,
-      returnDate,
-      tripType,
-      error: 'Circuit breaker open - too many failures',
-      searchUrl: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
-    };
+    return { success: false, flights: [], minPrice: null, error: 'Circuit breaker open' };
   }
-  
+
   const url = buildGoogleFlightsUrl(origin, destination, departureDate, returnDate);
   console.log(`  🔍 Scraping: ${origin} → ${destination} (${departureDate}${returnDate ? ' ↔ ' + returnDate : ''})`);
-  
+
+  // Log chrome path only once
+  const chromePath = findChromium();
+  if (chromePath) {
+    console.log(`  🖥️ Chrome: ${chromePath}`);
+  } else {
+    console.log('  🖥️ Chrome: Puppeteer bundled');
+  }
+
   let browser = null;
   let lastError = null;
-  
-  // Detectar path del navegador según entorno
-  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || 
-                         (require('fs').existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined) ||
-                         (require('fs').existsSync('/usr/bin/chromium-browser') ? '/usr/bin/chromium-browser' : undefined) ||
-                         (require('fs').existsSync('/usr/bin/google-chrome-stable') ? '/usr/bin/google-chrome-stable' : undefined);
-  
+
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const launchOptions = {
-        headless: HEADLESS ? 'new' : false,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--disable-gpu',
-          '--window-size=1920,1080',
-          '--disable-web-security',
-          '--disable-features=IsolateOrigins,site-per-process',
-        ],
-        defaultViewport: { width: 1920, height: 1080 },
-      };
-      
-      // Usar executablePath solo si está definido
-      if (executablePath) {
-        launchOptions.executablePath = executablePath;
-        if (attempt === 1) console.log(`  🖥️ Usando: ${executablePath}`);
-      }
-      
-      browser = await puppeteer.launch(launchOptions);
-      
+      browser = await puppeteer.launch(getLaunchOptions());
       const page = await browser.newPage();
-      
-      // Configurar user agent realista
-      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-      
-      // Configurar idioma y moneda
-      await page.setExtraHTTPHeaders({
-        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
-      });
-      
-      // Navegar a Google Flights
+
+      await page.setUserAgent(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      );
+      await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-ES,es;q=0.9' });
+
+      // Navegar
       await page.goto(url, { waitUntil: 'networkidle2', timeout: TIMEOUT });
-      
-      // Aceptar cookies si aparece el diálogo
-      try {
-        const acceptButton = await page.$('[aria-label*="Aceptar"]') || await page.$('button[id*="accept"]');
-        if (acceptButton) {
-          await acceptButton.click();
-          await new Promise(r => setTimeout(r, 1000));
-        }
-      } catch (e) {
-        // Ignorar si no hay diálogo de cookies
+
+      // Consentimiento cookies
+      await handleConsent(page);
+
+      // Detección de bloqueo
+      const block = await detectBlock(page);
+      if (block.blocked) {
+        console.log(`  ⛔ BLOQUEADO: ${block.reason}`);
+        await browser.close();
+        circuitBreaker.recordFailure();
+        return { success: false, flights: [], minPrice: null, error: `Blocked: ${block.reason}`, searchUrl: url };
       }
-      
+
       // Esperar resultados
-      await waitForFlightResults(page);
-      
-      // Extraer datos (con debug si no es producción)
-      const debugMode = process.env.NODE_ENV !== 'production';
-      const rawFlights = await extractFlightData(page, debugMode);
-      
-      // Si no encontramos vuelos y estamos en modo debug, guardar screenshot
-      if (rawFlights.length === 0 && debugMode) {
-        const fs = require('fs');
-        const path = require('path');
-        const debugDir = path.join(process.cwd(), 'debug');
-        
+      await waitForResults(page);
+
+      // Extraer
+      const rawFlights = await extractFlights(page);
+
+      // Debug: screenshot si no hay resultados
+      if (rawFlights.length === 0 && process.env.NODE_ENV !== 'production') {
         try {
-          if (!fs.existsSync(debugDir)) {
-            fs.mkdirSync(debugDir, { recursive: true });
-          }
-          
-          const screenshotPath = path.join(debugDir, `gf_${origin}_${destination}_${Date.now()}.png`);
-          await page.screenshot({ path: screenshotPath, fullPage: true });
-          console.log(`  📸 Screenshot guardado: ${screenshotPath}`);
-          
-          // También guardar el HTML para análisis
-          const html = await page.content();
-          const htmlPath = path.join(debugDir, `gf_${origin}_${destination}_${Date.now()}.html`);
-          fs.writeFileSync(htmlPath, html);
-          console.log(`  📄 HTML guardado: ${htmlPath}`);
-        } catch (e) {
-          console.log(`  ⚠️ No se pudo guardar debug: ${e.message}`);
-        }
+          const debugDir = path.join(process.cwd(), 'debug');
+          if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
+          await page.screenshot({
+            path: path.join(debugDir, `gf_${origin}_${destination}_${Date.now()}.png`),
+            fullPage: true,
+          });
+          console.log('  📸 Debug screenshot guardado');
+        } catch (e) {}
       }
-      
+
       await browser.close();
       browser = null;
-      
-      // Procesar y deduplicar vuelos
+
+      // Procesar resultados
       const flights = [];
-      const seenPrices = new Set();
-      
+      const seenKeys = new Set();
+
       for (const raw of rawFlights) {
         const price = parsePrice(raw.priceText);
-        if (price && price > 50 && price < 10000 && !seenPrices.has(price)) {
-          seenPrices.add(price);
-          flights.push({
-            price,
-            airline: raw.airline,
-            source: 'Google Flights',
-            departureDate,
-            returnDate,
-            tripType,
-            link: url,
-          });
-        }
+        if (!price || price < 50 || price > 10000) continue;
+
+        const key = `${price}-${raw.airline || ''}`;
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+
+        flights.push({
+          price,
+          airline: raw.airline || '',
+          stops: raw.stops != null && raw.stops >= 0 ? raw.stops : null,
+          departureTime: raw.departureTime || null,
+          arrivalTime: raw.arrivalTime || null,
+          durationMin: raw.durationMin || null,
+          source: `Google Flights (${raw.source})`,
+          departureDate,
+          returnDate,
+          tripType,
+          link: url,
+        });
       }
-      
-      // Ordenar por precio
+
       flights.sort((a, b) => a.price - b.price);
-      
+
       const result = {
         success: flights.length > 0,
         flights,
@@ -424,38 +543,32 @@ async function scrapeGoogleFlights(origin, destination, departureDate, returnDat
         searchUrl: url,
         scrapedAt: new Date().toISOString(),
       };
-      
-      // Guardar en caché
-      searchCache.set(cacheKey, { data: result, timestamp: Date.now() });
-      
+
+      setCache(cacheKey, result);
+
       if (flights.length > 0) {
-        console.log(`  ✅ ${flights.length} precios encontrados (min: €${result.minPrice})`);
-        circuitBreaker.recordSuccess(); // ✅ Reset circuit breaker on success
+        const best = flights[0];
+        const airTag = best.airline || 'varias';
+        const stopTag = best.stops != null ? (best.stops === 0 ? 'directo' : best.stops + ' escala(s)') : '';
+        console.log(`  ✅ ${flights.length} vuelos (min €${result.minPrice} — ${airTag}${stopTag ? ', ' + stopTag : ''})`);
+        circuitBreaker.recordSuccess();
       } else {
-        console.log(`  ⚠️ Sin precios encontrados`);
+        console.log(`  ⚠️ Sin precios${rawFlights.length > 0 ? ` (raw: ${rawFlights.length})` : ''}`);
       }
-      
+
       return result;
-      
+
     } catch (error) {
       lastError = error;
-      console.log(`  ⚠️ Intento ${attempt}/${MAX_RETRIES} fallido: ${error.message}`);
-      
-      if (browser) {
-        try { await browser.close(); } catch (e) {}
-        browser = null;
-      }
-      
-      if (attempt < MAX_RETRIES) {
-        await new Promise(r => setTimeout(r, 2000 * attempt)); // Backoff exponencial
-      }
+      console.log(`  ⚠️ Intento ${attempt}/${MAX_RETRIES}: ${error.message}`);
+      if (browser) { try { await browser.close(); } catch (e) {} browser = null; }
+      if (attempt < MAX_RETRIES) await new Promise(r => setTimeout(r, 3000 * attempt));
     }
   }
-  
-  // Todos los intentos fallaron
-  console.error(`  ❌ Error scraping ${origin}-${destination}: ${lastError?.message}`);
-  circuitBreaker.recordFailure(); // ❌ Incrementar contador de fallos
-  
+
+  console.error(`  ❌ Todos los intentos fallidos: ${lastError?.message}`);
+  circuitBreaker.recordFailure();
+
   return {
     success: false,
     flights: [],
@@ -466,28 +579,14 @@ async function scrapeGoogleFlights(origin, destination, departureDate, returnDat
     returnDate,
     tripType,
     error: lastError?.message || 'Unknown error',
-    searchUrl: url,
+    searchUrl: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
   };
 }
-
-/**
- * Limpia la caché expirada
- */
-function cleanCache() {
-  const now = Date.now();
-  for (const [key, value] of searchCache) {
-    if (now - value.timestamp > CACHE_TTL) {
-      searchCache.delete(key);
-    }
-  }
-}
-
-// Limpiar caché cada hora
-setInterval(cleanCache, 60 * 60 * 1000);
 
 module.exports = {
   scrapeGoogleFlights,
   buildGoogleFlightsUrl,
   parsePrice,
   cleanCache,
+  findChromium,
 };

@@ -75,11 +75,14 @@ function addDays(dateStr, days) {
 // CONFIGURACIÓN DE FECHAS
 // =============================================
 
-// Rango de fechas para buscar ofertas
-const SEARCH_DATE_START = '2026-03-25';
-const SEARCH_DATE_END = '2026-04-08';
+// Rango de fechas para buscar ofertas (ampliado para mejor cobertura)
+const SEARCH_DATE_START = '2026-03-20';
+const SEARCH_DATE_END = '2026-04-15';
 
-// Generar fechas de búsqueda (cada 3 días)
+// Cuántas fechas buscar por ruta en cada corrida
+const DATES_PER_ROUTE = 2;
+
+// Generar fechas de búsqueda (cada 2 días — más granularidad)
 function generateSearchDates() {
   const dates = [];
   const start = new Date(SEARCH_DATE_START);
@@ -88,7 +91,7 @@ function generateSearchDates() {
   let current = new Date(start);
   while (current <= end) {
     dates.push(current.toISOString().split('T')[0]);
-    current.setDate(current.getDate() + 3); // cada 3 días
+    current.setDate(current.getDate() + 2); // cada 2 días
   }
   return dates;
 }
@@ -122,6 +125,26 @@ function pickRotatedDateForRoute(route) {
   const routeIdx = Math.abs((route.origin.charCodeAt(0) + route.destination.charCodeAt(0)) % SEARCH_DATES.length);
   const dateIdx = (todayIdx + routeIdx) % SEARCH_DATES.length;
   return SEARCH_DATES[dateIdx];
+}
+
+/**
+ * Devuelve múltiples fechas para una ruta, distribuidas en el rango.
+ * Cada día se devuelven fechas diferentes gracias a todayNum.
+ */
+function pickDatesForRoute(route, count = DATES_PER_ROUTE) {
+  const todayNum = new Date().getDate();
+  const routeHash = route.origin.charCodeAt(0) + route.destination.charCodeAt(0) + route.origin.charCodeAt(1);
+  const startIdx = (todayNum + routeHash) % SEARCH_DATES.length;
+  const step = Math.max(1, Math.floor(SEARCH_DATES.length / count));
+
+  const dates = [];
+  for (let i = 0; i < count && i < SEARCH_DATES.length; i++) {
+    const idx = (startIdx + i * step) % SEARCH_DATES.length;
+    if (!dates.includes(SEARCH_DATES[idx])) {
+      dates.push(SEARCH_DATES[idx]);
+    }
+  }
+  return dates;
 }
 
 // =============================================
@@ -249,13 +272,13 @@ async function runFullSearch(options = {}) {
   const allowedThisRun = Math.max(0, Math.min(runBudget, remainingToday));
 
   console.log('\n' + '='.repeat(60));
-  console.log('🔍 BÚSQUEDA DE OFERTAS DE VUELOS v3.0');
+  console.log('🔍 BÚSQUEDA DE OFERTAS DE VUELOS v3.1');
   console.log('='.repeat(60));
   console.log(`⏰ ${new Date().toLocaleString('es-ES')}`);
-  console.log(`📊 Rutas: ${MONITORED_ROUTES.length}`);
-  console.log(`📅 Fechas: ${SEARCH_DATE_START} al ${SEARCH_DATE_END}`);
+  console.log(`📊 Rutas: ${MONITORED_ROUTES.length} | Fechas: ${SEARCH_DATES.length} (cada 2 días)`);
+  console.log(`📅 Rango: ${SEARCH_DATE_START} al ${SEARCH_DATE_END}`);
   console.log(`🕒 Timezone: ${MONITOR_TIMEZONE}`);
-  console.log(`📦 Presupuesto SerpApi: ${usedToday}/${SERPAPI_DAILY_BUDGET} hoy | Run: ${allowedThisRun}/${runBudget}`);
+  console.log(`📦 SerpApi: ${usedToday}/${SERPAPI_DAILY_BUDGET} hoy (Puppeteer sin límite)`);
   console.log('');
   console.log('📋 UMBRALES:');
   console.log(`   • Solo ida Europa→Argentina: máx €${ONE_WAY_THRESHOLDS.europeToArgentina}`);
@@ -276,43 +299,39 @@ async function runFullSearch(options = {}) {
   const oneWayRoutes = MONITORED_ROUTES.filter(r => r.tripType === 'oneway');
   const roundTripRoutes = MONITORED_ROUTES.filter(r => r.tripType === 'roundtrip');
 
-  const europeArgRoutes = oneWayRoutes.filter(r => r.region === 'europe');      // prioridad 1
-  const argEuRoutes = roundTripRoutes.filter(r => r.region === 'argentina');   // prioridad 2
-  const usaArgRoutes = oneWayRoutes.filter(r => r.region === 'usa');           // prioridad 3
+  const europeArgRoutes = oneWayRoutes.filter(r => r.region === 'europe');
+  const argEuRoutes = roundTripRoutes.filter(r => r.region === 'argentina');
+  const usaArgRoutes = oneWayRoutes.filter(r => r.region === 'usa');
 
-  // Plan de búsquedas para esta corrida (weights: EU→ARG > ARG↔EU > USA→ARG)
+  // ═══════════════════════════════════════════════════════════════
+  // PLAN DE BÚSQUEDA — Puppeteer es gratis, buscar más rutas
+  // SerpApi budget ya NO limita el plan; se controla internamente
+  // ═══════════════════════════════════════════════════════════════
   const plan = [];
-  if (allowedThisRun > 0) {
-    // base: EU + RT
-    const euCount = allowedThisRun === 2 ? 1 : 2;
-    const rtCount = 1;
+  plan.push(...rotatePick(europeArgRoutes, 'europeArg', 3));
+  plan.push(...rotatePick(argEuRoutes, 'argEuRoundTrip', 2));
 
-    plan.push(...rotatePick(europeArgRoutes, 'europeArg', euCount));
-    plan.push(...rotatePick(argEuRoutes, 'argEuRoundTrip', rtCount));
-
-    // Extra: 1 USA→ARG en la ventana de tarde, día sí / día no, si queda hueco
-    const hour = getHourInTimeZone(MONITOR_TIMEZONE);
-    const isAfternoonWindow = hour >= 12 && hour < 19;
-    const shouldIncludeUsa = isAfternoonWindow && (new Date().getDate() % 2 === 0);
-    if (shouldIncludeUsa && plan.length < allowedThisRun) {
-      plan.push(...rotatePick(usaArgRoutes, 'usaArg', 1));
-    }
-
-    plan.splice(allowedThisRun);
+  // USA: incluir 1 ruta en la tarde
+  const hour = getHourInTimeZone(MONITOR_TIMEZONE);
+  if (hour >= 12 && hour < 19) {
+    plan.push(...rotatePick(usaArgRoutes, 'usaArg', 1));
   }
 
+  // Máximo 6 rutas por corrida (× 2 fechas c/u = ~12 búsquedas)
+  plan.splice(6);
+
+  const totalSearches = plan.length * DATES_PER_ROUTE;
+
   console.log('═══════════════════════════════════════');
-  console.log('✈️  BUSCANDO (PRESUPUESTO OPTIMIZADO)');
+  console.log(`✈️  BUSCANDO: ${plan.length} rutas × ${DATES_PER_ROUTE} fechas = ${totalSearches} búsquedas`);
   console.log('═══════════════════════════════════════');
 
-  if (allowedThisRun <= 0) {
-    console.log('⚠️ Sin presupuesto disponible para esta corrida. (Si hay cache, igual puede haber hits)');
-  }
-
-  // Ejecutar plan (mezcla one-way + roundtrip según prioridad)
+  // Ejecutar plan: cada ruta × múltiples fechas
   for (const route of plan) {
     const isRoundTrip = route.tripType === 'roundtrip';
-    const departureDate = pickRotatedDateForRoute(route);
+    const dates = pickDatesForRoute(route, DATES_PER_ROUTE);
+
+    for (const departureDate of dates) {
     const returnDate = isRoundTrip ? addDays(departureDate, 14) : null;
 
     console.log(`\n🛫 ${route.name} ${isRoundTrip ? '(ida y vuelta)' : '(solo ida)'}`);
@@ -332,6 +351,7 @@ async function runFullSearch(options = {}) {
         origin: route.origin,
         destination: route.destination,
         tripType: isRoundTrip ? 'roundtrip' : 'oneway',
+        date: departureDate,
         success: searchResult.minPrice !== null,
       });
 
@@ -433,8 +453,9 @@ async function runFullSearch(options = {}) {
       console.error(`  ❌ Error: ${error.message}`);
     }
 
-    await sleep(350);
-  }
+    await sleep(1500); // pausa entre búsquedas (anti-detección)
+    } // fin loop de fechas
+  } // fin loop de rutas
 
   results.endTime = new Date();
   lastSearchTime = results.endTime;
@@ -453,9 +474,9 @@ async function runFullSearch(options = {}) {
   console.log('\n' + '='.repeat(60));
   console.log('📊 RESUMEN');
   console.log('='.repeat(60));
-  console.log(`✅ Búsquedas exitosas: ${successfulSearches}/${plan.length}`);
+  console.log(`✅ Búsquedas exitosas: ${successfulSearches}/${results.allSearches.length} (${plan.length} rutas × ${DATES_PER_ROUTE} fechas)`);
   if (failedSearches > 0) {
-    console.log(`❌ Búsquedas fallidas: ${failedSearches}`);
+    console.log(`❌ Errores: ${failedSearches}`);
   }
   console.log(`🔥 Ofertas SOLO IDA: ${results.oneWayDeals.length}`);
   console.log(`🔥 Ofertas IDA+VUELTA: ${results.roundTripDeals.length}`);

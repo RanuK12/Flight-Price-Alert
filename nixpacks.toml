@@ -6,7 +6,8 @@ nixPkgs = ["chromium", "nodejs_18"]
 cmds = ["npm install"]
 
 [start]
-cmd = "node server/app.js"
+cmd = "export PUPPETEER_EXECUTABLE_PATH=$(which chromium 2>/dev/null || which chromium-browser 2>/dev/null || echo /usr/bin/chromium) && echo \"Chrome path: $PUPPETEER_EXECUTABLE_PATH\" && node server/app.js"
 
 [variables]
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
+PUPPETEER_SKIP_DOWNLOAD = "true"
