@@ -1,11 +1,12 @@
 /**
- * Servicio de Monitoreo de Vuelos v3.0
- * 
+ * Servicio de Monitoreo de Vuelos v4.0
+ *
  * Busca ofertas de vuelos usando web scraping (Puppeteer Google Flights)
- * - Europa/USA → Argentina: SOLO IDA
  * - Argentina (EZE/COR) → Europa: IDA Y VUELTA
- * 
- * Fechas de búsqueda: 25 marzo - 8 abril 2026
+ *   Ida: entre 20 marzo y 7 abril 2026
+ *   Vuelta fija: 7 abril 2026
+ *
+ * (Vuelo de ida Europa→Argentina ya comprado)
  */
 
 const cron = require('node-cron');
@@ -75,9 +76,10 @@ function addDays(dateStr, days) {
 // CONFIGURACIÓN DE FECHAS
 // =============================================
 
-// Rango de fechas para buscar ofertas (ampliado para mejor cobertura)
+// Rango de fechas de IDA (vuelta fija: 7 abril)
 const SEARCH_DATE_START = '2026-03-20';
-const SEARCH_DATE_END = '2026-04-15';
+const SEARCH_DATE_END = '2026-04-07';
+const FIXED_RETURN_DATE = '2026-04-07';
 
 // Cuántas fechas buscar por ruta en cada corrida
 const DATES_PER_ROUTE = 2;
@@ -104,9 +106,7 @@ const SEARCH_DATES = generateSearchDates();
 // =============================================
 
 const rotationState = {
-  europeArg: 0,
   argEuRoundTrip: 0,
-  usaArg: 0,
 };
 
 function rotatePick(list, stateKey, count) {
@@ -151,20 +151,13 @@ function pickDatesForRoute(route, count = DATES_PER_ROUTE) {
 // CONFIGURACIÓN DE UMBRALES DE OFERTAS
 // =============================================
 
-// Umbrales personalizados por el usuario
-const ONE_WAY_THRESHOLDS = {
-  europeToArgentina: 350,   // Europa → Argentina: máx €350 (solo ida)
-  usaToArgentina: 200,      // USA → Argentina: máx €200 (solo ida)
-  usaToArgentinaToARG: 250, // USA → Argentina: máx €250 (solo ida, desde USA a ARG)
-};
-
+// Umbrales — solo ida y vuelta Argentina → Europa
 const ROUND_TRIP_THRESHOLD = 600; // Argentina → Europa: máx €600 (ida y vuelta)
-const NEAR_DEAL_RT_MIN = 650;     // Excepción ida+vuelta: alerta "casi oferta" desde €650
-const NEAR_DEAL_RT_MAX = 800;     // Excepción ida+vuelta: hasta €800
+const NEAR_DEAL_RT_MIN = 650;     // Alerta "casi oferta" desde €650
+const NEAR_DEAL_RT_MAX = 800;     // Alerta "casi oferta" hasta €800
 
 // Aeropuertos por región
 const EUROPE_AIRPORTS = ['MAD', 'BCN', 'FCO', 'CDG', 'FRA', 'AMS', 'LIS', 'LHR', 'MUC', 'ZRH', 'BRU', 'VIE'];
-const USA_AIRPORTS = ['MIA', 'JFK', 'MCO', 'LAX', 'EWR', 'ORD', 'ATL', 'DFW'];
 const ARGENTINA_AIRPORTS = ['EZE', 'COR'];
 
 // =============================================
@@ -172,78 +165,33 @@ const ARGENTINA_AIRPORTS = ['EZE', 'COR'];
 // =============================================
 
 const MONITORED_ROUTES = [
-  // ========== SOLO IDA: Europa → Argentina ==========
-  { origin: 'MAD', destination: 'EZE', name: 'Madrid → Buenos Aires', region: 'europe', tripType: 'oneway' },
-  { origin: 'BCN', destination: 'EZE', name: 'Barcelona → Buenos Aires', region: 'europe', tripType: 'oneway' },
-  { origin: 'FCO', destination: 'EZE', name: 'Roma → Buenos Aires', region: 'europe', tripType: 'oneway' },
-  { origin: 'CDG', destination: 'EZE', name: 'París → Buenos Aires', region: 'europe', tripType: 'oneway' },
-  { origin: 'FRA', destination: 'EZE', name: 'Frankfurt → Buenos Aires', region: 'europe', tripType: 'oneway' },
-  { origin: 'AMS', destination: 'EZE', name: 'Amsterdam → Buenos Aires', region: 'europe', tripType: 'oneway' },
-  { origin: 'LIS', destination: 'EZE', name: 'Lisboa → Buenos Aires', region: 'europe', tripType: 'oneway' },
-  { origin: 'LHR', destination: 'EZE', name: 'Londres → Buenos Aires', region: 'europe', tripType: 'oneway' },
-  
-  // ========== SOLO IDA: USA → Argentina ==========
-  { origin: 'MIA', destination: 'EZE', name: 'Miami → Buenos Aires', region: 'usa', tripType: 'oneway' },
-  { origin: 'JFK', destination: 'EZE', name: 'Nueva York → Buenos Aires', region: 'usa', tripType: 'oneway' },
-  { origin: 'MCO', destination: 'EZE', name: 'Orlando → Buenos Aires', region: 'usa', tripType: 'oneway' },
-
-  // ========== IDA Y VUELTA: Argentina → Europa ==========
-  // Ezeiza → Europa
+  // ========== IDA Y VUELTA: Buenos Aires (EZE) → Europa ==========
   { origin: 'EZE', destination: 'MAD', name: 'Buenos Aires → Madrid', region: 'argentina', tripType: 'roundtrip' },
   { origin: 'EZE', destination: 'BCN', name: 'Buenos Aires → Barcelona', region: 'argentina', tripType: 'roundtrip' },
   { origin: 'EZE', destination: 'FCO', name: 'Buenos Aires → Roma', region: 'argentina', tripType: 'roundtrip' },
   { origin: 'EZE', destination: 'CDG', name: 'Buenos Aires → París', region: 'argentina', tripType: 'roundtrip' },
   { origin: 'EZE', destination: 'LIS', name: 'Buenos Aires → Lisboa', region: 'argentina', tripType: 'roundtrip' },
-  
-  // Córdoba → Europa
+
+  // ========== IDA Y VUELTA: Córdoba (COR) → Europa ==========
   { origin: 'COR', destination: 'MAD', name: 'Córdoba → Madrid', region: 'argentina', tripType: 'roundtrip' },
   { origin: 'COR', destination: 'BCN', name: 'Córdoba → Barcelona', region: 'argentina', tripType: 'roundtrip' },
   { origin: 'COR', destination: 'FCO', name: 'Córdoba → Roma', region: 'argentina', tripType: 'roundtrip' },
+  { origin: 'COR', destination: 'CDG', name: 'Córdoba → París', region: 'argentina', tripType: 'roundtrip' },
+  { origin: 'COR', destination: 'LIS', name: 'Córdoba → Lisboa', region: 'argentina', tripType: 'roundtrip' },
 ];
 
 /**
- * Determina si un precio es una oferta según el tipo de vuelo
+ * Determina si un precio es una oferta (solo ida y vuelta Argentina → Europa)
  */
-function isGoodDeal(price, origin, destination, tripType = 'oneway') {
-  // Ida y vuelta Argentina → Europa
-  if (tripType === 'roundtrip' && ARGENTINA_AIRPORTS.includes(origin)) {
-    return price <= ROUND_TRIP_THRESHOLD;
-  }
-
-  // Solo ida Europa → USA
-  if (EUROPE_AIRPORTS.includes(origin) && USA_AIRPORTS.includes(destination)) {
-    return price <= ONE_WAY_THRESHOLDS.usaToArgentina;
-  }
-
-  // Solo ida USA → Argentina
-  if (USA_AIRPORTS.includes(origin) && ARGENTINA_AIRPORTS.includes(destination)) {
-    return price <= ONE_WAY_THRESHOLDS.usaToArgentinaToARG;
-  }
-
-  // Solo ida Europa → Argentina
-  if (EUROPE_AIRPORTS.includes(origin) && ARGENTINA_AIRPORTS.includes(destination)) {
-    return price <= ONE_WAY_THRESHOLDS.europeToArgentina;
-  }
-
-  // Por defecto, usar el umbral de Europa → Argentina
-  return price <= ONE_WAY_THRESHOLDS.europeToArgentina;
+function isGoodDeal(price, origin, destination, tripType = 'roundtrip') {
+  return price <= ROUND_TRIP_THRESHOLD;
 }
 
 /**
  * Obtiene el umbral máximo para una ruta
  */
-function getThreshold(origin, tripType = 'oneway') {
-  if (tripType === 'roundtrip') {
-    return ROUND_TRIP_THRESHOLD;
-  }
-  
-  if (EUROPE_AIRPORTS.includes(origin)) {
-    return ONE_WAY_THRESHOLDS.europeToArgentina;
-  } else if (USA_AIRPORTS.includes(origin)) {
-    return ONE_WAY_THRESHOLDS.usaToArgentina;
-  }
-  
-  return ONE_WAY_THRESHOLDS.europeToArgentina;
+function getThreshold(origin, tripType = 'roundtrip') {
+  return ROUND_TRIP_THRESHOLD;
 }
 
 /**
@@ -272,53 +220,38 @@ async function runFullSearch(options = {}) {
   const allowedThisRun = Math.max(0, Math.min(runBudget, remainingToday));
 
   console.log('\n' + '='.repeat(60));
-  console.log('🔍 BÚSQUEDA DE OFERTAS DE VUELOS v3.1');
+  console.log('🔍 BÚSQUEDA DE OFERTAS DE VUELOS v4.0');
   console.log('='.repeat(60));
   console.log(`⏰ ${new Date().toLocaleString('es-ES')}`);
   console.log(`📊 Rutas: ${MONITORED_ROUTES.length} | Fechas: ${SEARCH_DATES.length} (cada 2 días)`);
-  console.log(`📅 Rango: ${SEARCH_DATE_START} al ${SEARCH_DATE_END}`);
+  console.log(`📅 Ida: ${SEARCH_DATE_START} al ${SEARCH_DATE_END} | Vuelta fija: ${FIXED_RETURN_DATE}`);
   console.log(`🕒 Timezone: ${MONITOR_TIMEZONE}`);
   console.log(`📦 SerpApi: ${usedToday}/${SERPAPI_DAILY_BUDGET} hoy (Puppeteer sin límite)`);
   console.log('');
   console.log('📋 UMBRALES:');
-  console.log(`   • Solo ida Europa→Argentina: máx €${ONE_WAY_THRESHOLDS.europeToArgentina}`);
-  console.log(`   • Solo ida USA→Argentina: máx €${ONE_WAY_THRESHOLDS.usaToArgentina}`);
   console.log(`   • Ida y vuelta Argentina→Europa: máx €${ROUND_TRIP_THRESHOLD}`);
   console.log(`   • Casi oferta I+V: €${NEAR_DEAL_RT_MIN}-€${NEAR_DEAL_RT_MAX} (alerta aparte)`);
   console.log('');
 
   const results = {
-    oneWayDeals: [],
     roundTripDeals: [],
     allSearches: [],
     errors: [],
     startTime: new Date(),
   };
 
-  // Separar rutas por tipo y prioridad
-  const oneWayRoutes = MONITORED_ROUTES.filter(r => r.tripType === 'oneway');
-  const roundTripRoutes = MONITORED_ROUTES.filter(r => r.tripType === 'roundtrip');
-
-  const europeArgRoutes = oneWayRoutes.filter(r => r.region === 'europe');
-  const argEuRoutes = roundTripRoutes.filter(r => r.region === 'argentina');
-  const usaArgRoutes = oneWayRoutes.filter(r => r.region === 'usa');
+  // Todas las rutas son ida y vuelta Argentina → Europa
+  const argEuRoutes = MONITORED_ROUTES.filter(r => r.region === 'argentina');
 
   // ═══════════════════════════════════════════════════════════════
   // PLAN DE BÚSQUEDA — Puppeteer es gratis, buscar más rutas
-  // SerpApi budget ya NO limita el plan; se controla internamente
+  // Solo ida+vuelta Argentina → Europa (vuelta fija: 7 abril)
   // ═══════════════════════════════════════════════════════════════
   const plan = [];
-  plan.push(...rotatePick(europeArgRoutes, 'europeArg', 3));
-  plan.push(...rotatePick(argEuRoutes, 'argEuRoundTrip', 2));
+  plan.push(...rotatePick(argEuRoutes, 'argEuRoundTrip', 5));
 
-  // USA: incluir 1 ruta en la tarde
-  const hour = getHourInTimeZone(MONITOR_TIMEZONE);
-  if (hour >= 12 && hour < 19) {
-    plan.push(...rotatePick(usaArgRoutes, 'usaArg', 1));
-  }
-
-  // Máximo 6 rutas por corrida (× 2 fechas c/u = ~12 búsquedas)
-  plan.splice(6);
+  // Máximo 5 rutas por corrida (× 2 fechas c/u = ~10 búsquedas)
+  plan.splice(5);
 
   const totalSearches = plan.length * DATES_PER_ROUTE;
 
@@ -332,7 +265,7 @@ async function runFullSearch(options = {}) {
     const dates = pickDatesForRoute(route, DATES_PER_ROUTE);
 
     for (const departureDate of dates) {
-    const returnDate = isRoundTrip ? addDays(departureDate, 14) : null;
+    const returnDate = isRoundTrip ? FIXED_RETURN_DATE : null;
 
     console.log(`\n🛫 ${route.name} ${isRoundTrip ? '(ida y vuelta)' : '(solo ida)'}`);
     console.log(`   📅 ${departureDate}${returnDate ? ` ↔ ${returnDate}` : ''}`);
@@ -397,38 +330,21 @@ async function runFullSearch(options = {}) {
               continue;
             }
 
-            if (effectiveTripType === 'roundtrip') {
-              results.roundTripDeals.push({
-                origin: route.origin,
-                destination: route.destination,
-                routeName: route.name,
-                region: route.region,
-                price,
-                airline: flight.airline,
-                source: flight.source,
-                departureDate: depDate,
-                returnDate: rtDate,
-                bookingUrl: flight.link,
-                tripType: 'roundtrip',
-                threshold,
-              });
-              console.log(`  🔥 OFERTA REAL I+V: €${price} (${flight.airline}) - ${formatDate(depDate)} ↔ ${formatDate(rtDate)}`);
-            } else {
-              results.oneWayDeals.push({
-                origin: route.origin,
-                destination: route.destination,
-                routeName: route.name,
-                region: route.region,
-                price,
-                airline: flight.airline,
-                source: flight.source,
-                departureDate: depDate,
-                bookingUrl: flight.link,
-                tripType: 'oneway',
-                threshold,
-              });
-              console.log(`  🔥 OFERTA REAL: €${price} (${flight.airline}) - ${formatDate(depDate)}`);
-            }
+            results.roundTripDeals.push({
+              origin: route.origin,
+              destination: route.destination,
+              routeName: route.name,
+              region: route.region,
+              price,
+              airline: flight.airline,
+              source: flight.source,
+              departureDate: depDate,
+              returnDate: rtDate,
+              bookingUrl: flight.link,
+              tripType: 'roundtrip',
+              threshold,
+            });
+            console.log(`  🔥 OFERTA REAL I+V: €${price} (${flight.airline}) - ${formatDate(depDate)} ↔ ${formatDate(rtDate)}`);
           } else if (effectiveTripType === 'roundtrip' && price >= NEAR_DEAL_RT_MIN && price <= NEAR_DEAL_RT_MAX) {
             // ══════════════════════════════════════════════════════════════
             // EXCEPCIÓN: Ida+vuelta Argentina→Europa entre €650-€800
@@ -477,10 +393,9 @@ async function runFullSearch(options = {}) {
   lastSearchTime = results.endTime;
 
   // Eliminar duplicados y ordenar por precio
-  results.oneWayDeals = removeDuplicatesAndSort(results.oneWayDeals);
   results.roundTripDeals = removeDuplicatesAndSort(results.roundTripDeals);
 
-  totalDealsFound += results.oneWayDeals.length + results.roundTripDeals.length;
+  totalDealsFound += results.roundTripDeals.length;
 
   // Mostrar resumen
   const duration = (results.endTime - results.startTime) / 1000;
@@ -494,19 +409,11 @@ async function runFullSearch(options = {}) {
   if (failedSearches > 0) {
     console.log(`❌ Errores: ${failedSearches}`);
   }
-  console.log(`🔥 Ofertas SOLO IDA: ${results.oneWayDeals.length}`);
   console.log(`🔥 Ofertas IDA+VUELTA: ${results.roundTripDeals.length}`);
   console.log(`⏱️ Duración: ${duration.toFixed(1)}s`);
   console.log(`📅 Próxima búsqueda: según schedule configurado`);
 
   // Mostrar mejores ofertas
-  if (results.oneWayDeals.length > 0) {
-    console.log('\n🎯 TOP SOLO IDA:');
-    results.oneWayDeals.slice(0, 5).forEach((d, i) => {
-      console.log(`  ${i + 1}. ${d.routeName}: €${d.price} (${d.airline})`);
-    });
-  }
-
   if (results.roundTripDeals.length > 0) {
     console.log('\n🎯 TOP IDA+VUELTA:');
     results.roundTripDeals.slice(0, 5).forEach((d, i) => {
@@ -524,9 +431,9 @@ async function runFullSearch(options = {}) {
 
   // Enviar reporte a Telegram SOLO SI HAY OFERTAS (anti-spam)
   if (notifyDeals && isActive()) {
-    const hasDeals = results.oneWayDeals.length > 0 || results.roundTripDeals.length > 0;
+    const hasDeals = results.roundTripDeals.length > 0;
     if (hasDeals) {
-      await sendDealsReport(results.oneWayDeals, results.roundTripDeals);
+      await sendDealsReport([], results.roundTripDeals);
       console.log('📱 Notificación Telegram enviada con ofertas');
     } else {
       // NO enviar mensaje cuando no hay ofertas (evita spam)
@@ -541,7 +448,6 @@ async function runFullSearch(options = {}) {
   }
 
   // Guardar en base de datos
-  await saveDealsToDatabase(results.oneWayDeals);
   await saveDealsToDatabase(results.roundTripDeals);
   await saveDealsToDatabase(nearDeals);
 
@@ -617,9 +523,7 @@ function startMonitoring(cronSchedule = '15 8,15,22 * * *', timezone = 'Europe/R
   console.log('\n🚀 INICIANDO MONITOREO DE VUELOS');
   console.log(`⏰ Programación: ${cronSchedule}`);
   console.log('📋 Umbrales:');
-  console.log(`   • Solo ida Europa→Argentina: €${ONE_WAY_THRESHOLDS.europeToArgentina}`);
-  console.log(`   • Solo ida USA→Argentina: €${ONE_WAY_THRESHOLDS.usaToArgentina}`);
-  console.log(`   • Ida y vuelta: €${ROUND_TRIP_THRESHOLD}`);
+  console.log(`   • Ida y vuelta Argentina→Europa: €${ROUND_TRIP_THRESHOLD}`);
   console.log(`   • Casi oferta I+V: €${NEAR_DEAL_RT_MIN}-€${NEAR_DEAL_RT_MAX}`);
   console.log('');
 
@@ -669,8 +573,6 @@ function getMonitorStatus() {
     totalDealsFound,
     telegramActive: isActive(),
     thresholds: {
-      oneWayEurope: ONE_WAY_THRESHOLDS.europeToArgentina,
-      oneWayUSA: ONE_WAY_THRESHOLDS.usaToArgentina,
       roundTrip: ROUND_TRIP_THRESHOLD,
     },
     routes: MONITORED_ROUTES.length,
@@ -709,7 +611,6 @@ module.exports = {
   getMonitorStatus,
   getStats,
   MONITORED_ROUTES,
-  ONE_WAY_THRESHOLDS,
   ROUND_TRIP_THRESHOLD,
   NEAR_DEAL_RT_MIN,
   NEAR_DEAL_RT_MAX,
