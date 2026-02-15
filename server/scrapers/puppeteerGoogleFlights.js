@@ -199,8 +199,14 @@ async function detectBlock(page) {
 // URL
 // ═══════════════════════════════════════════════════════════════
 function buildGoogleFlightsUrl(origin, destination, departureDate, returnDate = null) {
-  let query = `Flights from ${origin} to ${destination} on ${departureDate}`;
-  if (returnDate) query += ` return ${returnDate}`;
+  // Usar formato de URL estructurado para forzar solo ida o ida+vuelta
+  // Google Flights por defecto muestra ida y vuelta; "one way" fuerza solo ida
+  if (returnDate) {
+    const query = `Flights from ${origin} to ${destination} on ${departureDate} return ${returnDate}`;
+    return `https://www.google.com/travel/flights?q=${encodeURIComponent(query)}&curr=EUR&hl=es`;
+  }
+  // Solo ida: agregar "one way" para forzar precio de solo ida
+  const query = `Flights from ${origin} to ${destination} on ${departureDate} one way`;
   return `https://www.google.com/travel/flights?q=${encodeURIComponent(query)}&curr=EUR&hl=es`;
 }
 
@@ -259,22 +265,44 @@ async function extractFlights(page) {
       return '';
     }
 
-    // ── STRATEGY 1: aria-label (datos más ricos) ──
-    const labeled = document.querySelectorAll('[aria-label]');
+    // ── Helper: extraer precio completo de un texto ──
+    // Soporta formatos: "1057 euros", "1.057 €", "€ 1,057", "356€"
+    function extractPrice(text) {
+      // Formato con separador de miles: 1.057 €, 1,057 €
+      const withSep = text.match(/(\d{1,3}[.,]\d{3})\s*(?:€|euros?)/i) ||
+                      text.match(/(?:€)\s*(\d{1,3}[.,]\d{3})/i);
+      if (withSep) {
+        return { str: withSep[1], num: parseInt(withSep[1].replace(/\D/g, '')) };
+      }
+      // Formato sin separador: 1057 euros, 356 €, 290€
+      const plain = text.match(/(\d{3,5})\s*(?:€|euros?)/i) ||
+                    text.match(/(?:€)\s*(\d{3,5})/i);
+      if (plain) {
+        return { str: plain[1], num: parseInt(plain[1]) };
+      }
+      return null;
+    }
+
+    // ── STRATEGY 1: aria-label con role="link" (resultados de vuelos) ──
+    // Solo elementos DIV con role="link" contienen datos reales de vuelos
+    const labeled = document.querySelectorAll('div[role="link"][aria-label]');
     for (const el of labeled) {
       const label = el.getAttribute('aria-label') || '';
 
-      // Precio en euros obligatorio
-      const pm = label.match(/(\d{1,3}(?:[.,]\d{3})*)\s*(?:€|euros?)/i) ||
-                 label.match(/(?:€)\s*(\d{1,3}(?:[.,]\d{3})*)/i);
-      if (!pm) continue;
+      // Solo procesar labels que parecen resultados de vuelos reales
+      // Deben tener hora (XX:XX) y duración (Xh) como mínimo
+      if (!/\d{1,2}:\d{2}/.test(label)) continue;
+      if (!/\d+\s*h/.test(label)) continue;
 
-      const priceStr = pm[1];
-      const priceNum = parseInt(priceStr.replace(/\D/g, ''));
-      if (priceNum < 50 || priceNum > 10000) continue;
+      // Extraer precio
+      const priceData = extractPrice(label);
+      if (!priceData || priceData.num < 80 || priceData.num > 15000) continue;
+
+      // Detectar si el precio es de ida y vuelta o solo ida
+      const isRoundTripPrice = /ida y vuelta|round.?trip|precio total/i.test(label);
 
       const airline = findAirline(label);
-      const dedupeKey = `${priceStr}-${airline}`;
+      const dedupeKey = `${priceData.num}-${airline}`;
       if (seen.has(dedupeKey)) continue;
       seen.add(dedupeKey);
 
@@ -295,55 +323,63 @@ async function extractFlights(page) {
       const durationMin = dm ? parseInt(dm[1]) * 60 + (parseInt(dm[2]) || 0) : null;
 
       flights.push({
-        priceText: priceStr,
+        priceText: priceData.str,
+        price: priceData.num,
         airline: airline || '',
         stops,
         departureTime: times?.[0] || null,
         arrivalTime: times?.[1] || null,
         durationMin,
+        isRoundTripPrice,
         source: 'aria-label',
       });
     }
 
-    // ── STRATEGY 2: list items con precio ──
+    // ── STRATEGY 2: list items con precio (fallback) ──
     if (flights.length === 0) {
       const items = document.querySelectorAll('li, [role="listitem"]');
       for (const item of items) {
         const text = item.innerText || '';
-        const pm = text.match(/(\d{1,3}(?:[.,]\d{3})*)\s*€/);
-        if (!pm) continue;
+        const priceData = extractPrice(text);
+        if (!priceData || priceData.num < 80 || priceData.num > 15000) continue;
 
-        const priceStr = pm[1];
-        if (seen.has(priceStr)) continue;
-        seen.add(priceStr);
+        if (seen.has(String(priceData.num))) continue;
+        seen.add(String(priceData.num));
 
         flights.push({
-          priceText: priceStr,
+          priceText: priceData.str,
+          price: priceData.num,
           airline: findAirline(text),
+          isRoundTripPrice: /ida y vuelta|round.?trip/i.test(text),
           source: 'list-item',
         });
       }
     }
 
-    // ── STRATEGY 3: spans/divs con precio exacto ──
+    // ── STRATEGY 3: spans/divs con precio exacto (fallback) ──
     if (flights.length === 0) {
       const els = document.querySelectorAll('span, div');
       for (const el of els) {
         const text = (el.textContent || '').trim();
-        if (text.length > 30) continue;
-        const pm = text.match(/^(\d{1,3}(?:[.,]\d{3})*)\s*€$/);
+        if (text.length > 40) continue;
+        // Matchear "1.057 €" o "356 €" pero completo
+        const pm = text.match(/^(\d{1,3}(?:[.,]\d{3})*)\s*€/) ||
+                   text.match(/^(\d{3,5})\s*€/);
         if (!pm) continue;
 
-        const priceStr = pm[1];
-        if (seen.has(priceStr)) continue;
-        seen.add(priceStr);
+        const num = parseInt(pm[1].replace(/\D/g, ''));
+        if (num < 80 || num > 15000) continue;
+        if (seen.has(String(num))) continue;
+        seen.add(String(num));
 
         const parent = el.closest('[data-ved]') || el.parentElement?.parentElement;
         const parentText = parent?.innerText || '';
 
         flights.push({
-          priceText: priceStr,
+          priceText: pm[1],
+          price: num,
           airline: findAirline(parentText),
+          isRoundTripPrice: /ida y vuelta|round.?trip/i.test(parentText),
           source: 'span-exact',
         });
       }
@@ -352,13 +388,21 @@ async function extractFlights(page) {
     // ── STRATEGY 4: body text regex (último recurso) ──
     if (flights.length === 0) {
       const text = document.body.innerText || '';
-      const priceRegex = /(\d{3,4})\s*€/g;
+      // Buscar precios con separador de miles o sin él (3-5 dígitos)
+      const priceRegex = /(\d{1,3}[.,]\d{3}|\d{3,5})\s*€/g;
       let m;
       while ((m = priceRegex.exec(text)) !== null) {
-        const priceStr = m[1];
-        if (!seen.has(priceStr)) {
-          seen.add(priceStr);
-          flights.push({ priceText: priceStr, airline: '', source: 'body-text' });
+        const num = parseInt(m[1].replace(/\D/g, ''));
+        if (num < 80 || num > 15000) continue;
+        if (!seen.has(String(num))) {
+          seen.add(String(num));
+          flights.push({
+            priceText: m[1],
+            price: num,
+            airline: '',
+            isRoundTripPrice: false,
+            source: 'body-text',
+          });
         }
       }
     }
@@ -507,12 +551,17 @@ async function scrapeGoogleFlights(origin, destination, departureDate, returnDat
       const seenKeys = new Set();
 
       for (const raw of rawFlights) {
-        const price = parsePrice(raw.priceText);
-        if (!price || price < 50 || price > 10000) continue;
+        // Usar el precio ya parseado en la extracción, o parsear el texto
+        const price = raw.price || parsePrice(raw.priceText);
+        if (!price || price < 80 || price > 15000) continue;
 
         const key = `${price}-${raw.airline || ''}`;
         if (seenKeys.has(key)) continue;
         seenKeys.add(key);
+
+        // Si Google muestra precio de ida+vuelta pero buscamos solo ida,
+        // marcar para que el monitor sepa que es precio RT
+        const detectedTripType = raw.isRoundTripPrice ? 'roundtrip' : tripType;
 
         flights.push({
           price,
@@ -524,7 +573,8 @@ async function scrapeGoogleFlights(origin, destination, departureDate, returnDat
           source: `Google Flights (${raw.source})`,
           departureDate,
           returnDate,
-          tripType,
+          tripType: detectedTripType,
+          isRoundTripPrice: !!raw.isRoundTripPrice,
           link: url,
         });
       }
