@@ -358,19 +358,35 @@ async function runFullSearch(options = {}) {
       if (searchResult.allFlights && searchResult.allFlights.length > 0) {
         for (const flight of searchResult.allFlights) {
           const price = Math.round(flight.price);
-          const threshold = isRoundTrip ? ROUND_TRIP_THRESHOLD : getThreshold(route.origin, 'oneway');
+
+          // ══════════════════════════════════════════════════════════════
+          // DETECCIÓN DE PRECIOS IDA+VUELTA EN BÚSQUEDA SOLO IDA
+          // Google Flights a veces muestra precios RT aunque busquemos OW.
+          // Si detectamos esto, usar el umbral de roundtrip, no el de oneway.
+          // ══════════════════════════════════════════════════════════════
+          let effectiveTripType = isRoundTrip ? 'roundtrip' : 'oneway';
+          if (!isRoundTrip && flight.isRoundTripPrice) {
+            console.log(`  ℹ️ €${price} es precio ida+vuelta (Google lo muestra como RT)`);
+            effectiveTripType = 'roundtrip';
+          }
+
+          const threshold = effectiveTripType === 'roundtrip'
+            ? ROUND_TRIP_THRESHOLD
+            : getThreshold(route.origin, 'oneway');
 
           // ══════════════════════════════════════════════════════════════
           // VALIDACIÓN DE PRECIOS REALISTAS (evitar falsos positivos)
           // ══════════════════════════════════════════════════════════════
-          if (price < 50 || price > 5000) {
-            console.log(`  ⚠️ Precio irreal ignorado: €${price}`);
+          // Vuelos transatlánticos: mínimo realista €150 solo ida, €250 ida+vuelta
+          const minRealistic = effectiveTripType === 'roundtrip' ? 250 : 150;
+          if (price < minRealistic || price > 5000) {
+            console.log(`  ⚠️ Precio irreal ignorado: €${price} (mín esperable: €${minRealistic})`);
             continue;
           }
 
           if (price <= threshold) {
             const depDate = flight.departureDate || departureDate;
-            const rtDate = isRoundTrip ? (flight.returnDate || returnDate) : null;
+            const rtDate = (isRoundTrip || flight.isRoundTripPrice) ? (flight.returnDate || returnDate) : null;
 
             // ══════════════════════════════════════════════════════════════
             // ANTI-SPAM: Verificar si ya alertamos precio similar (±5%)
@@ -381,7 +397,7 @@ async function runFullSearch(options = {}) {
               continue;
             }
 
-            if (isRoundTrip) {
+            if (effectiveTripType === 'roundtrip') {
               results.roundTripDeals.push({
                 origin: route.origin,
                 destination: route.destination,
@@ -413,7 +429,7 @@ async function runFullSearch(options = {}) {
               });
               console.log(`  🔥 OFERTA REAL: €${price} (${flight.airline}) - ${formatDate(depDate)}`);
             }
-          } else if (isRoundTrip && price >= NEAR_DEAL_RT_MIN && price <= NEAR_DEAL_RT_MAX) {
+          } else if (effectiveTripType === 'roundtrip' && price >= NEAR_DEAL_RT_MIN && price <= NEAR_DEAL_RT_MAX) {
             // ══════════════════════════════════════════════════════════════
             // EXCEPCIÓN: Ida+vuelta Argentina→Europa entre €650-€800
             // Enviar alerta aparte "casi oferta"
