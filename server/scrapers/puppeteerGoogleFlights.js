@@ -256,6 +256,8 @@ async function extractFlights(page) {
       'JetSMART', 'Jetsmart', 'Flybondi', 'Sky Airline', 'Air Canada',
       'Royal Air Maroc', 'Wamos Air', 'World2Fly', 'Iberojet',
       'Air Italy', 'Privilege Style', 'Alitalia', 'Aer Lingus',
+      'Qantas', 'Air New Zealand', 'Singapore Airlines', 'Cathay Pacific',
+      'Malaysia Airlines', 'Fiji Airways', 'Virgin Australia', 'Korean Air',
     ];
 
     function findAirline(text) {
