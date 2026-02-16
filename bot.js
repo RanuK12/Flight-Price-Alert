@@ -49,7 +49,8 @@ server.listen(PORT, () => {
 
 const CONFIG = {
   telegramToken: process.env.TELEGRAM_BOT_TOKEN,
-  telegramChatId: process.env.TELEGRAM_CHAT_ID,
+  // Soporta múltiples chat IDs separados por coma
+  telegramChatIds: (process.env.TELEGRAM_CHAT_IDS || process.env.TELEGRAM_CHAT_ID || '').split(',').map(id => id.trim()).filter(id => id),
   schedule: process.env.SCHEDULE || '*/30 * * * *',
   headless: 'new'
 };
@@ -91,23 +92,27 @@ const ROUTES = [
 let bot = null;
 
 function initTelegram() {
-  if (!CONFIG.telegramToken || !CONFIG.telegramChatId) {
-    console.log('❌ ERROR: Configura TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en .env');
+  if (!CONFIG.telegramToken || CONFIG.telegramChatIds.length === 0) {
+    console.log('❌ ERROR: Configura TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_IDS en .env');
     process.exit(1);
   }
   bot = new TelegramBot(CONFIG.telegramToken, { polling: false });
-  console.log('✅ Telegram configurado');
+  console.log(`✅ Telegram configurado (${CONFIG.telegramChatIds.length} usuarios)`);
 }
 
 async function sendTelegram(message) {
   if (!bot) return;
-  try {
-    await bot.sendMessage(CONFIG.telegramChatId, message, { 
-      parse_mode: 'HTML',
-      disable_web_page_preview: true 
-    });
-  } catch (error) {
-    console.error('Error Telegram:', error.message);
+  
+  // Enviar a todos los usuarios configurados
+  for (const chatId of CONFIG.telegramChatIds) {
+    try {
+      await bot.sendMessage(chatId, message, { 
+        parse_mode: 'HTML',
+        disable_web_page_preview: true 
+      });
+    } catch (error) {
+      console.error(`Error Telegram (${chatId}):`, error.message);
+    }
   }
 }
 
