@@ -1,10 +1,9 @@
 /**
- * Servicio de Monitoreo de Vuelos v4.0
+ * Servicio de Monitoreo de Vuelos v4.1
  *
  * Busca ofertas de vuelos usando web scraping (Puppeteer Google Flights)
- * - Argentina (EZE/COR) → Europa: IDA Y VUELTA
- *   Ida: entre 20 marzo y 7 abril 2026
- *   Vuelta fija: 7 abril 2026
+ * - Argentina (EZE/COR) → Europa: IDA Y VUELTA (20 mar - 7 abr, vuelta fija 7 abr)
+ * - Chile (SCL) → Oceanía (SYD): SOLO IDA (20 may - 20 jun)
  *
  * (Vuelo de ida Europa→Argentina ya comprado)
  */
@@ -85,10 +84,10 @@ const FIXED_RETURN_DATE = '2026-04-07';
 const DATES_PER_ROUTE = 2;
 
 // Generar fechas de búsqueda (cada 2 días — más granularidad)
-function generateSearchDates() {
+function generateSearchDatesRange(startStr, endStr) {
   const dates = [];
-  const start = new Date(SEARCH_DATE_START);
-  const end = new Date(SEARCH_DATE_END);
+  const start = new Date(startStr);
+  const end = new Date(endStr);
   
   let current = new Date(start);
   while (current <= end) {
@@ -98,7 +97,7 @@ function generateSearchDates() {
   return dates;
 }
 
-const SEARCH_DATES = generateSearchDates();
+const SEARCH_DATES = generateSearchDatesRange(SEARCH_DATE_START, SEARCH_DATE_END);
 
 // =============================================
 // =============================================
@@ -107,6 +106,7 @@ const SEARCH_DATES = generateSearchDates();
 
 const rotationState = {
   argEuRoundTrip: 0,
+  chileOceania: 0,
 };
 
 function rotatePick(list, stateKey, count) {
@@ -132,16 +132,21 @@ function pickRotatedDateForRoute(route) {
  * Cada día se devuelven fechas diferentes gracias a todayNum.
  */
 function pickDatesForRoute(route, count = DATES_PER_ROUTE) {
+  // Usar fechas específicas de la ruta si están definidas, sino las globales
+  const searchDates = (route.dateStart && route.dateEnd)
+    ? generateSearchDatesRange(route.dateStart, route.dateEnd)
+    : SEARCH_DATES;
+
   const todayNum = new Date().getDate();
   const routeHash = route.origin.charCodeAt(0) + route.destination.charCodeAt(0) + route.origin.charCodeAt(1);
-  const startIdx = (todayNum + routeHash) % SEARCH_DATES.length;
-  const step = Math.max(1, Math.floor(SEARCH_DATES.length / count));
+  const startIdx = (todayNum + routeHash) % searchDates.length;
+  const step = Math.max(1, Math.floor(searchDates.length / count));
 
   const dates = [];
-  for (let i = 0; i < count && i < SEARCH_DATES.length; i++) {
-    const idx = (startIdx + i * step) % SEARCH_DATES.length;
-    if (!dates.includes(SEARCH_DATES[idx])) {
-      dates.push(SEARCH_DATES[idx]);
+  for (let i = 0; i < count && i < searchDates.length; i++) {
+    const idx = (startIdx + i * step) % searchDates.length;
+    if (!dates.includes(searchDates[idx])) {
+      dates.push(searchDates[idx]);
     }
   }
   return dates;
@@ -151,14 +156,20 @@ function pickDatesForRoute(route, count = DATES_PER_ROUTE) {
 // CONFIGURACIÓN DE UMBRALES DE OFERTAS
 // =============================================
 
-// Umbrales — solo ida y vuelta Argentina → Europa
-const ROUND_TRIP_THRESHOLD = 600; // Argentina → Europa: máx €600 (ida y vuelta)
-const NEAR_DEAL_RT_MIN = 650;     // Alerta "casi oferta" desde €650
-const NEAR_DEAL_RT_MAX = 800;     // Alerta "casi oferta" hasta €800
+// Umbrales de ofertas
+const ONE_WAY_THRESHOLDS = {
+  chileToOceania: 700,       // Chile → Oceanía: máx €700 (solo ida)
+};
+
+const ROUND_TRIP_THRESHOLD = 800;  // Argentina → Europa: máx €800 (ida y vuelta)
+const NEAR_DEAL_RT_MIN = 800;      // Alerta "casi oferta" desde €800
+const NEAR_DEAL_RT_MAX = 1050;     // Alerta "casi oferta" hasta €1050
 
 // Aeropuertos por región
 const EUROPE_AIRPORTS = ['MAD', 'BCN', 'FCO', 'CDG', 'FRA', 'AMS', 'LIS', 'LHR', 'MUC', 'ZRH', 'BRU', 'VIE'];
 const ARGENTINA_AIRPORTS = ['EZE', 'COR'];
+const CHILE_AIRPORTS = ['SCL'];
+const OCEANIA_AIRPORTS = ['SYD', 'MEL', 'AKL'];
 
 // =============================================
 // RUTAS A MONITOREAR
@@ -178,19 +189,28 @@ const MONITORED_ROUTES = [
   { origin: 'COR', destination: 'FCO', name: 'Córdoba → Roma', region: 'argentina', tripType: 'roundtrip' },
   { origin: 'COR', destination: 'CDG', name: 'Córdoba → París', region: 'argentina', tripType: 'roundtrip' },
   { origin: 'COR', destination: 'LIS', name: 'Córdoba → Lisboa', region: 'argentina', tripType: 'roundtrip' },
+
+  // ========== SOLO IDA: Chile → Oceanía ==========
+  { origin: 'SCL', destination: 'SYD', name: 'Santiago → Sídney', region: 'chile_oceania', tripType: 'oneway', dateStart: '2026-05-20', dateEnd: '2026-06-20' },
 ];
 
 /**
  * Determina si un precio es una oferta (solo ida y vuelta Argentina → Europa)
  */
 function isGoodDeal(price, origin, destination, tripType = 'roundtrip') {
+  if (CHILE_AIRPORTS.includes(origin) && OCEANIA_AIRPORTS.includes(destination)) {
+    return price <= ONE_WAY_THRESHOLDS.chileToOceania;
+  }
   return price <= ROUND_TRIP_THRESHOLD;
 }
 
 /**
  * Obtiene el umbral máximo para una ruta
  */
-function getThreshold(origin, tripType = 'roundtrip') {
+function getThreshold(origin, destination, tripType = 'roundtrip') {
+  if (CHILE_AIRPORTS.includes(origin) && OCEANIA_AIRPORTS.includes(destination)) {
+    return ONE_WAY_THRESHOLDS.chileToOceania;
+  }
   return ROUND_TRIP_THRESHOLD;
 }
 
@@ -230,28 +250,34 @@ async function runFullSearch(options = {}) {
   console.log('');
   console.log('📋 UMBRALES:');
   console.log(`   • Ida y vuelta Argentina→Europa: máx €${ROUND_TRIP_THRESHOLD}`);
+  console.log(`   • Solo ida Chile→Oceanía: máx €${ONE_WAY_THRESHOLDS.chileToOceania}`);
   console.log(`   • Casi oferta I+V: €${NEAR_DEAL_RT_MIN}-€${NEAR_DEAL_RT_MAX} (alerta aparte)`);
   console.log('');
 
   const results = {
+    oneWayDeals: [],
     roundTripDeals: [],
     allSearches: [],
     errors: [],
     startTime: new Date(),
   };
 
-  // Todas las rutas son ida y vuelta Argentina → Europa
+  // Separar rutas por tipo
   const argEuRoutes = MONITORED_ROUTES.filter(r => r.region === 'argentina');
+  const chileOceaniaRoutes = MONITORED_ROUTES.filter(r => r.region === 'chile_oceania');
 
   // ═══════════════════════════════════════════════════════════════
   // PLAN DE BÚSQUEDA — Puppeteer es gratis, buscar más rutas
-  // Solo ida+vuelta Argentina → Europa (vuelta fija: 7 abril)
+  // ARG→EUR ida+vuelta + SCL→SYD solo ida
   // ═══════════════════════════════════════════════════════════════
   const plan = [];
   plan.push(...rotatePick(argEuRoutes, 'argEuRoundTrip', 5));
 
-  // Máximo 5 rutas por corrida (× 2 fechas c/u = ~10 búsquedas)
-  plan.splice(5);
+  // Chile → Oceanía: siempre incluir (solo 1 ruta)
+  plan.push(...rotatePick(chileOceaniaRoutes, 'chileOceania', 1));
+
+  // Máximo 6 rutas por corrida (× 2 fechas c/u = ~12 búsquedas)
+  plan.splice(6);
 
   const totalSearches = plan.length * DATES_PER_ROUTE;
 
@@ -305,7 +331,7 @@ async function runFullSearch(options = {}) {
 
           const threshold = effectiveTripType === 'roundtrip'
             ? ROUND_TRIP_THRESHOLD
-            : getThreshold(route.origin, 'oneway');
+            : getThreshold(route.origin, route.destination, 'oneway');
 
           // ══════════════════════════════════════════════════════════════
           // VALIDACIÓN DE PRECIOS REALISTAS (evitar falsos positivos)
@@ -330,21 +356,38 @@ async function runFullSearch(options = {}) {
               continue;
             }
 
-            results.roundTripDeals.push({
-              origin: route.origin,
-              destination: route.destination,
-              routeName: route.name,
-              region: route.region,
-              price,
-              airline: flight.airline,
-              source: flight.source,
-              departureDate: depDate,
-              returnDate: rtDate,
-              bookingUrl: flight.link,
-              tripType: 'roundtrip',
-              threshold,
-            });
-            console.log(`  🔥 OFERTA REAL I+V: €${price} (${flight.airline}) - ${formatDate(depDate)} ↔ ${formatDate(rtDate)}`);
+            if (effectiveTripType === 'roundtrip') {
+              results.roundTripDeals.push({
+                origin: route.origin,
+                destination: route.destination,
+                routeName: route.name,
+                region: route.region,
+                price,
+                airline: flight.airline,
+                source: flight.source,
+                departureDate: depDate,
+                returnDate: rtDate,
+                bookingUrl: flight.link,
+                tripType: 'roundtrip',
+                threshold,
+              });
+              console.log(`  🔥 OFERTA REAL I+V: €${price} (${flight.airline}) - ${formatDate(depDate)} ↔ ${formatDate(rtDate)}`);
+            } else {
+              results.oneWayDeals.push({
+                origin: route.origin,
+                destination: route.destination,
+                routeName: route.name,
+                region: route.region,
+                price,
+                airline: flight.airline,
+                source: flight.source,
+                departureDate: depDate,
+                bookingUrl: flight.link,
+                tripType: 'oneway',
+                threshold,
+              });
+              console.log(`  🔥 OFERTA REAL: €${price} (${flight.airline}) - ${formatDate(depDate)}`);
+            }
           } else if (effectiveTripType === 'roundtrip' && price >= NEAR_DEAL_RT_MIN && price <= NEAR_DEAL_RT_MAX) {
             // ══════════════════════════════════════════════════════════════
             // EXCEPCIÓN: Ida+vuelta Argentina→Europa entre €650-€800
@@ -393,9 +436,10 @@ async function runFullSearch(options = {}) {
   lastSearchTime = results.endTime;
 
   // Eliminar duplicados y ordenar por precio
+  results.oneWayDeals = removeDuplicatesAndSort(results.oneWayDeals);
   results.roundTripDeals = removeDuplicatesAndSort(results.roundTripDeals);
 
-  totalDealsFound += results.roundTripDeals.length;
+  totalDealsFound += results.oneWayDeals.length + results.roundTripDeals.length;
 
   // Mostrar resumen
   const duration = (results.endTime - results.startTime) / 1000;
@@ -409,11 +453,21 @@ async function runFullSearch(options = {}) {
   if (failedSearches > 0) {
     console.log(`❌ Errores: ${failedSearches}`);
   }
+  if (results.oneWayDeals.length > 0) {
+    console.log(`🔥 Ofertas SOLO IDA: ${results.oneWayDeals.length}`);
+  }
   console.log(`🔥 Ofertas IDA+VUELTA: ${results.roundTripDeals.length}`);
   console.log(`⏱️ Duración: ${duration.toFixed(1)}s`);
   console.log(`📅 Próxima búsqueda: según schedule configurado`);
 
   // Mostrar mejores ofertas
+  if (results.oneWayDeals.length > 0) {
+    console.log('\n🎯 TOP SOLO IDA:');
+    results.oneWayDeals.slice(0, 5).forEach((d, i) => {
+      console.log(`  ${i + 1}. ${d.routeName}: €${d.price} (${d.airline})`);
+    });
+  }
+
   if (results.roundTripDeals.length > 0) {
     console.log('\n🎯 TOP IDA+VUELTA:');
     results.roundTripDeals.slice(0, 5).forEach((d, i) => {
@@ -423,7 +477,7 @@ async function runFullSearch(options = {}) {
 
   const nearDeals = results.nearDeals || [];
   if (nearDeals.length > 0) {
-    console.log('\n🟡 CASI OFERTAS I+V (€650-€800):');
+    console.log(`\n🟡 CASI OFERTAS I+V (€${NEAR_DEAL_RT_MIN}-€${NEAR_DEAL_RT_MAX}):`);
     nearDeals.slice(0, 5).forEach((d, i) => {
       console.log(`  ${i + 1}. ${d.routeName}: €${d.price} (${d.airline})`);
     });
@@ -431,9 +485,9 @@ async function runFullSearch(options = {}) {
 
   // Enviar reporte a Telegram SOLO SI HAY OFERTAS (anti-spam)
   if (notifyDeals && isActive()) {
-    const hasDeals = results.roundTripDeals.length > 0;
+    const hasDeals = results.oneWayDeals.length > 0 || results.roundTripDeals.length > 0;
     if (hasDeals) {
-      await sendDealsReport([], results.roundTripDeals);
+      await sendDealsReport(results.oneWayDeals, results.roundTripDeals);
       console.log('📱 Notificación Telegram enviada con ofertas');
     } else {
       // NO enviar mensaje cuando no hay ofertas (evita spam)
@@ -448,6 +502,7 @@ async function runFullSearch(options = {}) {
   }
 
   // Guardar en base de datos
+  await saveDealsToDatabase(results.oneWayDeals);
   await saveDealsToDatabase(results.roundTripDeals);
   await saveDealsToDatabase(nearDeals);
 
@@ -524,6 +579,7 @@ function startMonitoring(cronSchedule = '15 8,15,22 * * *', timezone = 'Europe/R
   console.log(`⏰ Programación: ${cronSchedule}`);
   console.log('📋 Umbrales:');
   console.log(`   • Ida y vuelta Argentina→Europa: €${ROUND_TRIP_THRESHOLD}`);
+  console.log(`   • Solo ida Chile→Oceanía: €${ONE_WAY_THRESHOLDS.chileToOceania}`);
   console.log(`   • Casi oferta I+V: €${NEAR_DEAL_RT_MIN}-€${NEAR_DEAL_RT_MAX}`);
   console.log('');
 
@@ -574,6 +630,7 @@ function getMonitorStatus() {
     telegramActive: isActive(),
     thresholds: {
       roundTrip: ROUND_TRIP_THRESHOLD,
+      chileOceania: ONE_WAY_THRESHOLDS.chileToOceania,
     },
     routes: MONITORED_ROUTES.length,
   };
@@ -611,6 +668,7 @@ module.exports = {
   getMonitorStatus,
   getStats,
   MONITORED_ROUTES,
+  ONE_WAY_THRESHOLDS,
   ROUND_TRIP_THRESHOLD,
   NEAR_DEAL_RT_MIN,
   NEAR_DEAL_RT_MAX,
