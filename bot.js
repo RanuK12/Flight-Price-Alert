@@ -15,6 +15,7 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const cron = require('node-cron');
 const TelegramBot = require('node-telegram-bot-api');
 const http = require('http');
+const crypto = require('crypto');
 
 puppeteer.use(StealthPlugin());
 
@@ -84,6 +85,30 @@ const ROUTES = [
   { origin: 'Nueva York', dest: 'Cordoba Argentina', goodOneWay: 500, goodRoundTrip: 700 },
   { origin: 'Miami', dest: 'Cordoba Argentina', goodOneWay: 450, goodRoundTrip: 650 },
 ];
+
+// ============================================
+// CACHÉ PARA EVITAR DUPLICADOS
+// ============================================
+
+let lastReportHash = null;
+
+function generateHash(oneWayDeals, roundTripDeals) {
+  // Crear una firma única basada en rutas, precios y fechas
+  const data = [...oneWayDeals, ...roundTripDeals]
+    .map(d => `${d.route}|${d.price}|${d.date}`)
+    .sort()
+    .join(';');
+  return crypto.createHash('md5').update(data).digest('hex');
+}
+
+function isNewReport(oneWayDeals, roundTripDeals) {
+  const hash = generateHash(oneWayDeals, roundTripDeals);
+  if (hash === lastReportHash) {
+    return false; // Mismo resultado que antes
+  }
+  lastReportHash = hash;
+  return true; // Resultado nuevo
+}
 
 // ============================================
 // TELEGRAM
@@ -405,6 +430,12 @@ async function runSearch() {
 async function sendReport(oneWayDeals, roundTripDeals) {
   if (oneWayDeals.length === 0 && roundTripDeals.length === 0) {
     console.log('📭 Sin ofertas destacadas');
+    return;
+  }
+  
+  // Verificar si el reporte es idéntico al anterior
+  if (!isNewReport(oneWayDeals, roundTripDeals)) {
+    console.log('🔁 Resultados idénticos a la búsqueda anterior. No se envía notificación.');
     return;
   }
   
