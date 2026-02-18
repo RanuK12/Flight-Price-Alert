@@ -2,8 +2,9 @@
  * Servicio de Monitoreo de Vuelos v4.1
  *
  * Busca ofertas de vuelos usando web scraping (Puppeteer Google Flights)
- * - Argentina (EZE/COR) → Europa: IDA Y VUELTA (20 mar - 7 abr, vuelta fija 7 abr)
- * - Chile (SCL) → Oceanía (SYD): SOLO IDA (20 may - 20 jun)
+ * - Buenos Aires (EZE) → Europa: IDA Y VUELTA (21 mar - 7 abr, vuelta fija 7 abr)
+ * - Córdoba (COR) → Europa: IDA Y VUELTA (21 mar - 7 abr, vuelta fija 7 abr)
+ * - Chile (SCL) → Sídney (SYD): SOLO IDA (todo junio 2026)
  *
  * (Vuelo de ida Europa→Argentina ya comprado)
  */
@@ -76,7 +77,7 @@ function addDays(dateStr, days) {
 // =============================================
 
 // Rango de fechas de IDA (vuelta fija: 7 abril)
-const SEARCH_DATE_START = '2026-03-20';
+const SEARCH_DATE_START = '2026-03-21';
 const SEARCH_DATE_END = '2026-04-07';
 const FIXED_RETURN_DATE = '2026-04-07';
 
@@ -178,7 +179,7 @@ const MONITORED_ROUTES = [
   { origin: 'COR', destination: 'LIS', name: 'Córdoba → Lisboa', region: 'argentina', tripType: 'roundtrip' },
 
   // ========== SOLO IDA: Chile → Oceanía ==========
-  { origin: 'SCL', destination: 'SYD', name: 'Santiago → Sídney', region: 'chile_oceania', tripType: 'oneway', dateStart: '2026-05-20', dateEnd: '2026-06-20' },
+  { origin: 'SCL', destination: 'SYD', name: 'Santiago → Sídney', region: 'chile_oceania', tripType: 'oneway', dateStart: '2026-06-01', dateEnd: '2026-06-30' },
 ];
 
 /**
@@ -473,9 +474,25 @@ async function runFullSearch(options = {}) {
       console.log('📴 Sin ofertas - no se envía notificación (anti-spam)');
     }
 
-    // Enviar alerta aparte para "casi ofertas" ida+vuelta €650-€800
+    // Construir resumen de búsquedas para mostrar en alerta
+    const ezeSearches = results.allSearches.filter(s => s.origin === 'EZE');
+    const corSearches = results.allSearches.filter(s => s.origin === 'COR');
+    const sclSearches = results.allSearches.filter(s => s.origin === 'SCL');
+    const searchSummary = {
+      ezeSearched: ezeSearches.length > 0,
+      ezeTotal: ezeSearches.length,
+      ezeSuccess: ezeSearches.filter(s => s.success).length,
+      corSearched: corSearches.length > 0,
+      corTotal: corSearches.length,
+      corSuccess: corSearches.filter(s => s.success).length,
+      sclSearched: sclSearches.length > 0,
+      sclTotal: sclSearches.length,
+      sclSuccess: sclSearches.filter(s => s.success).length,
+    };
+
+    // Enviar alerta aparte para "casi ofertas" ida+vuelta
     if (nearDeals.length > 0) {
-      await sendNearDealAlert(nearDeals);
+      await sendNearDealAlert(nearDeals, searchSummary);
       console.log('📱 Alerta "Casi Oferta" enviada a Telegram');
     }
   }
