@@ -1,5 +1,5 @@
-const { scrapeAllSources } = require('./server/scrapers');
-const { initDatabase, run, all } = require('./server/database/db');
+const { scrapeAllSources } = require('../server/scrapers');
+const { initDatabase, run, all } = require('../server/database/db');
 
 /**
  * Demo Script - Valida funcionalidad de la aplicación

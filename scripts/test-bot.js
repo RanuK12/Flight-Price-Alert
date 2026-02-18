@@ -1,8 +1,8 @@
 // Test script para verificar que el bot funciona correctamente
 
 require('dotenv').config();
-const { scrapeSkyscanner } = require('./skyscanner_scraper');
-const { initDb, insertPrice, getLastPrice } = require('./database');
+const { scrapeSkyscanner } = require('../skyscanner_scraper');
+const { initDb, insertPrice, getLastPrice } = require('../database');
 
 async function testBot() {
   console.log('🧪 Iniciando tests del Flight Price Alert Bot...\n');

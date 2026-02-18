@@ -100,31 +100,18 @@ function generateSearchDatesRange(startStr, endStr) {
 const SEARCH_DATES = generateSearchDatesRange(SEARCH_DATE_START, SEARCH_DATE_END);
 
 // =============================================
+// Construir plan de búsqueda con TODAS las rutas
+// (sin rotación en memoria — se perdía en cada restart)
 // =============================================
-// Procesar TODAS las rutas configuradas en cada búsqueda
-// =============================================
 
-const rotationState = {
-  argEuRoundTrip: 0,
-  chileOceania: 0,
-};
-
-function rotatePick(list, stateKey, count) {
-  if (!Array.isArray(list) || list.length === 0 || count <= 0) return [];
-  const picked = [];
-  for (let i = 0; i < count; i++) {
-    const idx = rotationState[stateKey] % list.length;
-    picked.push(list[idx]);
-    rotationState[stateKey] = (rotationState[stateKey] + 1) % list.length;
-  }
-  return picked;
-}
-
-function pickRotatedDateForRoute(route) {
-  const todayIdx = Math.abs(new Date().getDate()) % SEARCH_DATES.length;
-  const routeIdx = Math.abs((route.origin.charCodeAt(0) + route.destination.charCodeAt(0)) % SEARCH_DATES.length);
-  const dateIdx = (todayIdx + routeIdx) % SEARCH_DATES.length;
-  return SEARCH_DATES[dateIdx];
+/**
+ * Devuelve el plan de búsqueda completo: todas las rutas en cada corrida.
+ * Exportado para testing.
+ */
+function buildSearchPlan() {
+  const argEuRoutes = MONITORED_ROUTES.filter(r => r.region === 'argentina');
+  const chileOceaniaRoutes = MONITORED_ROUTES.filter(r => r.region === 'chile_oceania');
+  return [...argEuRoutes, ...chileOceaniaRoutes];
 }
 
 /**
@@ -262,27 +249,19 @@ async function runFullSearch(options = {}) {
     startTime: new Date(),
   };
 
-  // Separar rutas por tipo
-  const argEuRoutes = MONITORED_ROUTES.filter(r => r.region === 'argentina');
-  const chileOceaniaRoutes = MONITORED_ROUTES.filter(r => r.region === 'chile_oceania');
-
   // ═══════════════════════════════════════════════════════════════
-  // PLAN DE BÚSQUEDA — Puppeteer es gratis, buscar más rutas
-  // ARG→EUR ida+vuelta + SCL→SYD solo ida
+  // PLAN DE BÚSQUEDA — todas las rutas en cada corrida
+  // ARG→EUR ida+vuelta (EZE + COR) + SCL→SYD solo ida
   // ═══════════════════════════════════════════════════════════════
-  const plan = [];
-  plan.push(...rotatePick(argEuRoutes, 'argEuRoundTrip', 5));
-
-  // Chile → Oceanía: siempre incluir (solo 1 ruta)
-  plan.push(...rotatePick(chileOceaniaRoutes, 'chileOceania', 1));
-
-  // Máximo 6 rutas por corrida (× 2 fechas c/u = ~12 búsquedas)
-  plan.splice(6);
-
+  const plan = buildSearchPlan();
   const totalSearches = plan.length * DATES_PER_ROUTE;
 
+  const ezeCount = plan.filter(r => r.origin === 'EZE').length;
+  const corCount = plan.filter(r => r.origin === 'COR').length;
+  const sclCount = plan.filter(r => r.origin === 'SCL').length;
   console.log('═══════════════════════════════════════');
   console.log(`✈️  BUSCANDO: ${plan.length} rutas × ${DATES_PER_ROUTE} fechas = ${totalSearches} búsquedas`);
+  console.log(`   EZE: ${ezeCount} rutas | COR: ${corCount} rutas | SCL: ${sclCount} rutas`);
   console.log('═══════════════════════════════════════');
 
   // Ejecutar plan: cada ruta × múltiples fechas
@@ -667,6 +646,7 @@ module.exports = {
   stopMonitoring,
   getMonitorStatus,
   getStats,
+  buildSearchPlan,
   MONITORED_ROUTES,
   ONE_WAY_THRESHOLDS,
   ROUND_TRIP_THRESHOLD,
