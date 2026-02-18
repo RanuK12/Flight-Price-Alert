@@ -61,16 +61,23 @@ const CONFIG = {
 // ============================================
 
 const ROUTES = [
-  // EUROPA → ARGENTINA (Buenos Aires)
-  { origin: 'Madrid', dest: 'Buenos Aires', goodOneWay: 500, goodRoundTrip: 700 },
-  { origin: 'Barcelona', dest: 'Buenos Aires', goodOneWay: 520, goodRoundTrip: 750 },
-  { origin: 'Roma', dest: 'Buenos Aires', goodOneWay: 550, goodRoundTrip: 800 },
-  { origin: 'Paris', dest: 'Buenos Aires', goodOneWay: 520, goodRoundTrip: 750 },
-  { origin: 'Lisboa', dest: 'Buenos Aires', goodOneWay: 500, goodRoundTrip: 700 },
+  // BUENOS AIRES → EUROPA (solo ida y vuelta)
+  { origin: 'Buenos Aires', dest: 'Madrid', goodOneWay: 500, goodRoundTrip: 700, searchType: 'roundTrip' },
+  { origin: 'Buenos Aires', dest: 'Barcelona', goodOneWay: 520, goodRoundTrip: 750, searchType: 'roundTrip' },
+  { origin: 'Buenos Aires', dest: 'Roma', goodOneWay: 550, goodRoundTrip: 800, searchType: 'roundTrip' },
+  { origin: 'Buenos Aires', dest: 'Paris', goodOneWay: 520, goodRoundTrip: 750, searchType: 'roundTrip' },
+  { origin: 'Buenos Aires', dest: 'Lisboa', goodOneWay: 500, goodRoundTrip: 700, searchType: 'roundTrip' },
   
-  // EUROPA → ARGENTINA (Córdoba)
-  { origin: 'Madrid', dest: 'Cordoba Argentina', goodOneWay: 550, goodRoundTrip: 800 },
-  { origin: 'Barcelona', dest: 'Cordoba Argentina', goodOneWay: 580, goodRoundTrip: 850 },
+  // EUROPA → ARGENTINA (Buenos Aires) - solo ida y vuelta
+  { origin: 'Madrid', dest: 'Buenos Aires', goodOneWay: 500, goodRoundTrip: 700, searchType: 'roundTrip' },
+  { origin: 'Barcelona', dest: 'Buenos Aires', goodOneWay: 520, goodRoundTrip: 750, searchType: 'roundTrip' },
+  { origin: 'Roma', dest: 'Buenos Aires', goodOneWay: 550, goodRoundTrip: 800, searchType: 'roundTrip' },
+  { origin: 'Paris', dest: 'Buenos Aires', goodOneWay: 520, goodRoundTrip: 750, searchType: 'roundTrip' },
+  { origin: 'Lisboa', dest: 'Buenos Aires', goodOneWay: 500, goodRoundTrip: 700, searchType: 'roundTrip' },
+  
+  // EUROPA → ARGENTINA (Córdoba) - solo ida y vuelta
+  { origin: 'Madrid', dest: 'Cordoba Argentina', goodOneWay: 550, goodRoundTrip: 800, searchType: 'roundTrip' },
+  { origin: 'Barcelona', dest: 'Cordoba Argentina', goodOneWay: 580, goodRoundTrip: 850, searchType: 'roundTrip' },
   
   // CÓRDOBA ARGENTINA → EUROPA (solo ida y vuelta)
   { origin: 'Cordoba Argentina', dest: 'Madrid', goodOneWay: 550, goodRoundTrip: 800, searchType: 'roundTrip' },
@@ -268,20 +275,20 @@ async function scrapeFlightPrice(page, origin, dest, date, roundTrip = false) {
 }
 
 function getReturnDate(departDate) {
-  const date = new Date(departDate);
-  date.setDate(date.getDate() + 14);
-  return date.toISOString().split('T')[0];
+  // Vuelta fija: 7 de abril 2026
+  return '2026-04-07';
 }
 
 function getSearchDates() {
-  // Fechas específicas: 25 marzo - 15 abril 2026
+  // Fechas de ida: 21 marzo - 7 abril 2026
   return [
-    '2026-03-25',
-    '2026-03-28',
-    '2026-04-01',
+    '2026-03-21',
+    '2026-03-24',
+    '2026-03-27',
+    '2026-03-30',
+    '2026-04-02',
     '2026-04-05',
-    '2026-04-10',
-    '2026-04-15'
+    '2026-04-07'
   ];
 }
 
