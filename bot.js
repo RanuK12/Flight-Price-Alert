@@ -72,6 +72,13 @@ const ROUTES = [
   { origin: 'Madrid', dest: 'Cordoba Argentina', goodOneWay: 550, goodRoundTrip: 800 },
   { origin: 'Barcelona', dest: 'Cordoba Argentina', goodOneWay: 580, goodRoundTrip: 850 },
   
+  // CÓRDOBA ARGENTINA → EUROPA (ida y vuelta)
+  { origin: 'Cordoba Argentina', dest: 'Madrid', goodOneWay: 550, goodRoundTrip: 800 },
+  { origin: 'Cordoba Argentina', dest: 'Barcelona', goodOneWay: 580, goodRoundTrip: 850 },
+  { origin: 'Cordoba Argentina', dest: 'Roma', goodOneWay: 580, goodRoundTrip: 850 },
+  { origin: 'Cordoba Argentina', dest: 'Paris', goodOneWay: 580, goodRoundTrip: 850 },
+  { origin: 'Cordoba Argentina', dest: 'Lisboa', goodOneWay: 550, goodRoundTrip: 800 },
+  
   // EUROPA → USA
   { origin: 'Madrid', dest: 'Nueva York', goodOneWay: 300, goodRoundTrip: 450 },
   { origin: 'Madrid', dest: 'Miami', goodOneWay: 320, goodRoundTrip: 480 },
@@ -84,6 +91,9 @@ const ROUTES = [
   { origin: 'Los Angeles', dest: 'Buenos Aires', goodOneWay: 500, goodRoundTrip: 700 },
   { origin: 'Nueva York', dest: 'Cordoba Argentina', goodOneWay: 500, goodRoundTrip: 700 },
   { origin: 'Miami', dest: 'Cordoba Argentina', goodOneWay: 450, goodRoundTrip: 650 },
+  
+  // SANTIAGO DE CHILE → AUSTRALIA
+  { origin: 'Santiago de Chile', dest: 'Sidney Australia', goodOneWay: 700, goodRoundTrip: 1100 },
 ];
 
 // ============================================
@@ -443,9 +453,11 @@ async function sendReport(oneWayDeals, roundTripDeals) {
   roundTripDeals.sort((a, b) => a.price - b.price);
   
   const argOW = oneWayDeals.filter(d => d.route.includes('Buenos') || d.route.includes('Cordoba'));
-  const usaOW = oneWayDeals.filter(d => d.route.includes('Nueva York') || d.route.includes('Miami'));
+  const usaOW = oneWayDeals.filter(d => d.route.includes('Nueva York') || d.route.includes('Miami') || d.route.includes('Los Angeles'));
   const argRT = roundTripDeals.filter(d => d.route.includes('Buenos') || d.route.includes('Cordoba'));
-  const usaRT = roundTripDeals.filter(d => d.route.includes('Nueva York') || d.route.includes('Miami'));
+  const usaRT = roundTripDeals.filter(d => d.route.includes('Nueva York') || d.route.includes('Miami') || d.route.includes('Los Angeles'));
+  const ausOW = oneWayDeals.filter(d => d.route.includes('Sidney'));
+  const ausRT = roundTripDeals.filter(d => d.route.includes('Sidney'));
   
   let msg = `✈️ <b>OFERTAS DE VUELOS</b>\n`;
   msg += `📅 ${new Date().toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'})}\n`;
@@ -474,6 +486,16 @@ async function sendReport(oneWayDeals, roundTripDeals) {
       });
       msg += `\n`;
     }
+    
+    if (ausOW.length > 0) {
+      msg += `🇦🇺 Australia:\n`;
+      ausOW.slice(0, 3).forEach(d => {
+        msg += `  • <b>€${d.price}</b> ${d.route}\n`;
+        msg += `    ${formatDate(d.date)} · ${d.airline}\n`;
+        msg += `    <a href="${d.url}">Ver →</a>\n`;
+      });
+      msg += `\n`;
+    }
   }
   
   // IDA Y VUELTA
@@ -493,6 +515,15 @@ async function sendReport(oneWayDeals, roundTripDeals) {
     if (usaRT.length > 0) {
       msg += `🇺🇸 Estados Unidos:\n`;
       usaRT.slice(0, 4).forEach(d => {
+        msg += `  • <b>€${d.price}</b> ${d.route}\n`;
+        msg += `    ${formatDate(d.date)} ↔ ${formatDate(d.returnDate)}\n`;
+        msg += `    <a href="${d.url}">Ver →</a>\n`;
+      });
+    }
+    
+    if (ausRT.length > 0) {
+      msg += `\n🇦🇺 Australia:\n`;
+      ausRT.slice(0, 3).forEach(d => {
         msg += `  • <b>€${d.price}</b> ${d.route}\n`;
         msg += `    ${formatDate(d.date)} ↔ ${formatDate(d.returnDate)}\n`;
         msg += `    <a href="${d.url}">Ver →</a>\n`;
@@ -531,8 +562,11 @@ async function main() {
   await sendTelegram(
     `🛫 <b>Flight Deal Bot v3.0</b>\n\n` +
     `Monitoreando:\n` +
-    `• Europa → Argentina 🇦🇷\n` +
-    `• Europa → USA 🇺🇸\n\n` +
+    `• Europa ↔ Argentina 🇦🇷\n` +
+    `• Europa → USA 🇺🇸\n` +
+    `• USA → Argentina 🇦🇷\n` +
+    `• Córdoba → Europa 🌍\n` +
+    `• Santiago → Sidney 🇦🇺\n\n` +
     `📊 Dos listados:\n` +
     `• Solo ida\n` +
     `• Ida y vuelta\n\n` +
