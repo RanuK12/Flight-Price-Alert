@@ -38,29 +38,26 @@ function initTelegram() {
 }
 
 /**
- * Envía reporte de ofertas con secciones separadas IDA e IDA+VUELTA
+ * Construye el mensaje de reporte de ofertas (separado para testeo).
  */
-async function sendDealsReport(oneWayDeals, roundTripDeals) {
+function buildDealsReportMessage(oneWayDeals, roundTripDeals) {
   const totalDeals = oneWayDeals.length + roundTripDeals.length;
-  
-  if (totalDeals === 0) {
-    return false;
-  }
+  if (totalDeals === 0) return null;
 
   let message = `🔥 <b>¡OFERTAS ENCONTRADAS!</b> 🔥\n`;
   message += `📅 ${new Date().toLocaleString('es-ES')}\n`;
-  message += `📆 Fechas: 25 mar - 15 abr 2026\n`;
+  message += `📆 Fechas: 20 mar - 7 abr 2026\n`;
   message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
   // SECCIÓN: SOLO IDA
   if (oneWayDeals.length > 0) {
     message += `✈️ <b>SOLO IDA</b> (${oneWayDeals.length} ofertas)\n`;
     message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    
-    // Separar por región
+
     const europeDeals = oneWayDeals.filter(d => d.region === 'europe');
     const usaDeals = oneWayDeals.filter(d => d.region === 'usa');
-    
+    const chileOceaniaDeals = oneWayDeals.filter(d => d.region === 'chile_oceania');
+
     // Europa → Argentina (máx €350)
     if (europeDeals.length > 0) {
       message += `\n🇪🇺 <b>Europa → Argentina</b> (máx €350)\n`;
@@ -77,7 +74,7 @@ async function sendDealsReport(oneWayDeals, roundTripDeals) {
         message += `   <i>+${europeDeals.length - 8} ofertas más...</i>\n`;
       }
     }
-    
+
     // USA → Argentina (máx €200)
     if (usaDeals.length > 0) {
       message += `\n🇺🇸 <b>USA → Argentina</b> (máx €200)\n`;
@@ -94,18 +91,34 @@ async function sendDealsReport(oneWayDeals, roundTripDeals) {
         message += `   <i>+${usaDeals.length - 8} ofertas más...</i>\n`;
       }
     }
+
+    // Chile → Oceanía (máx €700)
+    if (chileOceaniaDeals.length > 0) {
+      message += `\n🇨🇱 <b>Chile → Oceanía</b> (máx €700 — solo ida, junio)\n`;
+      for (const deal of chileOceaniaDeals.slice(0, 8)) {
+        const emoji = deal.price <= 500 ? '🔥🔥🔥' : (deal.price <= 600 ? '🔥🔥' : '🔥');
+        message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
+        if (deal.airline) message += ` • ${deal.airline}`;
+        if (deal.departureDate && deal.departureDate !== 'Flexible') {
+          message += ` • ${formatDateShort(deal.departureDate)}`;
+        }
+        message += `\n`;
+      }
+      if (chileOceaniaDeals.length > 8) {
+        message += `   <i>+${chileOceaniaDeals.length - 8} ofertas más...</i>\n`;
+      }
+    }
   }
 
   // SECCIÓN: IDA Y VUELTA (Argentina → Europa)
   if (roundTripDeals.length > 0) {
     message += `\n\n🔄 <b>IDA Y VUELTA</b> (${roundTripDeals.length} ofertas)\n`;
     message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    message += `🇦🇷 <b>Argentina → Europa</b> (≤ €600 oferta | €650-€800 aviso)\n\n`;
-    
-    // Separar por origen (Ezeiza vs Córdoba)
+    message += `🇦🇷 <b>Argentina → Europa</b> (≤ €800)\n\n`;
+
     const ezeDeals = roundTripDeals.filter(d => d.origin === 'EZE');
     const corDeals = roundTripDeals.filter(d => d.origin === 'COR');
-    
+
     if (ezeDeals.length > 0) {
       message += `<b>Desde Buenos Aires (EZE):</b>\n`;
       for (const deal of ezeDeals.slice(0, 5)) {
@@ -116,7 +129,7 @@ async function sendDealsReport(oneWayDeals, roundTripDeals) {
         message += `\n`;
       }
     }
-    
+
     if (corDeals.length > 0) {
       message += `\n<b>Desde Córdoba (COR):</b>\n`;
       for (const deal of corDeals.slice(0, 5)) {
@@ -134,6 +147,15 @@ async function sendDealsReport(oneWayDeals, roundTripDeals) {
   message += `📊 Total: <b>${totalDeals}</b> ofertas encontradas\n`;
   message += `🔗 Reserva en Google Flights o Kayak`;
 
+  return message;
+}
+
+/**
+ * Envía reporte de ofertas con secciones separadas IDA e IDA+VUELTA
+ */
+async function sendDealsReport(oneWayDeals, roundTripDeals) {
+  const message = buildDealsReportMessage(oneWayDeals, roundTripDeals);
+  if (!message) return false;
   return sendMessage(message);
 }
 
@@ -505,17 +527,16 @@ async function sendBlockedAlert(data) {
 }
 
 /**
- * Envía alerta "Casi Oferta" para ida+vuelta Argentina→Europa entre €650-€800.
- * Es un mensaje aparte, separado del reporte principal de ofertas.
+ * Construye el mensaje "Casi Oferta" (separado para testeo).
  */
-async function sendNearDealAlert(nearDeals) {
-  if (!nearDeals || nearDeals.length === 0) return false;
+function buildNearDealMessage(nearDeals) {
+  if (!nearDeals || nearDeals.length === 0) return null;
 
   let message = `🟡 <b>CASI OFERTA — Ida y Vuelta</b>\n`;
   message += `📅 ${new Date().toLocaleString('es-ES')}\n`;
   message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
-  message += `🇦🇷 <b>Argentina → Europa (€650-€800)</b>\n`;
-  message += `<i>No llega al umbral de oferta (≤€600) pero está cerca:</i>\n\n`;
+  message += `🇦🇷 <b>Argentina → Europa (€800-€1050)</b>\n`;
+  message += `<i>No llega al umbral de oferta (≤€800) pero está cerca:</i>\n\n`;
 
   const ezeDeals = nearDeals.filter(d => d.origin === 'EZE');
   const corDeals = nearDeals.filter(d => d.origin === 'COR');
@@ -544,9 +565,19 @@ async function sendNearDealAlert(nearDeals) {
   }
 
   message += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
-  message += `💡 <i>Si baja a ≤€600 se convertirá en oferta confirmada</i>\n`;
+  message += `💡 <i>Si baja a ≤€800 se convertirá en oferta confirmada</i>\n`;
   message += `🔗 Verificar en Google Flights`;
 
+  return message;
+}
+
+/**
+ * Envía alerta "Casi Oferta" para ida+vuelta Argentina→Europa entre €800-€1050.
+ * Es un mensaje aparte, separado del reporte principal de ofertas.
+ */
+async function sendNearDealAlert(nearDeals) {
+  const message = buildNearDealMessage(nearDeals);
+  if (!message) return false;
   return sendMessage(message);
 }
 
@@ -556,6 +587,9 @@ module.exports = {
   sendDealAlert,
   sendSearchSummary,
   sendDealsReport,
+  buildDealsReportMessage,
+  sendNearDealAlert,
+  buildNearDealMessage,
   sendNoDealsMessage,
   sendErrorAlert,
   sendMonitoringStarted,
@@ -564,6 +598,5 @@ module.exports = {
   sendDailySummary,
   sendSearchRunReport,
   sendBlockedAlert,
-  sendNearDealAlert,
   isActive,
 };
