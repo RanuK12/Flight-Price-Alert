@@ -72,12 +72,12 @@ const ROUTES = [
   { origin: 'Madrid', dest: 'Cordoba Argentina', goodOneWay: 550, goodRoundTrip: 800 },
   { origin: 'Barcelona', dest: 'Cordoba Argentina', goodOneWay: 580, goodRoundTrip: 850 },
   
-  // CÓRDOBA ARGENTINA → EUROPA (ida y vuelta)
-  { origin: 'Cordoba Argentina', dest: 'Madrid', goodOneWay: 550, goodRoundTrip: 800 },
-  { origin: 'Cordoba Argentina', dest: 'Barcelona', goodOneWay: 580, goodRoundTrip: 850 },
-  { origin: 'Cordoba Argentina', dest: 'Roma', goodOneWay: 580, goodRoundTrip: 850 },
-  { origin: 'Cordoba Argentina', dest: 'Paris', goodOneWay: 580, goodRoundTrip: 850 },
-  { origin: 'Cordoba Argentina', dest: 'Lisboa', goodOneWay: 550, goodRoundTrip: 800 },
+  // CÓRDOBA ARGENTINA → EUROPA (solo ida y vuelta)
+  { origin: 'Cordoba Argentina', dest: 'Madrid', goodOneWay: 550, goodRoundTrip: 800, searchType: 'roundTrip' },
+  { origin: 'Cordoba Argentina', dest: 'Barcelona', goodOneWay: 580, goodRoundTrip: 850, searchType: 'roundTrip' },
+  { origin: 'Cordoba Argentina', dest: 'Roma', goodOneWay: 580, goodRoundTrip: 850, searchType: 'roundTrip' },
+  { origin: 'Cordoba Argentina', dest: 'Paris', goodOneWay: 580, goodRoundTrip: 850, searchType: 'roundTrip' },
+  { origin: 'Cordoba Argentina', dest: 'Lisboa', goodOneWay: 550, goodRoundTrip: 800, searchType: 'roundTrip' },
   
   // EUROPA → USA
   { origin: 'Madrid', dest: 'Nueva York', goodOneWay: 300, goodRoundTrip: 450 },
@@ -92,8 +92,8 @@ const ROUTES = [
   { origin: 'Nueva York', dest: 'Cordoba Argentina', goodOneWay: 500, goodRoundTrip: 700 },
   { origin: 'Miami', dest: 'Cordoba Argentina', goodOneWay: 450, goodRoundTrip: 650 },
   
-  // SANTIAGO DE CHILE → AUSTRALIA
-  { origin: 'Santiago de Chile', dest: 'Sidney Australia', goodOneWay: 700, goodRoundTrip: 1100 },
+  // SANTIAGO DE CHILE → AUSTRALIA (solo ida)
+  { origin: 'Santiago de Chile', dest: 'Sidney Australia', goodOneWay: 700, goodRoundTrip: 1100, searchType: 'oneWay' },
 ];
 
 // ============================================
@@ -363,62 +363,72 @@ async function runSearch() {
   const roundTripDeals = [];
   
   let count = 0;
-  const total = ROUTES.length * dates.length * 2;
+  // Calcular total respetando searchType
+  let total = 0;
+  for (const r of ROUTES) {
+    const types = r.searchType || 'both';
+    total += dates.length * (types === 'both' ? 2 : 1);
+  }
   
   for (const route of ROUTES) {
     console.log(`\n✈️  ${route.origin} → ${route.dest}`);
+    const searchType = route.searchType || 'both'; // 'oneWay', 'roundTrip', o 'both'
     
     for (const date of dates) {
       // ========== SOLO IDA ==========
-      count++;
-      process.stdout.write(`   [${count}/${total}] IDA ${date}... `);
-      
-      const oneWay = await scrapeFlightPrice(page, route.origin, route.dest, date, false);
-      
-      if (oneWay && oneWay.price) {
-        const isGood = oneWay.price <= route.goodOneWay;
-        console.log(`€${oneWay.price}${isGood ? ' ✓' : ''}`);
+      if (searchType === 'oneWay' || searchType === 'both') {
+        count++;
+        process.stdout.write(`   [${count}/${total}] IDA ${date}... `);
         
-        if (isGood) {
-          oneWayDeals.push({
-            route: `${route.origin} → ${route.dest}`,
-            price: oneWay.price,
-            date,
-            airline: oneWay.airline,
-            url: oneWay.url
-          });
+        const oneWay = await scrapeFlightPrice(page, route.origin, route.dest, date, false);
+        
+        if (oneWay && oneWay.price) {
+          const isGood = oneWay.price <= route.goodOneWay;
+          console.log(`€${oneWay.price}${isGood ? ' ✓' : ''}`);
+          
+          if (isGood) {
+            oneWayDeals.push({
+              route: `${route.origin} → ${route.dest}`,
+              price: oneWay.price,
+              date,
+              airline: oneWay.airline,
+              url: oneWay.url
+            });
+          }
+        } else {
+          console.log('--');
         }
-      } else {
-        console.log('--');
+        
+        await new Promise(r => setTimeout(r, 2000));
       }
-      
-      await new Promise(r => setTimeout(r, 2000));
       
       // ========== IDA Y VUELTA ==========
-      count++;
-      process.stdout.write(`   [${count}/${total}] I+V ${date}... `);
-      
-      const roundTrip = await scrapeFlightPrice(page, route.origin, route.dest, date, true);
-      
-      if (roundTrip && roundTrip.price) {
-        const isGood = roundTrip.price <= route.goodRoundTrip;
-        console.log(`€${roundTrip.price}${isGood ? ' ✓' : ''}`);
+      if (searchType === 'roundTrip' || searchType === 'both') {
+        count++;
+        process.stdout.write(`   [${count}/${total}] I+V ${date}... `);
         
-        if (isGood) {
-          roundTripDeals.push({
-            route: `${route.origin} → ${route.dest}`,
-            price: roundTrip.price,
-            date,
-            returnDate: getReturnDate(date),
-            airline: roundTrip.airline,
-            url: roundTrip.url
-          });
+        const roundTrip = await scrapeFlightPrice(page, route.origin, route.dest, date, true);
+        
+        if (roundTrip && roundTrip.price) {
+          const isGood = roundTrip.price <= route.goodRoundTrip;
+          console.log(`€${roundTrip.price}${isGood ? ' ✓' : ''}`);
+          
+          if (isGood) {
+            roundTripDeals.push({
+              route: `${route.origin} → ${route.dest}`,
+              price: roundTrip.price,
+              date,
+              returnDate: getReturnDate(date),
+              airline: roundTrip.airline,
+              url: roundTrip.url
+            });
+          }
+        } else {
+          console.log('--');
         }
-      } else {
-        console.log('--');
+        
+        await new Promise(r => setTimeout(r, 2000));
       }
-      
-      await new Promise(r => setTimeout(r, 2000));
     }
   }
   
