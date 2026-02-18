@@ -528,14 +528,16 @@ async function sendBlockedAlert(data) {
 
 /**
  * Construye el mensaje "Casi Oferta" (separado para testeo).
+ * @param {Array} nearDeals - Casi ofertas encontradas
+ * @param {Object} searchSummary - Resumen de todas las búsquedas realizadas
  */
-function buildNearDealMessage(nearDeals) {
+function buildNearDealMessage(nearDeals, searchSummary = null) {
   if (!nearDeals || nearDeals.length === 0) return null;
 
   let message = `🟡 <b>CASI OFERTA — Ida y Vuelta</b>\n`;
   message += `📅 ${new Date().toLocaleString('es-ES')}\n`;
   message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
-  message += `🇦🇷 <b>Argentina → Europa (€800-€1050)</b>\n`;
+  message += `🇦🇷 <b>Argentina → Europa (€${800}-€${1050})</b>\n`;
   message += `<i>No llega al umbral de oferta (≤€800) pero está cerca:</i>\n\n`;
 
   const ezeDeals = nearDeals.filter(d => d.origin === 'EZE');
@@ -568,15 +570,43 @@ function buildNearDealMessage(nearDeals) {
   message += `💡 <i>Si baja a ≤€800 se convertirá en oferta confirmada</i>\n`;
   message += `🔗 Verificar en Google Flights`;
 
+  // Resumen de TODAS las búsquedas realizadas
+  if (searchSummary) {
+    message += `\n\n📋 <b>Búsquedas realizadas:</b>\n`;
+    if (searchSummary.ezeSearched) {
+      const ezeOk = searchSummary.ezeSuccess || 0;
+      const ezeFail = searchSummary.ezeTotal - ezeOk;
+      message += `✈️ Buenos Aires (EZE) → Europa: ${ezeOk}/${searchSummary.ezeTotal} OK`;
+      if (ezeFail > 0) message += ` (${ezeFail} sin resultado)`;
+      message += `\n`;
+    }
+    if (searchSummary.corSearched) {
+      const corOk = searchSummary.corSuccess || 0;
+      const corFail = searchSummary.corTotal - corOk;
+      message += `✈️ Córdoba (COR) → Europa: ${corOk}/${searchSummary.corTotal} OK`;
+      if (corFail > 0) message += ` (${corFail} sin resultado)`;
+      message += `\n`;
+    }
+    if (searchSummary.sclSearched) {
+      const sclOk = searchSummary.sclSuccess || 0;
+      const sclFail = searchSummary.sclTotal - sclOk;
+      message += `✈️ Chile (SCL) → Sídney: ${sclOk}/${searchSummary.sclTotal} OK`;
+      if (sclFail > 0) message += ` (${sclFail} sin resultado)`;
+      message += `\n`;
+    }
+  }
+
   return message;
 }
 
 /**
  * Envía alerta "Casi Oferta" para ida+vuelta Argentina→Europa entre €800-€1050.
  * Es un mensaje aparte, separado del reporte principal de ofertas.
+ * @param {Array} nearDeals
+ * @param {Object} searchSummary - Resumen de todas las búsquedas
  */
-async function sendNearDealAlert(nearDeals) {
-  const message = buildNearDealMessage(nearDeals);
+async function sendNearDealAlert(nearDeals, searchSummary = null) {
+  const message = buildNearDealMessage(nearDeals, searchSummary);
   if (!message) return false;
   return sendMessage(message);
 }
