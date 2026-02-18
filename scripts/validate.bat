@@ -4,7 +4,7 @@ REM Verifica que toda la aplicación está lista para usar
 
 setlocal enabledelayedexpansion
 
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 echo.
 echo ╔════════════════════════════════════════════════════════════╗
