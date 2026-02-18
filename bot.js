@@ -68,17 +68,6 @@ const ROUTES = [
   { origin: 'Buenos Aires', dest: 'Paris', goodOneWay: 520, goodRoundTrip: 750, searchType: 'roundTrip' },
   { origin: 'Buenos Aires', dest: 'Lisboa', goodOneWay: 500, goodRoundTrip: 700, searchType: 'roundTrip' },
   
-  // EUROPA → ARGENTINA (Buenos Aires) - solo ida y vuelta
-  { origin: 'Madrid', dest: 'Buenos Aires', goodOneWay: 500, goodRoundTrip: 700, searchType: 'roundTrip' },
-  { origin: 'Barcelona', dest: 'Buenos Aires', goodOneWay: 520, goodRoundTrip: 750, searchType: 'roundTrip' },
-  { origin: 'Roma', dest: 'Buenos Aires', goodOneWay: 550, goodRoundTrip: 800, searchType: 'roundTrip' },
-  { origin: 'Paris', dest: 'Buenos Aires', goodOneWay: 520, goodRoundTrip: 750, searchType: 'roundTrip' },
-  { origin: 'Lisboa', dest: 'Buenos Aires', goodOneWay: 500, goodRoundTrip: 700, searchType: 'roundTrip' },
-  
-  // EUROPA → ARGENTINA (Córdoba) - solo ida y vuelta
-  { origin: 'Madrid', dest: 'Cordoba Argentina', goodOneWay: 550, goodRoundTrip: 800, searchType: 'roundTrip' },
-  { origin: 'Barcelona', dest: 'Cordoba Argentina', goodOneWay: 580, goodRoundTrip: 850, searchType: 'roundTrip' },
-  
   // CÓRDOBA ARGENTINA → EUROPA (solo ida y vuelta)
   { origin: 'Cordoba Argentina', dest: 'Madrid', goodOneWay: 550, goodRoundTrip: 800, searchType: 'roundTrip' },
   { origin: 'Cordoba Argentina', dest: 'Barcelona', goodOneWay: 580, goodRoundTrip: 850, searchType: 'roundTrip' },
@@ -86,21 +75,8 @@ const ROUTES = [
   { origin: 'Cordoba Argentina', dest: 'Paris', goodOneWay: 580, goodRoundTrip: 850, searchType: 'roundTrip' },
   { origin: 'Cordoba Argentina', dest: 'Lisboa', goodOneWay: 550, goodRoundTrip: 800, searchType: 'roundTrip' },
   
-  // EUROPA → USA
-  { origin: 'Madrid', dest: 'Nueva York', goodOneWay: 300, goodRoundTrip: 450 },
-  { origin: 'Madrid', dest: 'Miami', goodOneWay: 320, goodRoundTrip: 480 },
-  { origin: 'Barcelona', dest: 'Nueva York', goodOneWay: 320, goodRoundTrip: 480 },
-  { origin: 'Londres', dest: 'Nueva York', goodOneWay: 280, goodRoundTrip: 400 },
-  
-  // USA → ARGENTINA
-  { origin: 'Nueva York', dest: 'Buenos Aires', goodOneWay: 450, goodRoundTrip: 650 },
-  { origin: 'Miami', dest: 'Buenos Aires', goodOneWay: 400, goodRoundTrip: 600 },
-  { origin: 'Los Angeles', dest: 'Buenos Aires', goodOneWay: 500, goodRoundTrip: 700 },
-  { origin: 'Nueva York', dest: 'Cordoba Argentina', goodOneWay: 500, goodRoundTrip: 700 },
-  { origin: 'Miami', dest: 'Cordoba Argentina', goodOneWay: 450, goodRoundTrip: 650 },
-  
-  // SANTIAGO DE CHILE → AUSTRALIA (solo ida)
-  { origin: 'Santiago de Chile', dest: 'Sidney Australia', goodOneWay: 700, goodRoundTrip: 1100, searchType: 'oneWay' },
+  // SANTIAGO DE CHILE → AUSTRALIA (solo ida, fechas junio)
+  { origin: 'Santiago de Chile', dest: 'Sidney Australia', goodOneWay: 700, goodRoundTrip: 1100, searchType: 'oneWay', dates: 'junio' },
 ];
 
 // ============================================
@@ -279,7 +255,19 @@ function getReturnDate(departDate) {
   return '2026-04-07';
 }
 
-function getSearchDates() {
+function getSearchDates(route) {
+  // Fechas de junio para Santiago-Sidney
+  if (route && route.dates === 'junio') {
+    return [
+      '2026-06-01',
+      '2026-06-05',
+      '2026-06-10',
+      '2026-06-15',
+      '2026-06-20',
+      '2026-06-25',
+      '2026-06-30'
+    ];
+  }
   // Fechas de ida: 21 marzo - 7 abril 2026
   return [
     '2026-03-21',
@@ -365,21 +353,22 @@ async function runSearch() {
   await page.setViewport({ width: 1366, height: 768 });
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
   
-  const dates = getSearchDates();
   const oneWayDeals = [];
   const roundTripDeals = [];
   
   let count = 0;
-  // Calcular total respetando searchType
+  // Calcular total respetando searchType y fechas por ruta
   let total = 0;
   for (const r of ROUTES) {
     const types = r.searchType || 'both';
-    total += dates.length * (types === 'both' ? 2 : 1);
+    const routeDates = getSearchDates(r);
+    total += routeDates.length * (types === 'both' ? 2 : 1);
   }
   
   for (const route of ROUTES) {
     console.log(`\n✈️  ${route.origin} → ${route.dest}`);
-    const searchType = route.searchType || 'both'; // 'oneWay', 'roundTrip', o 'both'
+    const searchType = route.searchType || 'both';
+    const dates = getSearchDates(route);
     
     for (const date of dates) {
       // ========== SOLO IDA ==========
