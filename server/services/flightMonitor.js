@@ -78,6 +78,8 @@ function addDays(dateStr, days) {
 // Rango de fechas de IDA (tramo outbound): 21-27 marzo
 const SEARCH_DATE_START = '2026-03-21';
 const SEARCH_DATE_END = '2026-03-27';
+// Fecha fija de vuelta (para roundtrip y tramo return)
+const FIXED_RETURN_DATE = '2026-04-07';
 
 // Cuántas fechas buscar por ruta en cada corrida
 const DATES_PER_ROUTE = 2;
@@ -165,10 +167,15 @@ const EUROPE_INTERNAL_THRESHOLDS = {
   'AMS-MAD': { deal: 80,  nearDeal: 130 },  // Amsterdam → Madrid: ≤€80 oferta
 };
 
-// Compat: mantener por si algún import externo lo referencia
-const ROUND_TRIP_THRESHOLD = COMBINED_GOOD_THRESHOLD;
-const NEAR_DEAL_RT_MIN = NEAR_DEAL_COMBINED_MIN;
-const NEAR_DEAL_RT_MAX = NEAR_DEAL_COMBINED_MAX;
+// Roundtrip combinado clásico (Google Flights precio en un solo ticket)
+const RT_TICKET_THRESHOLD = 800;    // Roundtrip ticket ≤€800 = oferta
+const NEAR_RT_MIN = 800;            // Roundtrip "casi oferta" desde €800
+const NEAR_RT_MAX = 1050;           // Roundtrip "casi oferta" hasta €1050
+
+// Compat aliases
+const ROUND_TRIP_THRESHOLD = RT_TICKET_THRESHOLD;
+const NEAR_DEAL_RT_MIN = NEAR_RT_MIN;
+const NEAR_DEAL_RT_MAX = NEAR_RT_MAX;
 
 // Aeropuertos por región
 const EUROPE_AIRPORTS = ['MAD', 'BCN', 'FCO', 'CDG', 'FRA', 'AMS', 'LIS', 'LHR', 'MUC', 'ZRH', 'BRU', 'VIE'];
@@ -185,6 +192,18 @@ const ARGENTINA_AIRPORTS_ACTIVE = ['EZE', 'COR'];
 // =============================================
 
 const MONITORED_ROUTES = [
+  // ===== ROUNDTRIP: Argentina → Europa (ticket combinado, vuelta fija 7 abr) =====
+  { origin: 'EZE', destination: 'MAD', name: 'Buenos Aires → Madrid', region: 'argentina', tripType: 'roundtrip', tripDirection: 'roundtrip', dateStart: '2026-03-21', dateEnd: '2026-03-27' },
+  { origin: 'EZE', destination: 'BCN', name: 'Buenos Aires → Barcelona', region: 'argentina', tripType: 'roundtrip', tripDirection: 'roundtrip', dateStart: '2026-03-21', dateEnd: '2026-03-27' },
+  { origin: 'EZE', destination: 'FCO', name: 'Buenos Aires → Roma', region: 'argentina', tripType: 'roundtrip', tripDirection: 'roundtrip', dateStart: '2026-03-21', dateEnd: '2026-03-27' },
+  { origin: 'EZE', destination: 'CDG', name: 'Buenos Aires → París', region: 'argentina', tripType: 'roundtrip', tripDirection: 'roundtrip', dateStart: '2026-03-21', dateEnd: '2026-03-27' },
+  { origin: 'EZE', destination: 'LIS', name: 'Buenos Aires → Lisboa', region: 'argentina', tripType: 'roundtrip', tripDirection: 'roundtrip', dateStart: '2026-03-21', dateEnd: '2026-03-27' },
+  { origin: 'COR', destination: 'MAD', name: 'Córdoba → Madrid', region: 'argentina', tripType: 'roundtrip', tripDirection: 'roundtrip', dateStart: '2026-03-21', dateEnd: '2026-03-27' },
+  { origin: 'COR', destination: 'BCN', name: 'Córdoba → Barcelona', region: 'argentina', tripType: 'roundtrip', tripDirection: 'roundtrip', dateStart: '2026-03-21', dateEnd: '2026-03-27' },
+  { origin: 'COR', destination: 'FCO', name: 'Córdoba → Roma', region: 'argentina', tripType: 'roundtrip', tripDirection: 'roundtrip', dateStart: '2026-03-21', dateEnd: '2026-03-27' },
+  { origin: 'COR', destination: 'CDG', name: 'Córdoba → París', region: 'argentina', tripType: 'roundtrip', tripDirection: 'roundtrip', dateStart: '2026-03-21', dateEnd: '2026-03-27' },
+  { origin: 'COR', destination: 'LIS', name: 'Córdoba → Lisboa', region: 'argentina', tripType: 'roundtrip', tripDirection: 'roundtrip', dateStart: '2026-03-21', dateEnd: '2026-03-27' },
+
   // ===== TRAMO IDA: Argentina → Europa (solo ida, 21-27 mar) =====
   { origin: 'EZE', destination: 'MAD', name: 'Buenos Aires → Madrid', region: 'argentina', tripType: 'oneway', tripDirection: 'outbound', dateStart: '2026-03-21', dateEnd: '2026-03-27' },
   { origin: 'EZE', destination: 'BCN', name: 'Buenos Aires → Barcelona', region: 'argentina', tripType: 'oneway', tripDirection: 'outbound', dateStart: '2026-03-21', dateEnd: '2026-03-27' },
@@ -282,19 +301,21 @@ async function runFullSearch(options = {}) {
   console.log(`📦 SerpApi: ${usedToday}/${SERPAPI_DAILY_BUDGET} hoy (Puppeteer sin límite)`);
   console.log('');
   console.log('📋 UMBRALES:');
-  console.log(`   • Tramo IDA Argentina→Europa: ≤€${ONE_WAY_OUTBOUND_THRESHOLD} (oferta individual)`);
-  console.log(`   • Tramo VUELTA Europa→Argentina: ≤€${ONE_WAY_RETURN_THRESHOLD} (oferta individual)`);
-  console.log(`   • Combinado IDA+VUELTA: ≤€${COMBINED_DEAL_THRESHOLD} (gran oferta) | ≤€${COMBINED_GOOD_THRESHOLD} (buena oferta)`);
-  console.log(`   • Casi oferta combinado: €${NEAR_DEAL_COMBINED_MIN}-€${NEAR_DEAL_COMBINED_MAX}`);
+  console.log(`   • Roundtrip ticket Argentina→Europa: ≤€${RT_TICKET_THRESHOLD} | casi oferta €${NEAR_RT_MIN}-€${NEAR_RT_MAX}`);
+  console.log(`   • Tramos separados combinados: ≤€${COMBINED_DEAL_THRESHOLD} (gran) | ≤€${COMBINED_GOOD_THRESHOLD} (buena)`);
+  console.log(`   • Tramo IDA individual: ≤€${ONE_WAY_OUTBOUND_THRESHOLD} | Tramo VUELTA: ≤€${ONE_WAY_RETURN_THRESHOLD}`);
   console.log(`   • Solo ida Chile→Oceanía: ≤€${ONE_WAY_THRESHOLDS.chileToOceania}`);
   console.log('');
 
   const results = {
+    roundTripDeals: [],    // Ticket roundtrip combinado ≤€800
+    nearRoundTripDeals: [],// Ticket roundtrip €800-€1050
     oneWayDeals: [],       // SCL→SYD solo ida (≤€800)
-    outboundDeals: [],     // ARG→EUR individual ≤€400 (info complementaria)
-    returnDeals: [],       // EUR→ARG individual ≤€350 (info complementaria)
-    combinedDeals: [],     // Pares con suma ≤€850 (la métrica principal)
-    nearCombinedDeals: [], // Pares con suma €850-€1100
+    outboundDeals: [],     // ARG→EUR tramo individual ≤€400
+    returnDeals: [],       // EUR→ARG tramo individual ≤€350
+    combinedDeals: [],     // Suma tramos separados ≤€850
+    nearCombinedDeals: [], // Suma tramos separados €850-€1100
+    europeDeals: [],       // VCE→AMS, AMS→MAD (vuelos internos Europa)
     allSearches: [],
     errors: [],
     startTime: new Date(),
@@ -308,15 +329,19 @@ async function runFullSearch(options = {}) {
   // PLAN DE BÚSQUEDA — todas las rutas en cada corrida
   // ═══════════════════════════════════════════════════════════════
   const plan = buildSearchPlan();
+  const rtRoutes = plan.filter(r => r.tripType === 'roundtrip');
   const outboundRoutes = plan.filter(r => r.tripDirection === 'outbound');
   const returnRoutes = plan.filter(r => r.tripDirection === 'return');
   const sclRoutes = plan.filter(r => r.region === 'chile_oceania');
+  const europeIntRoutes = plan.filter(r => r.region === 'europe_internal');
 
   console.log('═══════════════════════════════════════');
   console.log(`✈️  BUSCANDO: ${plan.length} rutas`);
-  console.log(`   IDA (outbound): ${outboundRoutes.length} rutas × ~${DATES_PER_ROUTE} fechas`);
-  console.log(`   VUELTA (return): ${returnRoutes.length} rutas × 1 fecha (7 abr)`);
+  console.log(`   Roundtrip ticket: ${rtRoutes.length} rutas × ~${DATES_PER_ROUTE} fechas`);
+  console.log(`   IDA solo (tramo): ${outboundRoutes.length} rutas × ~${DATES_PER_ROUTE} fechas`);
+  console.log(`   VUELTA solo (tramo): ${returnRoutes.length} rutas × 1 fecha (7 abr)`);
   console.log(`   SCL→SYD: ${sclRoutes.length} ruta × ~${DATES_PER_ROUTE} fechas`);
+  console.log(`   Europa interna: ${europeIntRoutes.length} rutas`);
   console.log('═══════════════════════════════════════');
 
   // Ejecutar plan: cada ruta × sus fechas
@@ -324,17 +349,18 @@ async function runFullSearch(options = {}) {
     const dates = pickDatesForRoute(route, DATES_PER_ROUTE);
 
     for (const departureDate of dates) {
-      const dirLabel = route.tripDirection === 'outbound' ? '(IDA)' : route.tripDirection === 'return' ? '(VUELTA)' : '(solo ida)';
+      const isRoundTrip = route.tripType === 'roundtrip';
+      const dirLabel = isRoundTrip ? '(ida+vuelta)' : route.tripDirection === 'outbound' ? '(IDA solo)' : route.tripDirection === 'return' ? '(VUELTA solo)' : '(solo ida)';
       console.log(`\n🛫 ${route.name} ${dirLabel}`);
-      console.log(`   📅 ${departureDate}`);
+      console.log(`   📅 ${departureDate}${isRoundTrip ? ` ↔ ${FIXED_RETURN_DATE}` : ''}`);
 
       try {
         const searchResult = await scrapeAllSources(
           route.origin,
           route.destination,
-          false,          // siempre one-way
+          isRoundTrip,
           departureDate,
-          undefined       // sin returnDate
+          isRoundTrip ? FIXED_RETURN_DATE : undefined
         );
 
         results.allSearches.push({
@@ -352,67 +378,99 @@ async function runFullSearch(options = {}) {
 
             // ══════════════════════════════════════════════════════════════
             // VALIDACIÓN DE PRECIOS REALISTAS (evitar falsos positivos)
-            // Mínimo realista para vuelo intercontinental solo ida: €150
+            // Solo ida intercontinental mín €150, roundtrip mín €250
             // ══════════════════════════════════════════════════════════════
-            if (price < 150 || price > 5000) {
+            const minRealistic = isRoundTrip ? 250 : 150;
+            if (price < minRealistic || price > 5000) {
               console.log(`  ⚠️ Precio irreal ignorado: €${price}`);
               continue;
             }
 
             const depDate = flight.departureDate || departureDate;
-            const routeKey = `${route.origin}-${route.destination}`;
+            const retDate = isRoundTrip ? (flight.returnDate || FIXED_RETURN_DATE) : null;
 
-            // ── Trackear mejor precio por ruta (para pairing posterior) ──
-            if (!routeBestPrices[routeKey] || price < routeBestPrices[routeKey].price) {
-              routeBestPrices[routeKey] = {
-                price,
-                airline: flight.airline,
-                departureDate: depDate,
-                bookingUrl: flight.link,
-                origin: route.origin,
-                destination: route.destination,
-                routeName: route.name,
-                region: route.region,
-                tripDirection: route.tripDirection,
-              };
+            // ── Para rutas one-way: trackear mejor precio para pairing ──
+            if (!isRoundTrip) {
+              const routeKey = `${route.origin}-${route.destination}`;
+              if (!routeBestPrices[routeKey] || price < routeBestPrices[routeKey].price) {
+                routeBestPrices[routeKey] = {
+                  price,
+                  airline: flight.airline,
+                  departureDate: depDate,
+                  bookingUrl: flight.link,
+                  origin: route.origin,
+                  destination: route.destination,
+                  routeName: route.name,
+                  region: route.region,
+                  tripDirection: route.tripDirection,
+                };
+              }
             }
 
-            // ── Alertar si el tramo individual es barato por sí solo ──
+            // ─────────────────────────────────────────────────────────
+            // ROUNDTRIP (ticket combinado Google Flights)
+            // ─────────────────────────────────────────────────────────
+            if (isRoundTrip) {
+              if (price <= RT_TICKET_THRESHOLD) {
+                const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
+                if (!recentlyAlerted) {
+                  results.roundTripDeals.push({
+                    origin: route.origin, destination: route.destination,
+                    routeName: route.name, region: route.region,
+                    price, airline: flight.airline, source: flight.source,
+                    departureDate: depDate, returnDate: retDate,
+                    bookingUrl: flight.link, tripType: 'roundtrip',
+                  });
+                  console.log(`  🔥 OFERTA RT: €${price} (${flight.airline}) ${formatDate(depDate)} ↔ ${formatDate(retDate)}`);
+                } else {
+                  console.log(`  🔕 €${price} RT ya alertado (anti-spam)`);
+                }
+              } else if (price <= NEAR_RT_MAX) {
+                const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
+                if (!recentlyAlerted) {
+                  results.nearRoundTripDeals.push({
+                    origin: route.origin, destination: route.destination,
+                    routeName: route.name, price, airline: flight.airline,
+                    departureDate: depDate, returnDate: retDate,
+                    bookingUrl: flight.link, tripType: 'roundtrip',
+                  });
+                  console.log(`  🟡 CASI OFERTA RT: €${price} (${flight.airline})`);
+                }
+              } else {
+                console.log(`  ✈️ RT €${price} (${flight.airline}) - no oferta (máx €${RT_TICKET_THRESHOLD})`);
+              }
+              continue; // roundtrip ya procesado, skip lógica one-way
+            }
+
+            // ─────────────────────────────────────────────────────────
+            // ONE-WAY: tramos individuales y vuelos cortos Europa
+            // ─────────────────────────────────────────────────────────
             const threshold = getThreshold(route.origin, route.destination, route.tripDirection);
             if (price <= threshold) {
               const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
               if (!recentlyAlerted) {
                 const dealEntry = {
-                  origin: route.origin,
-                  destination: route.destination,
-                  routeName: route.name,
-                  region: route.region,
-                  price,
-                  airline: flight.airline,
-                  source: flight.source,
-                  departureDate: depDate,
-                  bookingUrl: flight.link,
-                  tripType: 'oneway',
-                  tripDirection: route.tripDirection,
-                  threshold,
+                  origin: route.origin, destination: route.destination,
+                  routeName: route.name, region: route.region,
+                  price, airline: flight.airline, source: flight.source,
+                  departureDate: depDate, bookingUrl: flight.link,
+                  tripType: 'oneway', tripDirection: route.tripDirection, threshold,
                 };
-
                 if (route.region === 'chile_oceania') {
                   results.oneWayDeals.push(dealEntry);
                   console.log(`  🔥 OFERTA SCL→SYD: €${price} (${flight.airline}) - ${formatDate(depDate)}`);
                 } else if (route.region === 'europe_internal') {
-                  results.europeDeals = results.europeDeals || [];
                   results.europeDeals.push(dealEntry);
-                  console.log(`  🔥 OFERTA EUR INTERNA: €${price} (${flight.airline}) ${route.origin}→${route.destination} - ${formatDate(depDate)}`);
+                  console.log(`  🔥 OFERTA EUR INTERNA: €${price} (${flight.airline}) ${route.origin}→${route.destination}`);
                 } else if (route.tripDirection === 'outbound') {
                   results.outboundDeals.push(dealEntry);
-                  console.log(`  🔥 TRAMO IDA oferta: €${price} (${flight.airline}) - ${formatDate(depDate)}`);
+                  console.log(`  🔥 TRAMO IDA: €${price} (${flight.airline}) - ${formatDate(depDate)}`);
                 } else if (route.tripDirection === 'return') {
                   results.returnDeals.push(dealEntry);
-                  console.log(`  🔥 TRAMO VUELTA oferta: €${price} (${flight.airline}) - ${formatDate(depDate)}`);
+                  console.log(`  🔥 TRAMO VUELTA: €${price} (${flight.airline})`);
                 }
               } else {
-                console.log(`  🔕 €${price} ya alertado recientemente (anti-spam)`);
+                console.log(`  🔕 €${price} ya alertado (anti-spam)`);
               }
             } else {
               if (route.region === 'chile_oceania' && price <= ONE_WAY_THRESHOLDS.chileToOceaniaNeardeal) {
@@ -425,7 +483,7 @@ async function runFullSearch(options = {}) {
                   console.log(`  ✈️ €${price} (${flight.airline}) - máx oferta €${threshold}`);
                 }
               } else {
-                console.log(`  ✈️ €${price} (${flight.airline}) - umbral individual máx €${threshold}`);
+                console.log(`  ✈️ €${price} (${flight.airline}) - umbral máx €${threshold}`);
               }
             }
           }
@@ -495,14 +553,16 @@ async function runFullSearch(options = {}) {
   lastSearchTime = results.endTime;
 
   // Eliminar duplicados y ordenar
+  results.roundTripDeals = removeDuplicatesAndSort(results.roundTripDeals);
+  results.nearRoundTripDeals = removeDuplicatesAndSort(results.nearRoundTripDeals);
   results.oneWayDeals = removeDuplicatesAndSort(results.oneWayDeals);
   results.outboundDeals = removeDuplicatesAndSort(results.outboundDeals);
   results.returnDeals = removeDuplicatesAndSort(results.returnDeals);
-  results.europeDeals = removeDuplicatesAndSort(results.europeDeals || []);
+  results.europeDeals = removeDuplicatesAndSort(results.europeDeals);
   results.combinedDeals = results.combinedDeals.sort((a, b) => a.combinedPrice - b.combinedPrice);
   results.nearCombinedDeals = results.nearCombinedDeals.sort((a, b) => a.combinedPrice - b.combinedPrice);
 
-  totalDealsFound += results.oneWayDeals.length + results.combinedDeals.length + results.europeDeals.length;
+  totalDealsFound += results.roundTripDeals.length + results.oneWayDeals.length + results.combinedDeals.length + results.europeDeals.length;
 
   // Mostrar resumen
   const duration = (results.endTime - results.startTime) / 1000;
@@ -514,12 +574,14 @@ async function runFullSearch(options = {}) {
   console.log('='.repeat(60));
   console.log(`✅ Búsquedas exitosas: ${successfulSearches}/${results.allSearches.length}`);
   if (failedSearches > 0) console.log(`❌ Errores: ${failedSearches}`);
-  if (results.oneWayDeals.length > 0)    console.log(`🔥 Ofertas SCL→SYD: ${results.oneWayDeals.length}`);
-  if (results.europeDeals.length > 0)    console.log(`🔥 Ofertas Europa interna: ${results.europeDeals.length}`);
-  if (results.outboundDeals.length > 0)  console.log(`🔥 Tramos IDA baratos: ${results.outboundDeals.length}`);
-  if (results.returnDeals.length > 0)    console.log(`🔥 Tramos VUELTA baratos: ${results.returnDeals.length}`);
-  console.log(`🔥 Combinados oferta: ${results.combinedDeals.length}`);
-  console.log(`🟡 Combinados casi-oferta: ${results.nearCombinedDeals.length}`);
+  if (results.roundTripDeals.length > 0)    console.log(`🔥 Ofertas Roundtrip ticket: ${results.roundTripDeals.length}`);
+  if (results.nearRoundTripDeals.length > 0) console.log(`🟡 Casi oferta Roundtrip: ${results.nearRoundTripDeals.length}`);
+  if (results.combinedDeals.length > 0)     console.log(`🔥 Combinados tramos oferta: ${results.combinedDeals.length}`);
+  if (results.nearCombinedDeals.length > 0)  console.log(`🟡 Combinados tramos casi-oferta: ${results.nearCombinedDeals.length}`);
+  if (results.oneWayDeals.length > 0)        console.log(`🔥 Ofertas SCL→SYD: ${results.oneWayDeals.length}`);
+  if (results.europeDeals.length > 0)        console.log(`🔥 Ofertas Europa interna: ${results.europeDeals.length}`);
+  if (results.outboundDeals.length > 0)      console.log(`🔥 Tramos IDA baratos: ${results.outboundDeals.length}`);
+  if (results.returnDeals.length > 0)        console.log(`🔥 Tramos VUELTA baratos: ${results.returnDeals.length}`);
   console.log(`⏱️ Duración: ${duration.toFixed(1)}s`);
 
   if (results.combinedDeals.length > 0) {
@@ -538,9 +600,9 @@ async function runFullSearch(options = {}) {
 
   // Enviar reporte a Telegram SOLO SI HAY OFERTAS (anti-spam)
   if (notifyDeals && isActive()) {
-    const hasDeals = results.oneWayDeals.length > 0 || results.combinedDeals.length > 0 || results.europeDeals.length > 0;
+    const hasDeals = results.roundTripDeals.length > 0 || results.oneWayDeals.length > 0 || results.combinedDeals.length > 0 || results.europeDeals.length > 0;
     if (hasDeals) {
-      await sendDealsReport(results.oneWayDeals, results.combinedDeals, results.outboundDeals, results.returnDeals, results.europeDeals);
+      await sendDealsReport(results.oneWayDeals, results.combinedDeals, results.outboundDeals, results.returnDeals, results.europeDeals, results.roundTripDeals);
       console.log('📱 Notificación Telegram enviada con ofertas');
     } else {
       console.log('📴 Sin ofertas - no se envía notificación (anti-spam)');
@@ -566,14 +628,17 @@ async function runFullSearch(options = {}) {
       eurSuccess: eurSearches.filter(s => s.success).length,
     };
 
-    // Enviar alerta aparte para "casi ofertas" combinadas
-    if (results.nearCombinedDeals.length > 0) {
-      await sendNearDealAlert(results.nearCombinedDeals, searchSummary);
+    // Enviar alerta aparte para "casi ofertas"
+    const allNearDeals = [...results.nearRoundTripDeals, ...results.nearCombinedDeals];
+    if (allNearDeals.length > 0) {
+      await sendNearDealAlert(results.nearCombinedDeals, searchSummary, results.nearRoundTripDeals);
       console.log('📱 Alerta "Casi Oferta" enviada a Telegram');
     }
   }
 
   // Guardar en base de datos
+  await saveDealsToDatabase(results.roundTripDeals);
+  await saveDealsToDatabase(results.nearRoundTripDeals);
   await saveDealsToDatabase(results.oneWayDeals);
   await saveDealsToDatabase(results.europeDeals);
   await saveDealsToDatabase(results.outboundDeals);
