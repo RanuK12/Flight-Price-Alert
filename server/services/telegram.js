@@ -38,123 +38,114 @@ function initTelegram() {
 }
 
 /**
- * Construye el mensaje de reporte de ofertas (separado para testeo).
+ * Construye el mensaje de reporte de ofertas.
+ * @param {Array} oneWayDeals - Deals SCL→SYD solo ida
+ * @param {Array} combinedDeals - Pares IDA+VUELTA Argentina↔Europa (suma ≤€850)
+ * @param {Array} outboundDeals - Tramos IDA Argentina→Europa baratos individualmente
+ * @param {Array} returnDeals - Tramos VUELTA Europa→Argentina baratos individualmente
  */
-function buildDealsReportMessage(oneWayDeals, roundTripDeals) {
-  const totalDeals = oneWayDeals.length + roundTripDeals.length;
+function buildDealsReportMessage(oneWayDeals, combinedDeals = [], outboundDeals = [], returnDeals = [], europeDeals = []) {
+  const totalDeals = oneWayDeals.length + combinedDeals.length + europeDeals.length;
   if (totalDeals === 0) return null;
 
   let message = `🔥 <b>¡OFERTAS ENCONTRADAS!</b> 🔥\n`;
   message += `📅 ${new Date().toLocaleString('es-ES')}\n`;
-  message += `📆 Fechas: 20 mar - 7 abr 2026\n`;
-  message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  message += `━━━━━━━━━━━━━━━━━━━━━\n`;
 
-  // SECCIÓN: SOLO IDA
-  if (oneWayDeals.length > 0) {
-    message += `✈️ <b>SOLO IDA</b> (${oneWayDeals.length} ofertas)\n`;
+  // ── SECCIÓN: IDA + VUELTA combinados por tramos ──
+  if (combinedDeals.length > 0) {
+    message += `\n🔄 <b>IDA + VUELTA (por tramos)</b> — ${combinedDeals.length} combinaciones\n`;
+    message += `🇦🇷 Argentina ↔ Europa • IDA: 21-27 mar • VUELTA: 7 abr\n`;
     message += `━━━━━━━━━━━━━━━━━━━━━\n`;
 
-    const europeDeals = oneWayDeals.filter(d => d.region === 'europe');
-    const usaDeals = oneWayDeals.filter(d => d.region === 'usa');
-    const chileOceaniaDeals = oneWayDeals.filter(d => d.region === 'chile_oceania');
+    for (const deal of combinedDeals.slice(0, 8)) {
+      const emoji = deal.combinedPrice <= 700 ? '🔥🔥🔥' : (deal.combinedPrice <= 800 ? '🔥🔥' : '🔥');
+      const ob = deal.outbound;
+      const ret = deal.returnFlight;
 
-    // Europa → Argentina (máx €350)
-    if (europeDeals.length > 0) {
-      message += `\n🇪🇺 <b>Europa → Argentina</b> (máx €350)\n`;
-      for (const deal of europeDeals.slice(0, 8)) {
+      message += `\n${emoji} <b>€${deal.combinedPrice} TOTAL</b> — ${ob.origin} ↔ ${ret.origin}\n`;
+      message += `   ✈️ <b>IDA</b> (${formatDateShort(ob.departureDate)}): <b>€${ob.price}</b>`;
+      if (ob.airline) message += ` • ${ob.airline}`;
+      message += ` • ${ob.origin}→${ob.destination}\n`;
+      message += `   ✈️ <b>VUELTA</b> (${formatDateShort(ret.departureDate)}): <b>€${ret.price}</b>`;
+      if (ret.airline) message += ` • ${ret.airline}`;
+      message += ` • ${ret.origin}→${ret.destination}\n`;
+    }
+
+    if (combinedDeals.length > 8) {
+      message += `<i>+${combinedDeals.length - 8} combinaciones más...</i>\n`;
+    }
+  }
+
+  // ── SECCIÓN: Tramos individuales baratos (info complementaria) ──
+  if (outboundDeals.length > 0 || returnDeals.length > 0) {
+    message += `\n💡 <b>Tramos individuales destacados</b>\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+
+    if (outboundDeals.length > 0) {
+      message += `🇦🇷→🇪🇺 <b>Tramo IDA</b> (≤€400):\n`;
+      for (const deal of outboundDeals.slice(0, 4)) {
+        const emoji = deal.price <= 300 ? '🔥🔥🔥' : (deal.price <= 350 ? '🔥🔥' : '🔥');
+        message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
+        if (deal.airline) message += ` • ${deal.airline}`;
+        if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
+        message += `\n`;
+      }
+    }
+
+    if (returnDeals.length > 0) {
+      message += `🇪🇺→🇦🇷 <b>Tramo VUELTA 7 abr</b> (≤€350):\n`;
+      for (const deal of returnDeals.slice(0, 4)) {
         const emoji = deal.price <= 250 ? '🔥🔥🔥' : (deal.price <= 300 ? '🔥🔥' : '🔥');
         message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
         if (deal.airline) message += ` • ${deal.airline}`;
-        if (deal.departureDate && deal.departureDate !== 'Flexible') {
-          message += ` • ${formatDateShort(deal.departureDate)}`;
-        }
-        message += `\n`;
-      }
-      if (europeDeals.length > 8) {
-        message += `   <i>+${europeDeals.length - 8} ofertas más...</i>\n`;
-      }
-    }
-
-    // USA → Argentina (máx €200)
-    if (usaDeals.length > 0) {
-      message += `\n🇺🇸 <b>USA → Argentina</b> (máx €200)\n`;
-      for (const deal of usaDeals.slice(0, 8)) {
-        const emoji = deal.price <= 150 ? '🔥🔥🔥' : (deal.price <= 180 ? '🔥🔥' : '🔥');
-        message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
-        if (deal.airline) message += ` • ${deal.airline}`;
-        if (deal.departureDate && deal.departureDate !== 'Flexible') {
-          message += ` • ${formatDateShort(deal.departureDate)}`;
-        }
-        message += `\n`;
-      }
-      if (usaDeals.length > 8) {
-        message += `   <i>+${usaDeals.length - 8} ofertas más...</i>\n`;
-      }
-    }
-
-    // Chile → Oceanía (máx €700)
-    if (chileOceaniaDeals.length > 0) {
-      message += `\n🇨🇱 <b>Chile → Oceanía</b> (máx €700 — solo ida, junio)\n`;
-      for (const deal of chileOceaniaDeals.slice(0, 8)) {
-        const emoji = deal.price <= 500 ? '🔥🔥🔥' : (deal.price <= 600 ? '🔥🔥' : '🔥');
-        message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
-        if (deal.airline) message += ` • ${deal.airline}`;
-        if (deal.departureDate && deal.departureDate !== 'Flexible') {
-          message += ` • ${formatDateShort(deal.departureDate)}`;
-        }
-        message += `\n`;
-      }
-      if (chileOceaniaDeals.length > 8) {
-        message += `   <i>+${chileOceaniaDeals.length - 8} ofertas más...</i>\n`;
+        message += ` • 7 abr\n`;
       }
     }
   }
 
-  // SECCIÓN: IDA Y VUELTA (Argentina → Europa)
-  if (roundTripDeals.length > 0) {
-    message += `\n\n🔄 <b>IDA Y VUELTA</b> (${roundTripDeals.length} ofertas)\n`;
+  // ── SECCIÓN: Vuelos internos Europa ──
+  if (europeDeals.length > 0) {
+    message += `\n🇪🇺 <b>Vuelos internos Europa</b>\n`;
     message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    message += `🇦🇷 <b>Argentina → Europa</b> (≤ €800)\n\n`;
-
-    const ezeDeals = roundTripDeals.filter(d => d.origin === 'EZE');
-    const corDeals = roundTripDeals.filter(d => d.origin === 'COR');
-
-    if (ezeDeals.length > 0) {
-      message += `<b>Desde Buenos Aires (EZE):</b>\n`;
-      for (const deal of ezeDeals.slice(0, 5)) {
-        const emoji = deal.price <= 450 ? '🔥🔥🔥' : (deal.price <= 550 ? '🔥🔥' : '🔥');
-        message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
-        if (deal.airline) message += ` • ${deal.airline}`;
-        if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
-        message += `\n`;
+    for (const deal of europeDeals) {
+      const emoji = deal.price <= 60 ? '🔥🔥🔥' : (deal.price <= 90 ? '🔥🔥' : '🔥');
+      message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
+      if (deal.airline) message += ` • ${deal.airline}`;
+      if (deal.departureDate && deal.departureDate !== 'Flexible') {
+        message += ` • ${formatDateShort(deal.departureDate)}`;
       }
+      message += `\n`;
     }
+  }
 
-    if (corDeals.length > 0) {
-      message += `\n<b>Desde Córdoba (COR):</b>\n`;
-      for (const deal of corDeals.slice(0, 5)) {
-        const emoji = deal.price <= 500 ? '🔥🔥🔥' : (deal.price <= 600 ? '🔥🔥' : '🔥');
-        message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
-        if (deal.airline) message += ` • ${deal.airline}`;
-        if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
-        message += `\n`;
+  // ── SECCIÓN: SCL → SYD (solo ida, junio) ──
+  if (oneWayDeals.length > 0) {
+    message += `\n🇨🇱 <b>Chile → Oceanía</b> — solo ida, junio (≤€800)\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    for (const deal of oneWayDeals.slice(0, 5)) {
+      const emoji = deal.price <= 600 ? '🔥🔥🔥' : (deal.price <= 700 ? '🔥🔥' : '🔥');
+      message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
+      if (deal.airline) message += ` • ${deal.airline}`;
+      if (deal.departureDate && deal.departureDate !== 'Flexible') {
+        message += ` • ${formatDateShort(deal.departureDate)}`;
       }
+      message += `\n`;
     }
   }
 
   // Footer
   message += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
-  message += `📊 Total: <b>${totalDeals}</b> ofertas encontradas\n`;
-  message += `🔗 Reserva en Google Flights o Kayak`;
+  message += `📊 <b>${totalDeals}</b> ofertas encontradas • 🔗 Buscar en Google Flights`;
 
   return message;
 }
 
 /**
- * Envía reporte de ofertas con secciones separadas IDA e IDA+VUELTA
+ * Envía reporte de ofertas
  */
-async function sendDealsReport(oneWayDeals, roundTripDeals) {
-  const message = buildDealsReportMessage(oneWayDeals, roundTripDeals);
+async function sendDealsReport(oneWayDeals, combinedDeals = [], outboundDeals = [], returnDeals = [], europeDeals = []) {
+  const message = buildDealsReportMessage(oneWayDeals, combinedDeals, outboundDeals, returnDeals, europeDeals);
   if (!message) return false;
   return sendMessage(message);
 }
@@ -527,71 +518,64 @@ async function sendBlockedAlert(data) {
 }
 
 /**
- * Construye el mensaje "Casi Oferta" (separado para testeo).
- * @param {Array} nearDeals - Casi ofertas encontradas
+ * Construye el mensaje "Casi Oferta" para combinados IDA+VUELTA (separado para testeo).
+ * @param {Array} nearCombinedDeals - Pares con suma €850-€1100
  * @param {Object} searchSummary - Resumen de todas las búsquedas realizadas
  */
-function buildNearDealMessage(nearDeals, searchSummary = null) {
-  if (!nearDeals || nearDeals.length === 0) return null;
+function buildNearDealMessage(nearCombinedDeals, searchSummary = null) {
+  if (!nearCombinedDeals || nearCombinedDeals.length === 0) return null;
 
-  let message = `🟡 <b>CASI OFERTA — Ida y Vuelta</b>\n`;
+  let message = `🟡 <b>CASI OFERTA — IDA + VUELTA combinado</b>\n`;
   message += `📅 ${new Date().toLocaleString('es-ES')}\n`;
-  message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
-  message += `🇦🇷 <b>Argentina → Europa (€${800}-€${1050})</b>\n`;
-  message += `<i>No llega al umbral de oferta (≤€800) pero está cerca:</i>\n\n`;
+  message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  message += `🇦🇷 Argentina ↔ Europa • Suma €850-€1100\n`;
+  message += `<i>No llega al umbral ≤€850 pero vale la pena revisar:</i>\n\n`;
 
-  const ezeDeals = nearDeals.filter(d => d.origin === 'EZE');
-  const corDeals = nearDeals.filter(d => d.origin === 'COR');
-
-  if (ezeDeals.length > 0) {
-    message += `<b>Desde Buenos Aires (EZE):</b>\n`;
-    for (const deal of ezeDeals.slice(0, 5)) {
-      message += `🟡 <b>€${deal.price}</b> → ${deal.destination}`;
-      if (deal.airline) message += ` • ${deal.airline}`;
-      if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
-      if (deal.returnDate) message += ` ↔ ${formatDateShort(deal.returnDate)}`;
-      message += `\n`;
-    }
+  for (const deal of nearCombinedDeals.slice(0, 6)) {
+    const ob = deal.outbound;
+    const ret = deal.returnFlight;
+    message += `🟡 <b>€${deal.combinedPrice} TOTAL</b> — ${ob.origin} ↔ ${ret.origin}\n`;
+    message += `   IDA (${formatDateShort(ob.departureDate)}): €${ob.price}`;
+    if (ob.airline) message += ` • ${ob.airline}`;
+    message += `\n`;
+    message += `   VUELTA (${formatDateShort(ret.departureDate)}): €${ret.price}`;
+    if (ret.airline) message += ` • ${ret.airline}`;
+    message += `\n\n`;
   }
 
-  if (corDeals.length > 0) {
-    if (ezeDeals.length > 0) message += `\n`;
-    message += `<b>Desde Córdoba (COR):</b>\n`;
-    for (const deal of corDeals.slice(0, 5)) {
-      message += `🟡 <b>€${deal.price}</b> → ${deal.destination}`;
-      if (deal.airline) message += ` • ${deal.airline}`;
-      if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
-      if (deal.returnDate) message += ` ↔ ${formatDateShort(deal.returnDate)}`;
-      message += `\n`;
-    }
-  }
-
-  message += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
-  message += `💡 <i>Si baja a ≤€800 se convertirá en oferta confirmada</i>\n`;
-  message += `🔗 Verificar en Google Flights`;
+  message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  message += `💡 <i>Si baja la suma a ≤€850 se convierte en oferta</i>\n`;
+  message += `🔗 Buscar tramos en Google Flights`;
 
   // Resumen de TODAS las búsquedas realizadas
   if (searchSummary) {
     message += `\n\n📋 <b>Búsquedas realizadas:</b>\n`;
     if (searchSummary.ezeSearched) {
-      const ezeOk = searchSummary.ezeSuccess || 0;
-      const ezeFail = searchSummary.ezeTotal - ezeOk;
-      message += `✈️ Buenos Aires (EZE) → Europa: ${ezeOk}/${searchSummary.ezeTotal} OK`;
-      if (ezeFail > 0) message += ` (${ezeFail} sin resultado)`;
+      const ok = searchSummary.ezeSuccess || 0;
+      const fail = searchSummary.ezeTotal - ok;
+      message += `✈️ Buenos Aires (EZE): ${ok}/${searchSummary.ezeTotal} OK`;
+      if (fail > 0) message += ` (${fail} sin resultado)`;
       message += `\n`;
     }
     if (searchSummary.corSearched) {
-      const corOk = searchSummary.corSuccess || 0;
-      const corFail = searchSummary.corTotal - corOk;
-      message += `✈️ Córdoba (COR) → Europa: ${corOk}/${searchSummary.corTotal} OK`;
-      if (corFail > 0) message += ` (${corFail} sin resultado)`;
+      const ok = searchSummary.corSuccess || 0;
+      const fail = searchSummary.corTotal - ok;
+      message += `✈️ Córdoba (COR): ${ok}/${searchSummary.corTotal} OK`;
+      if (fail > 0) message += ` (${fail} sin resultado)`;
+      message += `\n`;
+    }
+    if (searchSummary.eurSearched) {
+      const ok = searchSummary.eurSuccess || 0;
+      const fail = searchSummary.eurTotal - ok;
+      message += `✈️ Europa→Argentina (vuelta 7 abr): ${ok}/${searchSummary.eurTotal} OK`;
+      if (fail > 0) message += ` (${fail} sin resultado)`;
       message += `\n`;
     }
     if (searchSummary.sclSearched) {
-      const sclOk = searchSummary.sclSuccess || 0;
-      const sclFail = searchSummary.sclTotal - sclOk;
-      message += `✈️ Chile (SCL) → Sídney: ${sclOk}/${searchSummary.sclTotal} OK`;
-      if (sclFail > 0) message += ` (${sclFail} sin resultado)`;
+      const ok = searchSummary.sclSuccess || 0;
+      const fail = searchSummary.sclTotal - ok;
+      message += `✈️ Chile (SCL) → Sídney: ${ok}/${searchSummary.sclTotal} OK`;
+      if (fail > 0) message += ` (${fail} sin resultado)`;
       message += `\n`;
     }
   }
