@@ -153,7 +153,7 @@ function formatDateShort(dateStr) {
 }
 
 /**
- * Envía un mensaje genérico
+ * Envía un mensaje genérico a TODOS los chat IDs configurados
  */
 async function sendMessage(message) {
   if (!isInitialized || !bot) {
@@ -161,15 +161,24 @@ async function sendMessage(message) {
     return false;
   }
 
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  
-  try {
-    await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
-    return true;
-  } catch (error) {
-    console.error('❌ Error enviando mensaje Telegram:', error.message);
+  const chatIdEnv = process.env.TELEGRAM_CHAT_ID || '';
+  const chatIds = chatIdEnv.split(',').map(id => id.trim()).filter(Boolean);
+
+  if (chatIds.length === 0) {
+    console.log('⚠️ No hay TELEGRAM_CHAT_ID configurados');
     return false;
   }
+
+  let allOk = true;
+  for (const chatId of chatIds) {
+    try {
+      await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+    } catch (error) {
+      console.error(`❌ Error enviando mensaje Telegram a ${chatId}:`, error.message);
+      allOk = false;
+    }
+  }
+  return allOk;
 }
 
 /**

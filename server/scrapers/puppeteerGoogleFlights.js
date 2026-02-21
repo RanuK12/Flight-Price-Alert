@@ -196,17 +196,48 @@ async function detectBlock(page) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// MAPEO IATA → NOMBRE DE CIUDAD (para URLs de Google Flights)
+// ═══════════════════════════════════════════════════════════════
+const IATA_TO_CITY = {
+  // Argentina
+  'EZE': 'Buenos Aires',
+  'COR': 'Cordoba Argentina',
+  // Chile
+  'SCL': 'Santiago Chile',
+  // Europa
+  'MAD': 'Madrid',
+  'BCN': 'Barcelona',
+  'FCO': 'Rome',
+  'CDG': 'Paris',
+  'LIS': 'Lisbon',
+  'FRA': 'Frankfurt',
+  'AMS': 'Amsterdam',
+  'LHR': 'London',
+  'MUC': 'Munich',
+  'ZRH': 'Zurich',
+  'BRU': 'Brussels',
+  'VIE': 'Vienna',
+  // Oceanía
+  'SYD': 'Sydney',
+  'MEL': 'Melbourne',
+  'AKL': 'Auckland',
+};
+
+// ═══════════════════════════════════════════════════════════════
 // URL
 // ═══════════════════════════════════════════════════════════════
 function buildGoogleFlightsUrl(origin, destination, departureDate, returnDate = null) {
-  // Usar formato de URL estructurado para forzar solo ida o ida+vuelta
-  // Google Flights por defecto muestra ida y vuelta; "one way" fuerza solo ida
+  // Usar nombres de ciudad para que Google Flights interprete correctamente
+  // (evita confusiones como COR = Córdoba España vs Argentina)
+  const originCity = IATA_TO_CITY[origin] || origin;
+  const destCity = IATA_TO_CITY[destination] || destination;
+
   if (returnDate) {
-    const query = `Flights from ${origin} to ${destination} on ${departureDate} return ${returnDate}`;
+    const query = `Flights from ${originCity} to ${destCity} on ${departureDate} return ${returnDate}`;
     return `https://www.google.com/travel/flights?q=${encodeURIComponent(query)}&curr=EUR&hl=es`;
   }
   // Solo ida: agregar "one way" para forzar precio de solo ida
-  const query = `Flights from ${origin} to ${destination} on ${departureDate} one way`;
+  const query = `Flights from ${originCity} to ${destCity} on ${departureDate} one way`;
   return `https://www.google.com/travel/flights?q=${encodeURIComponent(query)}&curr=EUR&hl=es`;
 }
 

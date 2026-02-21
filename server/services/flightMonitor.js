@@ -11,7 +11,7 @@
 const cron = require('node-cron');
 const { scrapeAllSources } = require('../scrapers');
 const { sendDealsReport, sendErrorAlert, sendNearDealAlert, isActive } = require('./telegram');
-const { run, get, all, getProviderUsage, wasRecentlyAlerted, isNewHistoricalLow } = require('../database/db');
+const { run, get, all, wasRecentlyAlerted, isNewHistoricalLow } = require('../database/db');
 
 // Estado del monitor
 let isMonitoring = false;
@@ -20,20 +20,11 @@ let totalDealsFound = 0;
 let cronJob = null;
 
 // =============================================
-// CONFIG: TIMEZONE + PRESUPUESTO SERPAPI
+// CONFIG: TIMEZONE
 // =============================================
 
 // Timezone objetivo (Italia)
 const MONITOR_TIMEZONE = process.env.MONITOR_TIMEZONE || 'Europe/Rome';
-
-// Presupuesto SerpApi (plan 250/mes ≈ 8/día)
-const SERPAPI_PROVIDER = 'serpapi_google_flights';
-const SERPAPI_DAILY_BUDGET = parseInt(process.env.SERPAPI_DAILY_BUDGET || '8', 10);
-
-// Presupuesto por corrida (default: 3 + 3 + 2 = 8/día)
-const RUN_BUDGET_MORNING = parseInt(process.env.MONITOR_RUN_BUDGET_MORNING || '3', 10);    // 08:15
-const RUN_BUDGET_AFTERNOON = parseInt(process.env.MONITOR_RUN_BUDGET_AFTERNOON || '3', 10); // 15:15
-const RUN_BUDGET_NIGHT = parseInt(process.env.MONITOR_RUN_BUDGET_NIGHT || '2', 10);        // 22:15
 
 function getDateInTimeZone(tz = MONITOR_TIMEZONE, date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -48,23 +39,6 @@ function getDateInTimeZone(tz = MONITOR_TIMEZONE, date = new Date()) {
   return `${y}-${m}-${d}`;
 }
 
-function getHourInTimeZone(tz = MONITOR_TIMEZONE, date = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: tz,
-    hour: '2-digit',
-    hour12: false,
-  }).formatToParts(date);
-  const h = parts.find(p => p.type === 'hour')?.value;
-  return parseInt(h, 10);
-}
-
-function getRunBudgetForNow() {
-  const hour = getHourInTimeZone(MONITOR_TIMEZONE);
-  if (hour >= 6 && hour < 12) return RUN_BUDGET_MORNING;
-  if (hour >= 12 && hour < 19) return RUN_BUDGET_AFTERNOON;
-  return RUN_BUDGET_NIGHT;
-}
-
 function addDays(dateStr, days) {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + days);
@@ -76,7 +50,7 @@ function addDays(dateStr, days) {
 // =============================================
 
 // Rango de fechas de IDA (vuelta fija: 7 abril)
-const SEARCH_DATE_START = '2026-03-20';
+const SEARCH_DATE_START = '2026-03-21';
 const SEARCH_DATE_END = '2026-04-07';
 const FIXED_RETURN_DATE = '2026-04-07';
 
@@ -100,32 +74,8 @@ function generateSearchDatesRange(startStr, endStr) {
 const SEARCH_DATES = generateSearchDatesRange(SEARCH_DATE_START, SEARCH_DATE_END);
 
 // =============================================
+// Procesar TODAS las rutas en cada búsqueda
 // =============================================
-// Procesar TODAS las rutas configuradas en cada búsqueda
-// =============================================
-
-const rotationState = {
-  argEuRoundTrip: 0,
-  chileOceania: 0,
-};
-
-function rotatePick(list, stateKey, count) {
-  if (!Array.isArray(list) || list.length === 0 || count <= 0) return [];
-  const picked = [];
-  for (let i = 0; i < count; i++) {
-    const idx = rotationState[stateKey] % list.length;
-    picked.push(list[idx]);
-    rotationState[stateKey] = (rotationState[stateKey] + 1) % list.length;
-  }
-  return picked;
-}
-
-function pickRotatedDateForRoute(route) {
-  const todayIdx = Math.abs(new Date().getDate()) % SEARCH_DATES.length;
-  const routeIdx = Math.abs((route.origin.charCodeAt(0) + route.destination.charCodeAt(0)) % SEARCH_DATES.length);
-  const dateIdx = (todayIdx + routeIdx) % SEARCH_DATES.length;
-  return SEARCH_DATES[dateIdx];
-}
 
 /**
  * Devuelve múltiples fechas para una ruta, distribuidas en el rango.
@@ -228,25 +178,16 @@ function formatDate(dateStr) {
  * Realiza una búsqueda completa de ofertas
  */
 async function runFullSearch(options = {}) {
-  const { notifyDeals = true, maxRequests } = options;
-
-  // Presupuesto por corrida (adaptativo a la hora Italia)
-  const runBudget = typeof maxRequests === 'number' ? maxRequests : getRunBudgetForNow();
-
-  // Presupuesto restante del día (según DB, en timezone Italia)
-  const usageDate = getDateInTimeZone(MONITOR_TIMEZONE);
-  const usedToday = await getProviderUsage(SERPAPI_PROVIDER, usageDate);
-  const remainingToday = Math.max(0, SERPAPI_DAILY_BUDGET - usedToday);
-  const allowedThisRun = Math.max(0, Math.min(runBudget, remainingToday));
+  const { notifyDeals = true } = options;
 
   console.log('\n' + '='.repeat(60));
-  console.log('🔍 BÚSQUEDA DE OFERTAS DE VUELOS v4.0');
+  console.log('🔍 BÚSQUEDA DE OFERTAS DE VUELOS v4.2');
   console.log('='.repeat(60));
   console.log(`⏰ ${new Date().toLocaleString('es-ES')}`);
-  console.log(`📊 Rutas: ${MONITORED_ROUTES.length} | Fechas: ${SEARCH_DATES.length} (cada 2 días)`);
+  console.log(`📊 Rutas: ${MONITORED_ROUTES.length} | Fechas por ruta: ${DATES_PER_ROUTE}`);
   console.log(`📅 Ida: ${SEARCH_DATE_START} al ${SEARCH_DATE_END} | Vuelta fija: ${FIXED_RETURN_DATE}`);
   console.log(`🕒 Timezone: ${MONITOR_TIMEZONE}`);
-  console.log(`📦 SerpApi: ${usedToday}/${SERPAPI_DAILY_BUDGET} hoy (Puppeteer sin límite)`);
+  console.log(`🖥️ Scraper: Puppeteer (sin límite de búsquedas)`);
   console.log('');
   console.log('📋 UMBRALES:');
   console.log(`   • Ida y vuelta Argentina→Europa: máx €${ROUND_TRIP_THRESHOLD}`);
@@ -262,22 +203,10 @@ async function runFullSearch(options = {}) {
     startTime: new Date(),
   };
 
-  // Separar rutas por tipo
-  const argEuRoutes = MONITORED_ROUTES.filter(r => r.region === 'argentina');
-  const chileOceaniaRoutes = MONITORED_ROUTES.filter(r => r.region === 'chile_oceania');
-
   // ═══════════════════════════════════════════════════════════════
-  // PLAN DE BÚSQUEDA — Puppeteer es gratis, buscar más rutas
-  // ARG→EUR ida+vuelta + SCL→SYD solo ida
+  // PLAN DE BÚSQUEDA — Puppeteer es gratis, buscar TODAS las rutas
   // ═══════════════════════════════════════════════════════════════
-  const plan = [];
-  plan.push(...rotatePick(argEuRoutes, 'argEuRoundTrip', 5));
-
-  // Chile → Oceanía: siempre incluir (solo 1 ruta)
-  plan.push(...rotatePick(chileOceaniaRoutes, 'chileOceania', 1));
-
-  // Máximo 6 rutas por corrida (× 2 fechas c/u = ~12 búsquedas)
-  plan.splice(6);
+  const plan = [...MONITORED_ROUTES]; // Todas las rutas cada vez
 
   const totalSearches = plan.length * DATES_PER_ROUTE;
 
@@ -569,7 +498,7 @@ async function quickSearch(origin, destination) {
 /**
  * Inicia el monitoreo continuo
  */
-function startMonitoring(cronSchedule = '15 8,15,22 * * *', timezone = 'Europe/Rome') {
+function startMonitoring(cronSchedule = '*/30 * * * *', timezone = 'Europe/Rome') {
   if (isMonitoring) {
     console.log('⚠️ El monitoreo ya está activo');
     return false;
