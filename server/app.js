@@ -78,8 +78,8 @@ async function startServer() {
       
       if (isProduction || autoMonitor) {
         console.log('🚀 Iniciando monitoreo automático de vuelos...');
-        // Buscar cada 2 horas por defecto
-        const schedule = process.env.MONITOR_SCHEDULE || '0 */2 * * *';
+        // Buscar cada 30 minutos
+        const schedule = process.env.MONITOR_SCHEDULE || '*/30 * * * *';
         const timezone = process.env.MONITOR_TIMEZONE || 'Europe/Rome';
         startMonitoring(schedule, timezone);
         console.log(`⏰ Búsquedas programadas: ${schedule} (${timezone})`);
