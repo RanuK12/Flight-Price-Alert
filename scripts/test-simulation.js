@@ -1,7 +1,7 @@
 // Test con datos simulados para demostrar funcionalidad
 
 require('dotenv').config();
-const { initDb, insertPrice, getLastPrice } = require('./database');
+const { initDb, insertPrice, getLastPrice } = require('../database');
 const TelegramBot = require('node-telegram-bot-api');
 
 async function testBotSimulated() {
