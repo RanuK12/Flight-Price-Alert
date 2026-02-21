@@ -11,7 +11,7 @@
 const cron = require('node-cron');
 const { scrapeAllSources } = require('../scrapers');
 const { sendDealsReport, sendErrorAlert, sendNearDealAlert, isActive } = require('./telegram');
-const { run, get, all, getProviderUsage, wasRecentlyAlerted, isNewHistoricalLow } = require('../database/db');
+const { run, get, all, wasRecentlyAlerted, isNewHistoricalLow } = require('../database/db');
 
 // Estado del monitor
 let isMonitoring = false;
@@ -20,50 +20,11 @@ let totalDealsFound = 0;
 let cronJob = null;
 
 // =============================================
-// CONFIG: TIMEZONE + PRESUPUESTO SERPAPI
+// CONFIG: TIMEZONE
 // =============================================
 
 // Timezone objetivo (Italia)
 const MONITOR_TIMEZONE = process.env.MONITOR_TIMEZONE || 'Europe/Rome';
-
-// Presupuesto SerpApi (plan 250/mes ≈ 8/día)
-const SERPAPI_PROVIDER = 'serpapi_google_flights';
-const SERPAPI_DAILY_BUDGET = parseInt(process.env.SERPAPI_DAILY_BUDGET || '8', 10);
-
-// Presupuesto por corrida (default: 3 + 3 + 2 = 8/día)
-const RUN_BUDGET_MORNING = parseInt(process.env.MONITOR_RUN_BUDGET_MORNING || '3', 10);    // 08:15
-const RUN_BUDGET_AFTERNOON = parseInt(process.env.MONITOR_RUN_BUDGET_AFTERNOON || '3', 10); // 15:15
-const RUN_BUDGET_NIGHT = parseInt(process.env.MONITOR_RUN_BUDGET_NIGHT || '2', 10);        // 22:15
-
-function getDateInTimeZone(tz = MONITOR_TIMEZONE, date = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const y = parts.find(p => p.type === 'year')?.value;
-  const m = parts.find(p => p.type === 'month')?.value;
-  const d = parts.find(p => p.type === 'day')?.value;
-  return `${y}-${m}-${d}`;
-}
-
-function getHourInTimeZone(tz = MONITOR_TIMEZONE, date = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: tz,
-    hour: '2-digit',
-    hour12: false,
-  }).formatToParts(date);
-  const h = parts.find(p => p.type === 'hour')?.value;
-  return parseInt(h, 10);
-}
-
-function getRunBudgetForNow() {
-  const hour = getHourInTimeZone(MONITOR_TIMEZONE);
-  if (hour >= 6 && hour < 12) return RUN_BUDGET_MORNING;
-  if (hour >= 12 && hour < 19) return RUN_BUDGET_AFTERNOON;
-  return RUN_BUDGET_NIGHT;
-}
 
 function addDays(dateStr, days) {
   const d = new Date(dateStr);
@@ -280,25 +241,16 @@ function formatDate(dateStr) {
  * Realiza una búsqueda completa de ofertas
  */
 async function runFullSearch(options = {}) {
-  const { notifyDeals = true, maxRequests } = options;
-
-  // Presupuesto por corrida (adaptativo a la hora Italia)
-  const runBudget = typeof maxRequests === 'number' ? maxRequests : getRunBudgetForNow();
-
-  // Presupuesto restante del día (según DB, en timezone Italia)
-  const usageDate = getDateInTimeZone(MONITOR_TIMEZONE);
-  const usedToday = await getProviderUsage(SERPAPI_PROVIDER, usageDate);
-  const remainingToday = Math.max(0, SERPAPI_DAILY_BUDGET - usedToday);
-  const allowedThisRun = Math.max(0, Math.min(runBudget, remainingToday));
+  const { notifyDeals = true } = options;
 
   console.log('\n' + '='.repeat(60));
-  console.log('🔍 BÚSQUEDA DE OFERTAS DE VUELOS v5.0');
+  console.log('🔍 BÚSQUEDA DE OFERTAS DE VUELOS v5.1');
   console.log('='.repeat(60));
   console.log(`⏰ ${new Date().toLocaleString('es-ES')}`);
   console.log(`📊 Rutas: ${MONITORED_ROUTES.length} (${MONITORED_ROUTES.filter(r=>r.tripDirection==='outbound').length} outbound + ${MONITORED_ROUTES.filter(r=>r.tripDirection==='return').length} return + 1 SCL→SYD)`);
   console.log(`📅 IDA: ${SEARCH_DATE_START} al ${SEARCH_DATE_END} | VUELTA: 7 abr 2026 (fija)`);
   console.log(`🕒 Timezone: ${MONITOR_TIMEZONE}`);
-  console.log(`📦 SerpApi: ${usedToday}/${SERPAPI_DAILY_BUDGET} hoy (Puppeteer sin límite)`);
+  console.log(`🖥️ Scraper: Puppeteer (sin límite de búsquedas)`);
   console.log('');
   console.log('📋 UMBRALES:');
   console.log(`   • Roundtrip ticket Argentina→Europa: ≤€${RT_TICKET_THRESHOLD} | casi oferta €${NEAR_RT_MIN}-€${NEAR_RT_MAX}`);
@@ -736,7 +688,7 @@ async function quickSearch(origin, destination) {
 /**
  * Inicia el monitoreo continuo
  */
-function startMonitoring(cronSchedule = '15 8,15,22 * * *', timezone = 'Europe/Rome') {
+function startMonitoring(cronSchedule = '*/30 * * * *', timezone = 'Europe/Rome') {
   if (isMonitoring) {
     console.log('⚠️ El monitoreo ya está activo');
     return false;
