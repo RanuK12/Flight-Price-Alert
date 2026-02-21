@@ -217,6 +217,8 @@ const IATA_TO_CITY = {
   'ZRH': 'Zurich',
   'BRU': 'Brussels',
   'VIE': 'Vienna',
+  // Italia
+  'VCE': 'Venice',
   // Oceanía
   'SYD': 'Sydney',
   'MEL': 'Melbourne',
