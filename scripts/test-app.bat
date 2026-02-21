@@ -2,7 +2,7 @@
 REM Script de prueba rápida de la app
 setlocal enabledelayedexpansion
 
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 echo.
 echo Testing Flight Price App...
