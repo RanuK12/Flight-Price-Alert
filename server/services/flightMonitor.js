@@ -233,208 +233,269 @@ async function runFullSearch(options = {}) {
   console.log(`   Europa interna: ${europeIntRoutes.length} rutas × ~${DATES_PER_ROUTE} fechas`);
   console.log('═══════════════════════════════════════');
 
-  // Ejecutar búsqueda para cada ruta y sus fechas
-  for (const route of plan) {
-    const dates = pickDatesForRoute(route, DATES_PER_ROUTE);
+  // ═══════════════════════════════════════════════════════════════
+  // BÚSQUEDA POR FASES con notificación progresiva
+  // Si Render mata el proceso, al menos los deals ya encontrados
+  // se envían antes de continuar con la siguiente fase.
+  // ═══════════════════════════════════════════════════════════════
 
-    for (const departureDate of dates) {
-      const isRoundTrip = route.tripType === 'roundtrip';
-      const dirLabel = isRoundTrip ? '(ida+vuelta)' : '(solo ida)';
-      console.log(`\n🛫 ${route.name} ${dirLabel}`);
-      console.log(`   📅 ${departureDate}${isRoundTrip ? ` ↔ ${ETHIOPIAN_RETURN}` : ''}`);
+  // Helper: envía notificaciones con lo acumulado hasta el momento
+  let notificationsSent = false;
+  async function flushNotifications(phaseName) {
+    if (!notifyDeals || !isActive()) return;
 
+    // Deduplicar antes de enviar
+    const dedupRT = removeDuplicatesAndSort(results.roundTripDeals);
+    const dedupEur = removeDuplicatesAndSort(results.europeDeals);
+    const dedupOW = removeDuplicatesAndSort(results.oneWayDeals);
+    const dedupNearRT = removeDuplicatesAndSort(results.nearRoundTripDeals);
+    const dedupNearEur = removeDuplicatesAndSort(results.nearEuropeDeals);
+
+    const hasDeals = dedupRT.length > 0 || dedupOW.length > 0 || dedupEur.length > 0;
+    const hasNearDeals = dedupNearRT.length > 0 || dedupNearEur.length > 0;
+
+    if (hasDeals && !notificationsSent) {
       try {
-        const searchResult = await scrapeAllSources(
-          route.origin,
-          route.destination,
-          isRoundTrip,
-          departureDate,
-          isRoundTrip ? ETHIOPIAN_RETURN : undefined
-        );
+        await sendDealsReport(dedupOW, [], [], [], dedupEur, dedupRT);
+        notificationsSent = true;
+        console.log(`📱 [${phaseName}] Telegram: ofertas enviadas`);
+      } catch (e) {
+        console.error(`❌ [${phaseName}] Error enviando ofertas Telegram:`, e.message);
+      }
+    }
 
-        results.allSearches.push({
-          route: route.name,
-          origin: route.origin,
-          destination: route.destination,
-          date: departureDate,
-          success: searchResult.minPrice !== null,
-        });
+    if (hasNearDeals) {
+      const searchSummary = {
+        ezeSearched: results.allSearches.some(s => s.origin === 'EZE'),
+        ezeTotal: results.allSearches.filter(s => s.origin === 'EZE').length,
+        ezeSuccess: results.allSearches.filter(s => s.origin === 'EZE' && s.success).length,
+        sclSearched: results.allSearches.some(s => s.origin === 'SCL'),
+        sclTotal: results.allSearches.filter(s => s.origin === 'SCL').length,
+        sclSuccess: results.allSearches.filter(s => s.origin === 'SCL' && s.success).length,
+        eurSearched: results.allSearches.some(s => ['FCO', 'AMS', 'MAD', 'BCN'].includes(s.origin)),
+        eurTotal: results.allSearches.filter(s => ['FCO', 'AMS', 'MAD', 'BCN'].includes(s.origin)).length,
+        eurSuccess: results.allSearches.filter(s => ['FCO', 'AMS', 'MAD', 'BCN'].includes(s.origin) && s.success).length,
+      };
+      try {
+        await sendNearDealAlert(dedupNearEur, searchSummary, dedupNearRT);
+        console.log(`📱 [${phaseName}] Telegram: casi-ofertas enviadas`);
+      } catch (e) {
+        console.error(`❌ [${phaseName}] Error enviando casi-ofertas Telegram:`, e.message);
+      }
+    }
 
-        if (searchResult.allFlights && searchResult.allFlights.length > 0) {
-          for (const flight of searchResult.allFlights) {
-            const price = Math.round(flight.price);
-            const depDate = flight.departureDate || departureDate;
+    if (!hasDeals && !hasNearDeals) {
+      console.log(`📴 [${phaseName}] Sin ofertas/casi-ofertas para notificar`);
+    }
+  }
 
-            // Validación de precios realistas
-            // Europa interna puede ser desde €10 (Ryanair), intercontinental desde €250
-            const minRealistic = isRoundTrip ? 250 : (route.region === 'europe_internal' ? 8 : 150);
-            if (price < minRealistic || price > 5000) {
-              console.log(`  ⚠️ Precio irreal ignorado: €${price}`);
-              continue;
-            }
+  // Helper: procesar vuelos de una búsqueda
+  async function processRouteFlights(route, departureDate, searchResult) {
+    results.allSearches.push({
+      route: route.name,
+      origin: route.origin,
+      destination: route.destination,
+      date: departureDate,
+      success: searchResult.minPrice !== null,
+    });
 
-            // ─────────────────────────────────────────────────────────
-            // ROUNDTRIP: Ethiopian EZE → FCO
-            // ─────────────────────────────────────────────────────────
-            if (isRoundTrip) {
-              const retDate = flight.returnDate || ETHIOPIAN_RETURN;
-              if (price <= RT_TICKET_THRESHOLD) {
-                const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
-                if (!recentlyAlerted) {
-                  results.roundTripDeals.push({
-                    origin: route.origin, destination: route.destination,
-                    routeName: route.name, region: route.region,
-                    price, airline: flight.airline, source: flight.source,
-                    departureDate: depDate, returnDate: retDate,
-                    bookingUrl: flight.link, tripType: 'roundtrip',
-                  });
-                  console.log(`  🔥 OFERTA RT: €${price} (${flight.airline}) ${formatDate(depDate)} ↔ ${formatDate(retDate)}`);
-                } else {
-                  console.log(`  🔕 €${price} RT ya alertado (anti-spam)`);
-                }
-              } else if (price <= NEAR_RT_MAX) {
-                const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
-                if (!recentlyAlerted) {
-                  results.nearRoundTripDeals.push({
-                    origin: route.origin, destination: route.destination,
-                    routeName: route.name, price, airline: flight.airline,
-                    departureDate: depDate, returnDate: retDate,
-                    bookingUrl: flight.link, tripType: 'roundtrip',
-                  });
-                  console.log(`  🟡 CASI OFERTA RT: €${price} (${flight.airline})`);
-                }
-              } else {
-                console.log(`  ✈️ RT €${price} (${flight.airline}) - no oferta (máx €${RT_TICKET_THRESHOLD})`);
-              }
-              continue;
-            }
+    if (!searchResult.allFlights || searchResult.allFlights.length === 0) {
+      console.log(`  ⚠️ Sin precios reales encontrados`);
+      return;
+    }
 
-            // ─────────────────────────────────────────────────────────
-            // ONE-WAY: Europa interna y SCL→SYD
-            // ─────────────────────────────────────────────────────────
-            const threshold = getThreshold(route.origin, route.destination);
-            const nearThreshold = getNearDealThreshold(route.origin, route.destination);
+    const isRoundTrip = route.tripType === 'roundtrip';
 
-            if (price <= threshold) {
-              const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
-              if (!recentlyAlerted) {
-                const dealEntry = {
-                  origin: route.origin, destination: route.destination,
-                  routeName: route.name, region: route.region,
-                  price, airline: flight.airline, source: flight.source,
-                  departureDate: depDate, bookingUrl: flight.link,
-                  tripType: 'oneway', threshold,
-                };
-                if (route.region === 'chile_oceania') {
-                  results.oneWayDeals.push(dealEntry);
-                  console.log(`  🔥 OFERTA SCL→SYD: €${price} (${flight.airline}) - ${formatDate(depDate)}`);
-                } else {
-                  results.europeDeals.push(dealEntry);
-                  console.log(`  🔥 OFERTA EUR: €${price} (${flight.airline}) ${route.origin}→${route.destination} - ${formatDate(depDate)}`);
-                }
-              } else {
-                console.log(`  🔕 €${price} ya alertado (anti-spam)`);
-              }
-            } else if (price <= nearThreshold) {
-              console.log(`  🟡 CASI OFERTA: €${price} (${flight.airline}) ${route.origin}→${route.destination} - ${formatDate(depDate)}`);
-              results.nearEuropeDeals.push({
-                origin: route.origin, destination: route.destination,
-                routeName: route.name, region: route.region,
-                price, airline: flight.airline,
-                departureDate: depDate, bookingUrl: flight.link,
-              });
-            } else {
-              console.log(`  ✈️ €${price} (${flight.airline}) - umbral oferta €${threshold}`);
-            }
-          }
-        } else {
-          console.log(`  ⚠️ Sin precios reales encontrados`);
-        }
-      } catch (error) {
-        results.errors.push({ route: route.name, error: error.message });
-        console.error(`  ❌ Error: ${error.message}`);
+    for (const flight of searchResult.allFlights) {
+      const price = Math.round(flight.price);
+      const depDate = flight.departureDate || departureDate;
+
+      // Validación de precios realistas
+      const minRealistic = isRoundTrip ? 250 : (route.region === 'europe_internal' ? 8 : 150);
+      if (price < minRealistic || price > 5000) {
+        console.log(`  ⚠️ Precio irreal ignorado: €${price}`);
+        continue;
       }
 
-      await sleep(1500); // pausa anti-detección
+      // ─── ROUNDTRIP: Ethiopian EZE → FCO ───
+      if (isRoundTrip) {
+        const retDate = flight.returnDate || ETHIOPIAN_RETURN;
+        if (price <= RT_TICKET_THRESHOLD) {
+          const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
+          if (!recentlyAlerted) {
+            results.roundTripDeals.push({
+              origin: route.origin, destination: route.destination,
+              routeName: route.name, region: route.region,
+              price, airline: flight.airline, source: flight.source,
+              departureDate: depDate, returnDate: retDate,
+              bookingUrl: flight.link, tripType: 'roundtrip',
+            });
+            console.log(`  🔥 OFERTA RT: €${price} (${flight.airline}) ${formatDate(depDate)} ↔ ${formatDate(retDate)}`);
+          } else {
+            console.log(`  🔕 €${price} RT ya alertado (anti-spam)`);
+          }
+        } else if (price <= NEAR_RT_MAX) {
+          const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
+          if (!recentlyAlerted) {
+            results.nearRoundTripDeals.push({
+              origin: route.origin, destination: route.destination,
+              routeName: route.name, price, airline: flight.airline,
+              departureDate: depDate, returnDate: retDate,
+              bookingUrl: flight.link, tripType: 'roundtrip',
+            });
+            console.log(`  🟡 CASI OFERTA RT: €${price} (${flight.airline})`);
+          }
+        } else {
+          console.log(`  ✈️ RT €${price} (${flight.airline}) - no oferta (máx €${RT_TICKET_THRESHOLD})`);
+        }
+        continue;
+      }
+
+      // ─── ONE-WAY: Europa interna y SCL→SYD ───
+      const threshold = getThreshold(route.origin, route.destination);
+      const nearThreshold = getNearDealThreshold(route.origin, route.destination);
+
+      if (price <= threshold) {
+        const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
+        if (!recentlyAlerted) {
+          const dealEntry = {
+            origin: route.origin, destination: route.destination,
+            routeName: route.name, region: route.region,
+            price, airline: flight.airline, source: flight.source,
+            departureDate: depDate, bookingUrl: flight.link,
+            tripType: 'oneway', threshold,
+          };
+          if (route.region === 'chile_oceania') {
+            results.oneWayDeals.push(dealEntry);
+            console.log(`  🔥 OFERTA SCL→SYD: €${price} (${flight.airline}) - ${formatDate(depDate)}`);
+          } else {
+            results.europeDeals.push(dealEntry);
+            console.log(`  🔥 OFERTA EUR: €${price} (${flight.airline}) ${route.origin}→${route.destination} - ${formatDate(depDate)}`);
+          }
+        } else {
+          console.log(`  🔕 €${price} ya alertado (anti-spam)`);
+        }
+      } else if (price <= nearThreshold) {
+        console.log(`  🟡 CASI OFERTA: €${price} (${flight.airline}) ${route.origin}→${route.destination} - ${formatDate(depDate)}`);
+        results.nearEuropeDeals.push({
+          origin: route.origin, destination: route.destination,
+          routeName: route.name, region: route.region,
+          price, airline: flight.airline,
+          departureDate: depDate, bookingUrl: flight.link,
+        });
+      } else {
+        console.log(`  ✈️ €${price} (${flight.airline}) - umbral oferta €${threshold}`);
+      }
     }
   }
 
-  results.endTime = new Date();
-  lastSearchTime = results.endTime;
-
-  // Deduplicar y ordenar
-  results.roundTripDeals = removeDuplicatesAndSort(results.roundTripDeals);
-  results.nearRoundTripDeals = removeDuplicatesAndSort(results.nearRoundTripDeals);
-  results.oneWayDeals = removeDuplicatesAndSort(results.oneWayDeals);
-  results.europeDeals = removeDuplicatesAndSort(results.europeDeals);
-  results.nearEuropeDeals = removeDuplicatesAndSort(results.nearEuropeDeals);
-
-  totalDealsFound += results.roundTripDeals.length + results.oneWayDeals.length + results.europeDeals.length;
-
   // ═══════════════════════════════════════════════════════════════
-  // RESUMEN
+  // EJECUTAR BÚSQUEDAS POR FASES (con try/finally para garantizar notificación)
   // ═══════════════════════════════════════════════════════════════
-  const duration = (results.endTime - results.startTime) / 1000;
-  const successfulSearches = results.allSearches.filter(s => s.success).length;
+  try {
+    // ── FASE 1: Ryanair (rápido, solo HTTP) ──
+    const ryanairRoutes = plan.filter(r => r.region === 'europe_internal' && 
+      ['MAD-FCO', 'BCN-FCO', 'MAD-VCE', 'BCN-VCE'].includes(`${r.origin}-${r.destination}`));
+    const otherRoutes = plan.filter(r => !ryanairRoutes.includes(r));
 
-  console.log('\n' + '='.repeat(60));
-  console.log('📊 RESUMEN');
-  console.log('='.repeat(60));
-  console.log(`✅ Búsquedas exitosas: ${successfulSearches}/${results.allSearches.length}`);
-  if (results.errors.length > 0) console.log(`❌ Errores: ${results.errors.length}`);
-  if (results.roundTripDeals.length > 0) console.log(`🔥 Ethiopian RT ofertas: ${results.roundTripDeals.length}`);
-  if (results.nearRoundTripDeals.length > 0) console.log(`🟡 Ethiopian RT casi-oferta: ${results.nearRoundTripDeals.length}`);
-  if (results.europeDeals.length > 0) console.log(`🔥 Europa interna ofertas: ${results.europeDeals.length}`);
-  if (results.nearEuropeDeals.length > 0) console.log(`🟡 Europa interna casi-oferta: ${results.nearEuropeDeals.length}`);
-  if (results.oneWayDeals.length > 0) console.log(`🔥 SCL→SYD ofertas: ${results.oneWayDeals.length}`);
-  console.log(`⏱️ Duración: ${duration.toFixed(1)}s`);
-
-  if (results.europeDeals.length > 0) {
-    console.log('\n🎯 TOP EUROPA INTERNA:');
-    results.europeDeals.slice(0, 7).forEach((d, i) => {
-      console.log(`  ${i + 1}. ${d.routeName}: €${d.price} (${d.airline}) - ${formatDate(d.departureDate)}`);
-    });
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  // NOTIFICACIONES TELEGRAM
-  // ═══════════════════════════════════════════════════════════════
-  if (notifyDeals && isActive()) {
-    const hasDeals = results.roundTripDeals.length > 0 || results.oneWayDeals.length > 0 || results.europeDeals.length > 0;
-    if (hasDeals) {
-      await sendDealsReport(results.oneWayDeals, [], [], [], results.europeDeals, results.roundTripDeals);
-      console.log('📱 Notificación Telegram enviada con ofertas');
-    } else {
-      console.log('📴 Sin ofertas - no se envía notificación (anti-spam)');
+    if (ryanairRoutes.length > 0) {
+      console.log('\n── FASE 1: Rutas Ryanair (HTTP rápido) ──');
+      for (const route of ryanairRoutes) {
+        const dates = pickDatesForRoute(route, DATES_PER_ROUTE);
+        for (const departureDate of dates) {
+          console.log(`\n🛫 ${route.name} (solo ida)`);
+          console.log(`   📅 ${departureDate}`);
+          try {
+            const searchResult = await scrapeAllSources(route.origin, route.destination, false, departureDate);
+            await processRouteFlights(route, departureDate, searchResult);
+          } catch (error) {
+            results.errors.push({ route: route.name, error: error.message });
+            console.error(`  ❌ Error: ${error.message}`);
+          }
+          await sleep(800);
+        }
+      }
+      // Enviar notificación inmediata si hay deals de Ryanair
+      await flushNotifications('Fase 1 — Ryanair');
     }
 
-    // Construir resumen de búsquedas
-    const searchSummary = {
-      ezeSearched: results.allSearches.some(s => s.origin === 'EZE'),
-      ezeTotal: results.allSearches.filter(s => s.origin === 'EZE').length,
-      ezeSuccess: results.allSearches.filter(s => s.origin === 'EZE' && s.success).length,
-      sclSearched: results.allSearches.some(s => s.origin === 'SCL'),
-      sclTotal: results.allSearches.filter(s => s.origin === 'SCL').length,
-      sclSuccess: results.allSearches.filter(s => s.origin === 'SCL' && s.success).length,
-      eurSearched: results.allSearches.some(s => ['FCO', 'AMS', 'MAD', 'BCN'].includes(s.origin)),
-      eurTotal: results.allSearches.filter(s => ['FCO', 'AMS', 'MAD', 'BCN'].includes(s.origin)).length,
-      eurSuccess: results.allSearches.filter(s => ['FCO', 'AMS', 'MAD', 'BCN'].includes(s.origin) && s.success).length,
-    };
-
-    // Enviar casi-ofertas
-    const hasNearDeals = results.nearRoundTripDeals.length > 0 || results.nearEuropeDeals.length > 0;
-    if (hasNearDeals) {
-      await sendNearDealAlert(results.nearEuropeDeals, searchSummary, results.nearRoundTripDeals);
-      console.log('📱 Alerta "Casi Oferta" enviada a Telegram');
+    // ── FASE 2: Ethiopian + Europa Puppeteer ──
+    console.log('\n── FASE 2: Ethiopian + Europa Puppeteer ──');
+    for (const route of otherRoutes) {
+      const dates = pickDatesForRoute(route, DATES_PER_ROUTE);
+      for (const departureDate of dates) {
+        const isRoundTrip = route.tripType === 'roundtrip';
+        const dirLabel = isRoundTrip ? '(ida+vuelta)' : '(solo ida)';
+        console.log(`\n🛫 ${route.name} ${dirLabel}`);
+        console.log(`   📅 ${departureDate}${isRoundTrip ? ` ↔ ${ETHIOPIAN_RETURN}` : ''}`);
+        try {
+          const searchResult = await scrapeAllSources(
+            route.origin, route.destination, isRoundTrip,
+            departureDate, isRoundTrip ? ETHIOPIAN_RETURN : undefined
+          );
+          await processRouteFlights(route, departureDate, searchResult);
+        } catch (error) {
+          results.errors.push({ route: route.name, error: error.message });
+          console.error(`  ❌ Error: ${error.message}`);
+        }
+        await sleep(800);
+      }
     }
-  }
 
-  // Guardar en base de datos
-  await saveDealsToDatabase(results.roundTripDeals);
-  await saveDealsToDatabase(results.nearRoundTripDeals);
-  await saveDealsToDatabase(results.oneWayDeals);
-  await saveDealsToDatabase(results.europeDeals);
-  await saveDealsToDatabase(results.nearEuropeDeals);
+  } finally {
+    // ═══════════════════════════════════════════════════════════════
+    // SIEMPRE ejecutar: resumen + notificación final + guardar DB
+    // Incluso si una ruta lanza excepción o Render mata el proceso
+    // ═══════════════════════════════════════════════════════════════
+    results.endTime = new Date();
+    lastSearchTime = results.endTime;
+
+    // Deduplicar y ordenar
+    results.roundTripDeals = removeDuplicatesAndSort(results.roundTripDeals);
+    results.nearRoundTripDeals = removeDuplicatesAndSort(results.nearRoundTripDeals);
+    results.oneWayDeals = removeDuplicatesAndSort(results.oneWayDeals);
+    results.europeDeals = removeDuplicatesAndSort(results.europeDeals);
+    results.nearEuropeDeals = removeDuplicatesAndSort(results.nearEuropeDeals);
+
+    totalDealsFound += results.roundTripDeals.length + results.oneWayDeals.length + results.europeDeals.length;
+
+    // ═══════════════════════════════════════════════════════════════
+    // RESUMEN
+    // ═══════════════════════════════════════════════════════════════
+    const duration = ((results.endTime || new Date()) - results.startTime) / 1000;
+    const successfulSearches = results.allSearches.filter(s => s.success).length;
+
+    console.log('\n' + '='.repeat(60));
+    console.log('📊 RESUMEN');
+    console.log('='.repeat(60));
+    console.log(`✅ Búsquedas exitosas: ${successfulSearches}/${results.allSearches.length}`);
+    if (results.errors.length > 0) console.log(`❌ Errores: ${results.errors.length}`);
+    if (results.roundTripDeals.length > 0) console.log(`🔥 Ethiopian RT ofertas: ${results.roundTripDeals.length}`);
+    if (results.nearRoundTripDeals.length > 0) console.log(`🟡 Ethiopian RT casi-oferta: ${results.nearRoundTripDeals.length}`);
+    if (results.europeDeals.length > 0) console.log(`🔥 Europa interna ofertas: ${results.europeDeals.length}`);
+    if (results.nearEuropeDeals.length > 0) console.log(`🟡 Europa interna casi-oferta: ${results.nearEuropeDeals.length}`);
+    if (results.oneWayDeals.length > 0) console.log(`🔥 SCL→SYD ofertas: ${results.oneWayDeals.length}`);
+    console.log(`⏱️ Duración: ${duration.toFixed(1)}s`);
+
+    if (results.europeDeals.length > 0) {
+      console.log('\n🎯 TOP EUROPA INTERNA:');
+      results.europeDeals.slice(0, 7).forEach((d, i) => {
+        console.log(`  ${i + 1}. ${d.routeName}: €${d.price} (${d.airline}) - ${formatDate(d.departureDate)}`);
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // NOTIFICACIÓN FINAL (envía lo que no se envió en las fases)
+    // ═══════════════════════════════════════════════════════════════
+    await flushNotifications('Final');
+
+    // Guardar en base de datos
+    await saveDealsToDatabase(results.roundTripDeals);
+    await saveDealsToDatabase(results.nearRoundTripDeals);
+    await saveDealsToDatabase(results.oneWayDeals);
+    await saveDealsToDatabase(results.europeDeals);
+    await saveDealsToDatabase(results.nearEuropeDeals);
+  }
 
   return results;
 }

@@ -20,8 +20,8 @@ puppeteer.use(StealthPlugin());
 // CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════════════
 const HEADLESS = process.env.PUPPETEER_HEADLESS !== 'false';
-const TIMEOUT = parseInt(process.env.PUPPETEER_TIMEOUT || '45000', 10);
-const MAX_RETRIES = parseInt(process.env.PUPPETEER_RETRIES || '3', 10);
+const TIMEOUT = parseInt(process.env.PUPPETEER_TIMEOUT || '25000', 10);
+const MAX_RETRIES = parseInt(process.env.PUPPETEER_RETRIES || '1', 10);
 
 // ═══════════════════════════════════════════════════════════════
 // CIRCUIT BREAKER
@@ -588,7 +588,7 @@ async function scrapeGoogleFlights(origin, destination, departureDate, returnDat
       for (const raw of rawFlights) {
         // Usar el precio ya parseado en la extracción, o parsear el texto
         const price = raw.price || parsePrice(raw.priceText);
-        if (!price || price < 80 || price > 15000) continue;
+        if (!price || price < 10 || price > 15000) continue;
 
         const key = `${price}-${raw.airline || ''}`;
         if (seenKeys.has(key)) continue;
