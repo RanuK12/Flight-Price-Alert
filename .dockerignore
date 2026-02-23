@@ -1,0 +1,7 @@
+# Render ignora estos archivos
+node_modules
+.env
+*.db
+*.sqlite
+data/*.db
+.git
