@@ -17,12 +17,14 @@ function initTelegram() {
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
   if (!token) {
-    console.warn('⚠️ TELEGRAM_BOT_TOKEN no configurado. Notificaciones desactivadas.');
+    console.warn('❌❌❌ TELEGRAM_BOT_TOKEN NO CONFIGURADO — Las notificaciones NO funcionarán');
+    console.warn('❌❌❌ Configurar en Render Dashboard → Environment → Add Variable');
     return false;
   }
 
   if (!chatId) {
-    console.warn('⚠️ TELEGRAM_CHAT_ID no configurado. Notificaciones desactivadas.');
+    console.warn('❌❌❌ TELEGRAM_CHAT_ID NO CONFIGURADO — Las notificaciones NO funcionarán');
+    console.warn('❌❌❌ Configurar en Render Dashboard → Environment → Add Variable');
     return false;
   }
 
