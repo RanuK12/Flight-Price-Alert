@@ -28,6 +28,19 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Diagnóstico (sin exponer secretos)
+app.get('/debug', (req, res) => {
+  res.json({
+    telegramToken: process.env.TELEGRAM_BOT_TOKEN ? `✅ (${process.env.TELEGRAM_BOT_TOKEN.substring(0,10)}...)` : '❌ NO CONFIGURADO',
+    telegramChatId: process.env.TELEGRAM_CHAT_ID ? `✅ (${process.env.TELEGRAM_CHAT_ID})` : '❌ NO CONFIGURADO',
+    port: process.env.PORT || '4000 (default)',
+    nodeEnv: process.env.NODE_ENV || 'not set',
+    render: process.env.RENDER ? '✅ Render detectado' : 'no',
+    chromium: process.env.PUPPETEER_EXECUTABLE_PATH || 'auto-detect',
+    uptime: `${Math.floor(process.uptime())}s`,
+  });
+});
+
 // Main page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
