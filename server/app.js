@@ -71,9 +71,8 @@ async function startServer() {
       console.log('   GET  /api/monitor/status');
       console.log('');
 
-      // Auto-iniciar monitoreo automáticamente en Railway/producción
-      // O si AUTO_MONITOR está configurado
-      const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
+      // Auto-iniciar monitoreo en producción (Render / Railway / Docker)
+      const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT || process.env.RENDER;
       const autoMonitor = process.env.AUTO_MONITOR !== 'false'; // Por defecto true
       
       if (isProduction || autoMonitor) {
