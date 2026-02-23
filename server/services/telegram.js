@@ -52,46 +52,29 @@ function buildDealsReportMessage(oneWayDeals, combinedDeals = [], outboundDeals 
   message += `📅 ${new Date().toLocaleString('es-ES')}\n`;
   message += `━━━━━━━━━━━━━━━━━━━━━\n`;
 
-  // ── SECCIÓN 1: Roundtrip ticket combinado (Google Flights) ──
+  // ── SECCIÓN 1: Ethiopian EZE → Roma Roundtrip ──
   if (roundTripDeals.length > 0) {
-    message += `\n🎫 <b>IDA+VUELTA ticket combinado</b> (${roundTripDeals.length} ofertas)\n`;
-    message += `🇦🇷 Argentina → Europa • IDA 21-27 mar ↔ VUELTA 7 abr • ≤€800\n`;
+    message += `\n🎫 <b>EZE → Roma (Roundtrip)</b> (${roundTripDeals.length} ofertas)\n`;
+    message += `✈️ 23 mar → 7 abr 2026 • ≤€850\n`;
     message += `━━━━━━━━━━━━━━━━━━━━━\n`;
 
-    const ezeRT = roundTripDeals.filter(d => d.origin === 'EZE');
-    const corRT = roundTripDeals.filter(d => d.origin === 'COR');
-
-    if (ezeRT.length > 0) {
-      message += `<b>Desde Buenos Aires (EZE):</b>\n`;
-      for (const deal of ezeRT.slice(0, 5)) {
-        const emoji = deal.price <= 550 ? '🔥🔥🔥' : (deal.price <= 700 ? '🔥🔥' : '🔥');
-        message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
-        if (deal.airline) message += ` • ${deal.airline}`;
-        if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
-        message += `\n`;
-      }
-    }
-    if (corRT.length > 0) {
-      if (ezeRT.length > 0) message += `\n`;
-      message += `<b>Desde Córdoba (COR):</b>\n`;
-      for (const deal of corRT.slice(0, 5)) {
-        const emoji = deal.price <= 600 ? '🔥🔥🔥' : (deal.price <= 700 ? '🔥🔥' : '🔥');
-        message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
-        if (deal.airline) message += ` • ${deal.airline}`;
-        if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
-        message += `\n`;
-      }
+    for (const deal of roundTripDeals.slice(0, 5)) {
+      const emoji = deal.price <= 700 ? '🔥🔥🔥' : (deal.price <= 800 ? '🔥🔥' : '🔥');
+      message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
+      if (deal.airline) message += ` • ${deal.airline}`;
+      if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
+      if (deal.returnDate) message += ` ↔ ${formatDateShort(deal.returnDate)}`;
+      message += `\n`;
     }
   }
 
-  // ── SECCIÓN 2: IDA + VUELTA por tramos separados ──
+  // ── SECCIÓN 2: (reservado para combinaciones futuras) ──
   if (combinedDeals.length > 0) {
-    message += `\n🔄 <b>IDA + VUELTA (tramos separados)</b> — ${combinedDeals.length} combinaciones\n`;
-    message += `🇦🇷 IDA: 21-27 mar • VUELTA: 7 abr • Suma ≤€850\n`;
+    message += `\n🔄 <b>Combinaciones</b> — ${combinedDeals.length}\n`;
     message += `━━━━━━━━━━━━━━━━━━━━━\n`;
 
     for (const deal of combinedDeals.slice(0, 6)) {
-      const emoji = deal.combinedPrice <= 700 ? '🔥🔥🔥' : (deal.combinedPrice <= 800 ? '🔥🔥' : '🔥');
+      const emoji = '🔥';
       const ob = deal.outbound;
       const ret = deal.returnFlight;
       message += `\n${emoji} <b>€${deal.combinedPrice} TOTAL</b> — ${ob.origin} ↔ ${ret.origin}\n`;
@@ -107,28 +90,14 @@ function buildDealsReportMessage(oneWayDeals, combinedDeals = [], outboundDeals 
     }
   }
 
-  // ── SECCIÓN 3: Tramos individuales muy baratos (info extra) ──
-  if (outboundDeals.length > 0 || returnDeals.length > 0) {
-    message += `\n💡 <b>Tramos individuales destacados</b>\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    if (outboundDeals.length > 0) {
-      message += `🇦🇷→🇪🇺 <b>IDA</b> (≤€400): `;
-      message += outboundDeals.slice(0, 3).map(d => `€${d.price} ${d.routeName.split('→')[1].trim()}${d.airline ? ` (${d.airline})` : ''}`).join(' | ');
-      message += `\n`;
-    }
-    if (returnDeals.length > 0) {
-      message += `🇪🇺→🇦🇷 <b>VUELTA 7 abr</b> (≤€350): `;
-      message += returnDeals.slice(0, 3).map(d => `€${d.price} ${d.routeName.split('→')[0].trim()}${d.airline ? ` (${d.airline})` : ''}`).join(' | ');
-      message += `\n`;
-    }
-  }
+  // ── SECCIÓN 3: (reservado) ──
 
-  // ── SECCIÓN 4: Vuelos internos Europa ──
+  // ── SECCIÓN 4: Vuelos Europa interna (solo ida) ──
   if (europeDeals.length > 0) {
-    message += `\n🇪🇺 <b>Vuelos internos Europa</b>\n`;
+    message += `\n🇪🇺 <b>Europa — solo ida</b> (${europeDeals.length} ofertas)\n`;
     message += `━━━━━━━━━━━━━━━━━━━━━\n`;
     for (const deal of europeDeals) {
-      const emoji = deal.price <= 60 ? '🔥🔥🔥' : (deal.price <= 90 ? '🔥🔥' : '🔥');
+      const emoji = deal.price <= 25 ? '🔥🔥🔥' : (deal.price <= 50 ? '🔥🔥' : '🔥');
       message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
       if (deal.airline) message += ` • ${deal.airline}`;
       if (deal.departureDate && deal.departureDate !== 'Flexible') message += ` • ${formatDateShort(deal.departureDate)}`;
@@ -550,16 +519,14 @@ function buildNearDealMessage(nearCombinedDeals, searchSummary = null, nearRound
   const total = (nearCombinedDeals?.length || 0) + (nearRoundTripDeals?.length || 0);
   if (total === 0) return null;
 
-  let message = `🟡 <b>CASI OFERTA — Argentina ↔ Europa</b>\n`;
+  let message = `🟡 <b>CASI OFERTA</b>\n`;
   message += `📅 ${new Date().toLocaleString('es-ES')}\n`;
   message += `━━━━━━━━━━━━━━━━━━━━━\n`;
 
-  // Near-deals roundtrip ticket
+  // Near-deals roundtrip Ethiopian
   if (nearRoundTripDeals && nearRoundTripDeals.length > 0) {
-    message += `\n🎫 <b>Ticket combinado</b> (€800-€1050):\n`;
-    const ezeNear = nearRoundTripDeals.filter(d => d.origin === 'EZE');
-    const corNear = nearRoundTripDeals.filter(d => d.origin === 'COR');
-    for (const deal of [...ezeNear, ...corNear].slice(0, 5)) {
+    message += `\n🎫 <b>EZE → Roma RT</b> (€850-€1050):\n`;
+    for (const deal of nearRoundTripDeals.slice(0, 5)) {
       message += `🟡 <b>€${deal.price}</b> ${deal.routeName}`;
       if (deal.airline) message += ` • ${deal.airline}`;
       if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
@@ -567,55 +534,42 @@ function buildNearDealMessage(nearCombinedDeals, searchSummary = null, nearRound
     }
   }
 
-  // Near-deals tramos separados
+  // Near-deals Europa interna
   if (nearCombinedDeals && nearCombinedDeals.length > 0) {
-    message += `\n🔄 <b>Tramos separados</b> (suma €850-€1100):\n`;
-    message += `<i>No llega al umbral ≤€850 pero vale la pena revisar:</i>\n\n`;
-    for (const deal of nearCombinedDeals.slice(0, 5)) {
-      const ob = deal.outbound;
-      const ret = deal.returnFlight;
-      message += `🟡 <b>€${deal.combinedPrice} TOTAL</b> — ${ob.origin} ↔ ${ret.origin}\n`;
-      message += `   IDA (${formatDateShort(ob.departureDate)}): €${ob.price}`;
-      if (ob.airline) message += ` • ${ob.airline}`;
+    message += `\n🇪🇺 <b>Europa interna — casi oferta:</b>\n`;
+    for (const deal of nearCombinedDeals.slice(0, 7)) {
+      message += `🟡 <b>€${deal.price}</b> ${deal.routeName}`;
+      if (deal.airline) message += ` • ${deal.airline}`;
+      if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
       message += `\n`;
-      message += `   VUELTA (${formatDateShort(ret.departureDate)}): €${ret.price}`;
-      if (ret.airline) message += ` • ${ret.airline}`;
-      message += `\n\n`;
     }
   }
 
   message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-  message += `💡 <i>Si baja la suma a ≤€850 se convierte en oferta</i>\n`;
-  message += `🔗 Buscar tramos en Google Flights`;
+  message += `💡 <i>Precios cercanos al umbral de oferta</i>\n`;
+  message += `🔗 Revisar en Google Flights / Ryanair`;
 
-  // Resumen de TODAS las búsquedas realizadas
+  // Resumen de búsquedas realizadas
   if (searchSummary) {
     message += `\n\n📋 <b>Búsquedas realizadas:</b>\n`;
     if (searchSummary.ezeSearched) {
       const ok = searchSummary.ezeSuccess || 0;
       const fail = searchSummary.ezeTotal - ok;
-      message += `✈️ Buenos Aires (EZE): ${ok}/${searchSummary.ezeTotal} OK`;
-      if (fail > 0) message += ` (${fail} sin resultado)`;
-      message += `\n`;
-    }
-    if (searchSummary.corSearched) {
-      const ok = searchSummary.corSuccess || 0;
-      const fail = searchSummary.corTotal - ok;
-      message += `✈️ Córdoba (COR): ${ok}/${searchSummary.corTotal} OK`;
+      message += `✈️ Ethiopian EZE→FCO RT: ${ok}/${searchSummary.ezeTotal} OK`;
       if (fail > 0) message += ` (${fail} sin resultado)`;
       message += `\n`;
     }
     if (searchSummary.eurSearched) {
       const ok = searchSummary.eurSuccess || 0;
       const fail = searchSummary.eurTotal - ok;
-      message += `✈️ Europa→Argentina (vuelta 7 abr): ${ok}/${searchSummary.eurTotal} OK`;
+      message += `✈️ Europa interna: ${ok}/${searchSummary.eurTotal} OK`;
       if (fail > 0) message += ` (${fail} sin resultado)`;
       message += `\n`;
     }
     if (searchSummary.sclSearched) {
       const ok = searchSummary.sclSuccess || 0;
       const fail = searchSummary.sclTotal - ok;
-      message += `✈️ Chile (SCL) → Sídney: ${ok}/${searchSummary.sclTotal} OK`;
+      message += `✈️ SCL → Sídney: ${ok}/${searchSummary.sclTotal} OK`;
       if (fail > 0) message += ` (${fail} sin resultado)`;
       message += `\n`;
     }
