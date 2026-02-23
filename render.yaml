@@ -1,0 +1,23 @@
+# Render Blueprint — Flight Deal Finder v6.0
+# Para deploy automático: https://render.com/deploy
+services:
+  - type: web
+    name: flight-price-bot
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false  # Se configura manualmente en el dashboard
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/chromium
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: "true"
+      - key: MONITOR_TIMEZONE
+        value: Europe/Rome
+      - key: MONITOR_SCHEDULE
+        value: "*/30 * * * *"
