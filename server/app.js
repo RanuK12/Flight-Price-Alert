@@ -58,7 +58,7 @@ app.use((err, req, res, next) => {
 async function startServer() {
   try {
     console.log('\n' + '='.repeat(60));
-    console.log('🛫 FLIGHT DEAL FINDER v5.0');
+    console.log('🛫 FLIGHT DEAL FINDER v5.1');
     console.log('='.repeat(60));
     console.log('');
     
