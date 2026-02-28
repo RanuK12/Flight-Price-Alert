@@ -1,7 +1,8 @@
 /**
- * Servicio de Notificaciones por Telegram v2.0
- * 
- * Envía alertas de ofertas separadas por SOLO IDA e IDA Y VUELTA
+ * Servicio de Notificaciones por Telegram v5.1
+ *
+ * Envía alertas de ofertas para TODAS las rutas (vuelos + bus/tren)
+ * + informe diario PDF
  */
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -40,32 +41,70 @@ function initTelegram() {
 }
 
 /**
- * Envía reporte de ofertas — solo vuelos AMS→MAD con alerta
+ * Envía reporte de ofertas — TODAS las rutas (vuelos + transit)
  */
-async function sendDealsReport(flightDeals, _unused) {
-  if (!flightDeals || flightDeals.length === 0) {
+async function sendDealsReport(flightDeals, transitDeals) {
+  const totalDeals = (flightDeals?.length || 0) + (transitDeals?.length || 0);
+  if (totalDeals === 0) {
     return false;
   }
 
-  let message = `🔥 <b>¡OFERTA VUELO AMS → MAD!</b> 🔥\n`;
+  let message = `🔥 <b>¡OFERTAS ENCONTRADAS!</b> 🔥\n`;
   message += `📅 ${new Date().toLocaleString('es-ES')}\n`;
-  message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  message += `━━━━━━━━━━━━━━━━━━━━━\n`;
 
-  message += `✈️ <b>Amsterdam → Madrid (solo ida, máx €75)</b>\n\n`;
-
-  for (const deal of flightDeals.slice(0, 10)) {
-    const emoji = deal.price <= 40 ? '🔥🔥🔥' : (deal.price <= 55 ? '🔥🔥' : '🔥');
-    message += `${emoji} <b>€${deal.price}</b>`;
-    if (deal.airline) message += ` • ${deal.airline}`;
-    if (deal.departureDate && deal.departureDate !== 'Flexible') {
-      message += ` • ${formatDateShort(deal.departureDate)}`;
+  // ══════ VUELOS ══════
+  if (flightDeals && flightDeals.length > 0) {
+    // Agrupar vuelos por ruta
+    const flightsByRoute = {};
+    for (const deal of flightDeals) {
+      const key = deal.routeName || `${deal.origin}→${deal.destination}`;
+      if (!flightsByRoute[key]) flightsByRoute[key] = [];
+      flightsByRoute[key].push(deal);
     }
-    message += `\n`;
+
+    for (const [routeName, deals] of Object.entries(flightsByRoute)) {
+      const threshold = deals[0].threshold || '?';
+      message += `\n✈️ <b>${routeName}</b> (≤ €${threshold})\n`;
+      for (const deal of deals.slice(0, 5)) {
+        const emoji = deal.price <= deal.threshold * 0.6 ? '🔥🔥🔥' : (deal.price <= deal.threshold * 0.8 ? '🔥🔥' : '🔥');
+        message += `${emoji} <b>€${deal.price}</b>`;
+        if (deal.airline) message += ` • ${deal.airline}`;
+        if (deal.departureDate && deal.departureDate !== 'Flexible') {
+          message += ` • ${formatDateShort(deal.departureDate)}`;
+        }
+        message += `\n`;
+      }
+    }
+  }
+
+  // ══════ BUS/TREN ══════
+  if (transitDeals && transitDeals.length > 0) {
+    const transitByRoute = {};
+    for (const deal of transitDeals) {
+      const key = deal.routeName || `${deal.origin}→${deal.destination}`;
+      if (!transitByRoute[key]) transitByRoute[key] = [];
+      transitByRoute[key].push(deal);
+    }
+
+    for (const [routeName, deals] of Object.entries(transitByRoute)) {
+      message += `\n🚌 <b>${routeName}</b>\n`;
+      for (const deal of deals.slice(0, 5)) {
+        message += `🔥 <b>€${deal.price}</b>`;
+        if (deal.provider) message += ` • ${deal.provider}`;
+        if (deal.transportType) message += ` (${deal.transportType})`;
+        if (deal.departureDate && deal.departureDate !== 'Flexible') {
+          message += ` • ${formatDateShort(deal.departureDate)}`;
+        }
+        if (deal.departureTime) message += ` ${deal.departureTime}`;
+        message += `\n`;
+      }
+    }
   }
 
   message += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
-  message += `📊 Total: <b>${flightDeals.length}</b> ofertas\n`;
-  message += `🔗 Reserva en Google Flights`;
+  message += `📊 Total: <b>${totalDeals}</b> ofertas\n`;
+  message += `🔗 Reservar en Google Flights / FlixBus`;
 
   return sendMessage(message);
 }
@@ -233,7 +272,7 @@ async function sendNoDealsMessage(totalSearches) {
 🔍 <b>Búsqueda Completada</b>
 
 ✅ Rutas analizadas: ${totalSearches}
-❌ Sin ofertas AMS → MAD ≤ €75
+❌ Sin ofertas por debajo de los umbrales
 
 Seguimos monitoreando... 👀
 ⏰ ${new Date().toLocaleString('es-ES')}
@@ -247,15 +286,17 @@ Seguimos monitoreando... 👀
  */
 async function sendMonitoringStarted() {
   const message = `
-🚀 <b>Monitor de Vuelos y Transporte v5.0</b>
+🚀 <b>Monitor de Vuelos y Transporte v5.1</b>
 
-📋 <b>Rutas monitoreadas:</b>
-✈️ VCE/VRN → AMS: 24-26 mar (sin alerta)
-🚌 Trento → Múnich → AMS: 24-26 mar (sin alerta)
-✈️ AMS → MAD: 3-5 abr <b>(ALERTA ≤ €75)</b>
-🚌 AMS → MAD: 3-5 abr (sin alerta)
+📋 <b>Rutas monitoreadas (TODAS con alerta):</b>
+✈️ VCE/VRN → AMS: 24-26 mar <b>(≤ €60)</b>
+🚌 Trento → Múnich: 24-26 mar <b>(≤ €30)</b>
+🚌 Múnich → AMS: 24-26 mar <b>(≤ €40)</b>
+✈️ AMS → MAD: 3-5 abr <b>(≤ €75)</b>
+🚌 AMS → MAD: 3-5 abr <b>(≤ €60)</b>
 
-📢 Alertas Telegram solo para: AMS → MAD vuelos
+📢 Alertas Telegram: TODAS las rutas
+📄 Informe diario PDF: 21:00 CET
 
 ⏰ ${new Date().toLocaleString('es-ES')}
 `.trim();
@@ -284,10 +325,15 @@ async function sendTestMessage() {
   const message = `
 ✅ <b>Test de Conexión Exitoso</b>
 
-El bot de Flight Deal Finder v5.0 está funcionando.
+El bot de Flight Deal Finder v5.1 está funcionando.
 
-📋 <b>Alertas activas:</b>
-✈️ AMS → MAD: vuelos ≤ €75 (3-5 abr)
+📋 <b>Alertas activas (TODAS las rutas):</b>
+✈️ VCE/VRN → AMS ≤ €60
+🚌 Trento → Múnich ≤ €30
+🚌 Múnich → AMS ≤ €40
+✈️ AMS → MAD ≤ €75
+🚌 AMS → MAD ≤ €60
+📄 Informe diario PDF: 21:00 CET
 
 ⏰ ${new Date().toLocaleString('es-ES')}
 `.trim();
