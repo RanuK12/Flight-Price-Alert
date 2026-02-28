@@ -1,18 +1,18 @@
 /**
- * Servicio de Monitoreo de Vuelos y Transporte v5.0
+ * Servicio de Monitoreo de Vuelos y Transporte v5.1
  *
  * Busca precios usando:
  * - Puppeteer (Google Flights) para vuelos
  * - FlixBus API para autobuses/trenes
  *
- * RUTAS:
- * - Vuelos VCE/VRN → AMS (24-26 mar) — solo búsqueda, sin alerta
- * - Bus/tren Trento → Múnich (24-26 mar) — solo búsqueda
- * - Bus/tren Múnich → Amsterdam (24-26 mar) — solo búsqueda
- * - Vuelos AMS → MAD (3-5 abr) — CON ALERTA Telegram
- * - Bus/tren Amsterdam → Madrid (3-5 abr) — solo búsqueda
+ * RUTAS (TODAS con alerta Telegram cuando hay oferta):
+ * - Vuelos VCE/VRN → AMS (24-26 mar) — ALERTA ≤ €60
+ * - Bus/tren Trento → Múnich (24-26 mar) — ALERTA ≤ €30
+ * - Bus/tren Múnich → Amsterdam (24-26 mar) — ALERTA ≤ €40
+ * - Vuelos AMS → MAD (3-5 abr) — ALERTA ≤ €75
+ * - Bus/tren Amsterdam → Madrid (3-5 abr) — ALERTA ≤ €60
  *
- * Alertas Telegram SOLO para: AMS → MAD vuelos ≤ €75
+ * + Informe diario PDF a las 21:00
  */
 
 const cron = require('node-cron');
@@ -34,25 +34,25 @@ const MONITOR_TIMEZONE = process.env.MONITOR_TIMEZONE || 'Europe/Rome';
 // =============================================
 
 const MONITORED_ROUTES = [
-  // ========== VUELOS: Venecia/Verona → Amsterdam (sin alerta) ==========
-  { origin: 'VCE', destination: 'AMS', name: 'Venecia → Amsterdam', mode: 'flight', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: false, threshold: 60 },
-  { origin: 'VRN', destination: 'AMS', name: 'Verona → Amsterdam', mode: 'flight', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: false, threshold: 60 },
+  // ========== VUELOS: Venecia/Verona → Amsterdam (ALERTA ≤ €60) ==========
+  { origin: 'VCE', destination: 'AMS', name: 'Venecia → Amsterdam', mode: 'flight', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 60 },
+  { origin: 'VRN', destination: 'AMS', name: 'Verona → Amsterdam', mode: 'flight', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 60 },
 
-  // ========== BUS/TREN: Trento → Múnich → Amsterdam (sin alerta) ==========
-  { origin: 'Trento', destination: 'Munich', name: 'Trento → Múnich', mode: 'transit', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: false, threshold: 30 },
-  { origin: 'Munich', destination: 'Amsterdam', name: 'Múnich → Amsterdam', mode: 'transit', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: false, threshold: 40 },
+  // ========== BUS/TREN: Trento → Múnich → Amsterdam (ALERTA ≤ €30/€40) ==========
+  { origin: 'Trento', destination: 'Munich', name: 'Trento → Múnich', mode: 'transit', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 30 },
+  { origin: 'Munich', destination: 'Amsterdam', name: 'Múnich → Amsterdam', mode: 'transit', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 40 },
 
-  // ========== VUELOS: Amsterdam → Madrid (CON ALERTA!) ==========
+  // ========== VUELOS: Amsterdam → Madrid (ALERTA ≤ €75) ==========
   { origin: 'AMS', destination: 'MAD', name: 'Amsterdam → Madrid', mode: 'flight', dates: ['2026-04-03', '2026-04-04', '2026-04-05'], tripType: 'oneway', alert: true, threshold: 75 },
 
-  // ========== BUS/TREN: Amsterdam → Madrid (sin alerta) ==========
-  { origin: 'Amsterdam', destination: 'Madrid', name: 'Amsterdam → Madrid', mode: 'transit', dates: ['2026-04-03', '2026-04-04', '2026-04-05'], tripType: 'oneway', alert: false, threshold: 60 },
+  // ========== BUS/TREN: Amsterdam → Madrid (ALERTA ≤ €60) ==========
+  { origin: 'Amsterdam', destination: 'Madrid', name: 'Amsterdam → Madrid', mode: 'transit', dates: ['2026-04-03', '2026-04-04', '2026-04-05'], tripType: 'oneway', alert: true, threshold: 60 },
 ];
 
 // =============================================
-// UMBRALES DE ALERTA (solo AMS→MAD vuelos)
+// UMBRALES DE ALERTA (por ruta, definidos arriba)
 // =============================================
-const FLIGHT_ALERT_THRESHOLD = 75; // €75 máximo para alerta AMS→MAD
+const FLIGHT_ALERT_THRESHOLD = 75; // Referencia máxima para vuelos AMS→MAD
 
 // =============================================
 // HELPERS
@@ -90,16 +90,16 @@ async function runFullSearch(options = {}) {
   const { notifyDeals = true } = options;
 
   console.log('\n' + '='.repeat(60));
-  console.log('🔍 BÚSQUEDA DE VUELOS Y TRANSPORTE v5.0');
+  console.log('🔍 BÚSQUEDA DE VUELOS Y TRANSPORTE v5.1');
   console.log('='.repeat(60));
   console.log(`⏰ ${new Date().toLocaleString('es-ES')}`);
-  console.log(`📊 Rutas: ${MONITORED_ROUTES.length}`);
+  console.log(`📊 Rutas: ${MONITORED_ROUTES.length} (TODAS con alerta)`);
   console.log('');
   console.log('📋 CONFIGURACIÓN:');
-  console.log('   ✈️ VCE/VRN → AMS: vuelos 24-26 mar (sin alerta)');
-  console.log('   🚌 Trento → Múnich → AMS: bus/tren 24-26 mar (sin alerta)');
-  console.log('   ✈️ AMS → MAD: vuelos 3-5 abr (CON ALERTA ≤ €75)');
-  console.log('   🚌 AMS → MAD: bus/tren 3-5 abr (sin alerta)');
+  console.log('   ✈️ VCE/VRN → AMS: vuelos 24-26 mar (ALERTA ≤ €60)');
+  console.log('   🚌 Trento → Múnich → AMS: bus/tren 24-26 mar (ALERTA ≤ €30/€40)');
+  console.log('   ✈️ AMS → MAD: vuelos 3-5 abr (ALERTA ≤ €75)');
+  console.log('   🚌 AMS → MAD: bus/tren 3-5 abr (ALERTA ≤ €60)');
   console.log('');
 
   const results = {
@@ -229,19 +229,24 @@ async function runFullSearch(options = {}) {
                 console.log(`  🔥 OFERTA: €${price} (${journey.provider} ${journey.transportType}) — ${journey.departureTime || ''}`);
 
                 if (route.alert) {
-                  results.transitDeals.push({
-                    origin: route.origin,
-                    destination: route.destination,
-                    routeName: route.name,
-                    price,
-                    provider: journey.provider,
-                    transportType: journey.transportType,
-                    departureDate,
-                    departureTime: journey.departureTime,
-                    duration: journey.duration,
-                    bookingUrl: journey.link,
-                    mode: 'transit',
-                  });
+                  const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
+                  if (!recentlyAlerted) {
+                    results.transitDeals.push({
+                      origin: route.origin,
+                      destination: route.destination,
+                      routeName: route.name,
+                      price,
+                      provider: journey.provider,
+                      transportType: journey.transportType,
+                      departureDate,
+                      departureTime: journey.departureTime,
+                      duration: journey.duration,
+                      bookingUrl: journey.link,
+                      mode: 'transit',
+                    });
+                  } else {
+                    console.log(`  🔕 Ya alertado recientemente (anti-spam)`);
+                  }
                 }
               }
             }
@@ -263,7 +268,9 @@ async function runFullSearch(options = {}) {
 
   // Deduplicar ofertas
   results.flightDeals = deduplicateAndSort(results.flightDeals);
-  totalDealsFound += results.flightDeals.length;
+  results.transitDeals = deduplicateAndSort(results.transitDeals);
+  const totalNewDeals = results.flightDeals.length + results.transitDeals.length;
+  totalDealsFound += totalNewDeals;
 
   // ══════════════ RESUMEN ══════════════
   const duration = (results.endTime - results.startTime) / 1000;
@@ -274,21 +281,30 @@ async function runFullSearch(options = {}) {
   console.log('='.repeat(60));
   console.log(`✅ Búsquedas: ${successCount}/${results.allSearches.length}`);
   if (results.errors.length > 0) console.log(`❌ Errores: ${results.errors.length}`);
-  console.log(`🔥 Ofertas con alerta (AMS→MAD vuelos): ${results.flightDeals.length}`);
+  console.log(`✈️ Ofertas vuelos: ${results.flightDeals.length}`);
+  console.log(`🚌 Ofertas transit: ${results.transitDeals.length}`);
+  console.log(`🔥 Total ofertas alertables: ${totalNewDeals}`);
   console.log(`⏱️ Duración: ${duration.toFixed(1)}s`);
 
   if (results.flightDeals.length > 0) {
-    console.log('\n🎯 ALERTAS AMS → MAD:');
+    console.log('\n🎯 ALERTAS VUELOS:');
     results.flightDeals.forEach((d, i) => {
-      console.log(`  ${i + 1}. €${d.price} (${d.airline}) — ${formatDate(d.departureDate)}`);
+      console.log(`  ${i + 1}. ${d.routeName}: €${d.price} (${d.airline}) — ${formatDate(d.departureDate)}`);
     });
   }
 
-  // ══════════════ TELEGRAM — solo alertas AMS→MAD ══════════════
-  if (notifyDeals && isActive() && results.flightDeals.length > 0) {
-    await sendDealsReport(results.flightDeals, []);
-    console.log('📱 Alerta Telegram enviada (AMS→MAD)');
-  } else if (results.flightDeals.length === 0) {
+  if (results.transitDeals.length > 0) {
+    console.log('\n🎯 ALERTAS BUS/TREN:');
+    results.transitDeals.forEach((d, i) => {
+      console.log(`  ${i + 1}. ${d.routeName}: €${d.price} (${d.provider} ${d.transportType}) — ${formatDate(d.departureDate)}`);
+    });
+  }
+
+  // ══════════════ TELEGRAM — alertas para TODAS las rutas ══════════════
+  if (notifyDeals && isActive() && totalNewDeals > 0) {
+    await sendDealsReport(results.flightDeals, results.transitDeals);
+    console.log(`📱 Alerta Telegram enviada (${totalNewDeals} ofertas)`);
+  } else if (totalNewDeals === 0) {
     console.log('📴 Sin ofertas alertables — no se envía Telegram');
   }
 
@@ -357,15 +373,14 @@ function startMonitoring(cronSchedule = '0 */2 * * *', timezone = 'Europe/Rome')
     return false;
   }
 
-  console.log('\n🚀 INICIANDO MONITOREO v5.0');
+  console.log('\n🚀 INICIANDO MONITOREO v5.1');
   console.log(`⏰ Programación: ${cronSchedule}`);
-  console.log('📋 Rutas:');
+  console.log('📋 Rutas (TODAS con alerta Telegram):');
   for (const r of MONITORED_ROUTES) {
     const emoji = r.mode === 'flight' ? '✈️' : '🚌';
-    const alertFlag = r.alert ? ' [ALERTA]' : '';
-    console.log(`   ${emoji} ${r.name} — ${r.dates.join(', ')}${alertFlag}`);
+    console.log(`   ${emoji} ${r.name} — ${r.dates.join(', ')} [ALERTA ≤ €${r.threshold}]`);
   }
-  console.log(`📢 Alertas Telegram: solo AMS → MAD vuelos ≤ €${FLIGHT_ALERT_THRESHOLD}`);
+  console.log(`📢 Alertas Telegram: TODAS las rutas + informe diario PDF`);
   console.log('');
 
   cronJob = cron.schedule(cronSchedule, async () => {
