@@ -7,8 +7,10 @@
  *
  * RUTAS (TODAS con alerta Telegram cuando hay oferta):
  * - Vuelos VCE/VRN → AMS (24-26 mar) — ALERTA ≤ €60
+ * - Vuelo MXP → AMS (24-26 mar) — ALERTA ≤ €50
  * - Bus/tren Trento → Múnich (24-26 mar) — ALERTA ≤ €30
  * - Bus/tren Múnich → Amsterdam (24-26 mar) — ALERTA ≤ €40
+ * - Bus/tren Milan → Amsterdam (24-26 mar) — ALERTA ≤ €45
  * - Vuelos AMS → MAD (3-5 abr) — ALERTA ≤ €75
  * - Bus/tren Amsterdam → Madrid (3-5 abr) — ALERTA ≤ €60
  *
@@ -38,9 +40,15 @@ const MONITORED_ROUTES = [
   { origin: 'VCE', destination: 'AMS', name: 'Venecia → Amsterdam', mode: 'flight', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 60 },
   { origin: 'VRN', destination: 'AMS', name: 'Verona → Amsterdam', mode: 'flight', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 60 },
 
+  // ========== VUELO: Milán Malpensa → Amsterdam (ALERTA ≤ €50) ==========
+  { origin: 'MXP', destination: 'AMS', name: 'Milán → Amsterdam', mode: 'flight', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 50 },
+
   // ========== BUS/TREN: Trento → Múnich → Amsterdam (ALERTA ≤ €30/€40) ==========
   { origin: 'Trento', destination: 'Munich', name: 'Trento → Múnich', mode: 'transit', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 30 },
   { origin: 'Munich', destination: 'Amsterdam', name: 'Múnich → Amsterdam', mode: 'transit', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 40 },
+
+  // ========== BUS/TREN: Milán → Amsterdam (ALERTA ≤ €45) ==========
+  { origin: 'Milan', destination: 'Amsterdam', name: 'Milán → Amsterdam', mode: 'transit', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 45 },
 
   // ========== VUELOS: Amsterdam → Madrid (ALERTA ≤ €75) ==========
   { origin: 'AMS', destination: 'MAD', name: 'Amsterdam → Madrid', mode: 'flight', dates: ['2026-04-03', '2026-04-04', '2026-04-05'], tripType: 'oneway', alert: true, threshold: 75 },
@@ -96,8 +104,9 @@ async function runFullSearch(options = {}) {
   console.log(`📊 Rutas: ${MONITORED_ROUTES.length} (TODAS con alerta)`);
   console.log('');
   console.log('📋 CONFIGURACIÓN:');
-  console.log('   ✈️ VCE/VRN → AMS: vuelos 24-26 mar (ALERTA ≤ €60)');
+  console.log('   ✈️ VCE/VRN/MXP → AMS: vuelos 24-26 mar (ALERTA ≤ €60/€50)');
   console.log('   🚌 Trento → Múnich → AMS: bus/tren 24-26 mar (ALERTA ≤ €30/€40)');
+  console.log('   🚌 Milán → AMS: bus/tren 24-26 mar (ALERTA ≤ €45)');
   console.log('   ✈️ AMS → MAD: vuelos 3-5 abr (ALERTA ≤ €75)');
   console.log('   🚌 AMS → MAD: bus/tren 3-5 abr (ALERTA ≤ €60)');
   console.log('');
