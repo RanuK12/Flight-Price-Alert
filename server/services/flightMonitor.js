@@ -282,6 +282,7 @@ async function runFullSearch(options = {}) {
     results.flightDeals.forEach((d, i) => {
       console.log(`  ${i + 1}. €${d.price} (${d.airline}) — ${formatDate(d.departureDate)}`);
     });
+  }
 
   // ══════════════ TELEGRAM — solo alertas AMS→MAD ══════════════
   if (notifyDeals && isActive() && results.flightDeals.length > 0) {
@@ -431,7 +432,6 @@ module.exports = {
   stopMonitoring,
   getMonitorStatus,
   getStats,
-  buildSearchPlan,
   MONITORED_ROUTES,
   FLIGHT_ALERT_THRESHOLD,
 };

@@ -67,15 +67,6 @@ async function sendDealsReport(flightDeals, _unused) {
   message += `📊 Total: <b>${flightDeals.length}</b> ofertas\n`;
   message += `🔗 Reserva en Google Flights`;
 
-  return message;
-}
-
-/**
- * Envía reporte de ofertas
- */
-async function sendDealsReport(oneWayDeals, combinedDeals = [], outboundDeals = [], returnDeals = [], europeDeals = [], roundTripDeals = []) {
-  const message = buildDealsReportMessage(oneWayDeals, combinedDeals, outboundDeals, returnDeals, europeDeals, roundTripDeals);
-  if (!message) return false;
   return sendMessage(message);
 }
 
@@ -526,9 +517,7 @@ module.exports = {
   sendDealAlert,
   sendSearchSummary,
   sendDealsReport,
-  buildDealsReportMessage,
   sendNearDealAlert,
-  buildNearDealMessage,
   sendNoDealsMessage,
   sendErrorAlert,
   sendMonitoringStarted,
