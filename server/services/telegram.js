@@ -40,89 +40,32 @@ function initTelegram() {
 }
 
 /**
- * Construye el mensaje de reporte de ofertas.
- * @param {Array} oneWayDeals - Deals SCL→SYD solo ida
- * @param {Array} combinedDeals - Pares IDA+VUELTA Argentina↔Europa (suma ≤€850)
- * @param {Array} outboundDeals - Tramos IDA Argentina→Europa baratos individualmente
- * @param {Array} returnDeals - Tramos VUELTA Europa→Argentina baratos individualmente
+ * Envía reporte de ofertas — solo vuelos AMS→MAD con alerta
  */
-function buildDealsReportMessage(oneWayDeals, combinedDeals = [], outboundDeals = [], returnDeals = [], europeDeals = [], roundTripDeals = []) {
-  const totalDeals = oneWayDeals.length + combinedDeals.length + europeDeals.length + roundTripDeals.length;
-  if (totalDeals === 0) return null;
+async function sendDealsReport(flightDeals, _unused) {
+  if (!flightDeals || flightDeals.length === 0) {
+    return false;
+  }
 
-  let message = `🔥 <b>¡OFERTAS ENCONTRADAS!</b> 🔥\n`;
+  let message = `🔥 <b>¡OFERTA VUELO AMS → MAD!</b> 🔥\n`;
   message += `📅 ${new Date().toLocaleString('es-ES')}\n`;
-  message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-  // ── SECCIÓN 1: Ethiopian EZE → Roma Roundtrip ──
-  if (roundTripDeals.length > 0) {
-    message += `\n🎫 <b>EZE → Roma (Roundtrip)</b> (${roundTripDeals.length} ofertas)\n`;
-    message += `✈️ 23 mar → 7 abr 2026 • ≤€850\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  message += `✈️ <b>Amsterdam → Madrid (solo ida, máx €75)</b>\n\n`;
 
-    for (const deal of roundTripDeals.slice(0, 5)) {
-      const emoji = deal.price <= 700 ? '🔥🔥🔥' : (deal.price <= 800 ? '🔥🔥' : '🔥');
-      message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
-      if (deal.airline) message += ` • ${deal.airline}`;
-      if (deal.departureDate) message += ` • ${formatDateShort(deal.departureDate)}`;
-      if (deal.returnDate) message += ` ↔ ${formatDateShort(deal.returnDate)}`;
-      message += `\n`;
+  for (const deal of flightDeals.slice(0, 10)) {
+    const emoji = deal.price <= 40 ? '🔥🔥🔥' : (deal.price <= 55 ? '🔥🔥' : '🔥');
+    message += `${emoji} <b>€${deal.price}</b>`;
+    if (deal.airline) message += ` • ${deal.airline}`;
+    if (deal.departureDate && deal.departureDate !== 'Flexible') {
+      message += ` • ${formatDateShort(deal.departureDate)}`;
     }
+    message += `\n`;
   }
 
-  // ── SECCIÓN 2: (reservado para combinaciones futuras) ──
-  if (combinedDeals.length > 0) {
-    message += `\n🔄 <b>Combinaciones</b> — ${combinedDeals.length}\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-
-    for (const deal of combinedDeals.slice(0, 6)) {
-      const emoji = '🔥';
-      const ob = deal.outbound;
-      const ret = deal.returnFlight;
-      message += `\n${emoji} <b>€${deal.combinedPrice} TOTAL</b> — ${ob.origin} ↔ ${ret.origin}\n`;
-      message += `   ✈️ <b>IDA</b> (${formatDateShort(ob.departureDate)}): <b>€${ob.price}</b>`;
-      if (ob.airline) message += ` • ${ob.airline}`;
-      message += ` • ${ob.origin}→${ob.destination}\n`;
-      message += `   ✈️ <b>VUELTA</b> (${formatDateShort(ret.departureDate)}): <b>€${ret.price}</b>`;
-      if (ret.airline) message += ` • ${ret.airline}`;
-      message += ` • ${ret.origin}→${ret.destination}\n`;
-    }
-    if (combinedDeals.length > 6) {
-      message += `<i>+${combinedDeals.length - 6} combinaciones más...</i>\n`;
-    }
-  }
-
-  // ── SECCIÓN 3: (reservado) ──
-
-  // ── SECCIÓN 4: Vuelos Europa interna (solo ida) ──
-  if (europeDeals.length > 0) {
-    message += `\n🇪🇺 <b>Europa — solo ida</b> (${europeDeals.length} ofertas)\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    for (const deal of europeDeals) {
-      const emoji = deal.price <= 25 ? '🔥🔥🔥' : (deal.price <= 50 ? '🔥🔥' : '🔥');
-      message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
-      if (deal.airline) message += ` • ${deal.airline}`;
-      if (deal.departureDate && deal.departureDate !== 'Flexible') message += ` • ${formatDateShort(deal.departureDate)}`;
-      message += `\n`;
-    }
-  }
-
-  // ── SECCIÓN 5: SCL → SYD ──
-  if (oneWayDeals.length > 0) {
-    message += `\n🇨🇱 <b>Chile → Oceanía</b> — solo ida, junio (≤€800)\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    for (const deal of oneWayDeals.slice(0, 5)) {
-      const emoji = deal.price <= 600 ? '🔥🔥🔥' : (deal.price <= 700 ? '🔥🔥' : '🔥');
-      message += `${emoji} <b>€${deal.price}</b> ${deal.routeName}`;
-      if (deal.airline) message += ` • ${deal.airline}`;
-      if (deal.departureDate && deal.departureDate !== 'Flexible') message += ` • ${formatDateShort(deal.departureDate)}`;
-      message += `\n`;
-    }
-  }
-
-  // Footer
   message += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
-  message += `📊 <b>${totalDeals}</b> ofertas encontradas • 🔗 Buscar en Google Flights`;
+  message += `📊 Total: <b>${flightDeals.length}</b> ofertas\n`;
+  message += `🔗 Reserva en Google Flights`;
 
   return message;
 }
@@ -299,11 +242,7 @@ async function sendNoDealsMessage(totalSearches) {
 🔍 <b>Búsqueda Completada</b>
 
 ✅ Rutas analizadas: ${totalSearches}
-❌ Sin ofertas que cumplan los umbrales:
-
-• Solo ida Europa→Argentina: ≤ €350
-• Solo ida USA→Argentina: ≤ €200
-• Ida y vuelta: ≤ €600 (aviso €650-€800)
+❌ Sin ofertas AMS → MAD ≤ €75
 
 Seguimos monitoreando... 👀
 ⏰ ${new Date().toLocaleString('es-ES')}
@@ -317,24 +256,15 @@ Seguimos monitoreando... 👀
  */
 async function sendMonitoringStarted() {
   const message = `
-🚀 <b>Monitor de Vuelos v3.0</b>
+🚀 <b>Monitor de Vuelos y Transporte v5.0</b>
 
-📆 <b>Fechas de búsqueda:</b>
-25 marzo - 15 abril 2026
+📋 <b>Rutas monitoreadas:</b>
+✈️ VCE/VRN → AMS: 24-26 mar (sin alerta)
+🚌 Trento → Múnich → AMS: 24-26 mar (sin alerta)
+✈️ AMS → MAD: 3-5 abr <b>(ALERTA ≤ €75)</b>
+🚌 AMS → MAD: 3-5 abr (sin alerta)
 
-📋 <b>Umbrales de ofertas:</b>
-✈️ Solo ida Europa→Argentina: máx €350
-✈️ Solo ida USA→Argentina: máx €200
-🔄 Ida y vuelta Argentina→Europa: ≤ €600
-🟡 Casi oferta I+V: €650-€800 (aviso aparte)
-
-📍 <b>Rutas SOLO IDA:</b>
-🇪🇺 Madrid, Barcelona, Roma, París, Frankfurt, Amsterdam, Lisboa, Londres
-🇺🇸 Miami, Nueva York, Orlando
-
-📍 <b>Rutas IDA Y VUELTA:</b>
-🇦🇷 Buenos Aires (EZE) → Madrid, Barcelona, Roma, París, Lisboa
-🇦🇷 Córdoba (COR) → Madrid, Barcelona, Roma
+📢 Alertas Telegram solo para: AMS → MAD vuelos
 
 ⏰ ${new Date().toLocaleString('es-ES')}
 `.trim();
@@ -363,12 +293,10 @@ async function sendTestMessage() {
   const message = `
 ✅ <b>Test de Conexión Exitoso</b>
 
-El bot de Flight Deal Finder está funcionando correctamente.
+El bot de Flight Deal Finder v5.0 está funcionando.
 
-📋 <b>Umbrales configurados:</b>
-• Solo ida Europa→Argentina: €350
-• Solo ida USA→Argentina: €200 / €250  
-• Ida y vuelta Argentina→Europa: ≤ €600 (aviso €650-€800)
+📋 <b>Alertas activas:</b>
+✈️ AMS → MAD: vuelos ≤ €75 (3-5 abr)
 
 ⏰ ${new Date().toLocaleString('es-ES')}
 `.trim();
