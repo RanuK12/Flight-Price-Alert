@@ -290,8 +290,10 @@ async function sendMonitoringStarted() {
 
 📋 <b>Rutas monitoreadas (TODAS con alerta):</b>
 ✈️ VCE/VRN → AMS: 24-26 mar <b>(≤ €60)</b>
+✈️ MXP → AMS: 24-26 mar <b>(≤ €50)</b>
 🚌 Trento → Múnich: 24-26 mar <b>(≤ €30)</b>
 🚌 Múnich → AMS: 24-26 mar <b>(≤ €40)</b>
+🚌 Milán → AMS: 24-26 mar <b>(≤ €45)</b>
 ✈️ AMS → MAD: 3-5 abr <b>(≤ €75)</b>
 🚌 AMS → MAD: 3-5 abr <b>(≤ €60)</b>
 
@@ -329,8 +331,10 @@ El bot de Flight Deal Finder v5.1 está funcionando.
 
 📋 <b>Alertas activas (TODAS las rutas):</b>
 ✈️ VCE/VRN → AMS ≤ €60
+✈️ MXP → AMS ≤ €50
 🚌 Trento → Múnich ≤ €30
 🚌 Múnich → AMS ≤ €40
+🚌 Milán → AMS ≤ €45
 ✈️ AMS → MAD ≤ €75
 🚌 AMS → MAD ≤ €60
 📄 Informe diario PDF: 21:00 CET
