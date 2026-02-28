@@ -2,7 +2,7 @@
  * Transit Scraper v1.0 — FlixBus API
  *
  * Busca precios de autobuses y trenes vía FlixBus/FlixTrain API.
- * Rutas: Trento→Múnich, Múnich→Amsterdam, Amsterdam→Madrid
+ * Rutas: Trento→Múnich, Múnich→Amsterdam, Milan→Amsterdam, Amsterdam→Madrid
  */
 
 const axios = require('axios');
@@ -19,6 +19,7 @@ const FALLBACK_CITY_IDS = {
   'Munich':    '40d901a5-8646-11e6-9066-549f350fcb0c',
   'Amsterdam': '40dde3b8-8646-11e6-9066-549f350fcb0c',
   'Madrid':    '9a07bb38-3596-48eb-a857-18fd01199c62',
+  'Milan':     '40ddcc6e-8646-11e6-9066-549f350fcb0c',
 };
 
 /**
