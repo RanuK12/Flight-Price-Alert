@@ -9,7 +9,31 @@
  */
 
 const { scrapeGoogleFlights } = require('./puppeteerGoogleFlights');
-const { scrapeRyanair, isRyanairRoute } = require('./ryanair');
+const { scrapeTransitPrices } = require('./transitScraper');
+
+// APIs opcionales (solo si hay credenciales)
+let amadeus = null;
+let kiwi = null;
+let serpApiSearch = null;
+
+try {
+  if (process.env.AMADEUS_API_KEY) {
+    amadeus = require('./amadeus');
+  }
+} catch (e) { /* Módulo no disponible */ }
+
+try {
+  if (process.env.KIWI_API_KEY) {
+    kiwi = require('./kiwi');
+  }
+} catch (e) { /* Módulo no disponible */ }
+
+try {
+  if (process.env.SERPAPI_KEY) {
+    const gf = require('./googleFlights');
+    serpApiSearch = gf.searchGoogleFlights;
+  }
+} catch (e) { /* Módulo no disponible */ }
 
 // Fechas de búsqueda por defecto
 const DEFAULT_DEPARTURE = process.env.SEARCH_DATE_DEFAULT_DEPARTURE || '2026-03-28';
@@ -154,4 +178,5 @@ async function searchFlexible(origin, destination, dateFrom, dateTo, isRoundTrip
 module.exports = {
   scrapeAllSources,
   searchFlexible,
+  scrapeTransitPrices,
 };

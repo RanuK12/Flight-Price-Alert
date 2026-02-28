@@ -7,6 +7,8 @@ const { initDatabase } = require('./database/db');
 const flightRoutes = require('./routes/flights');
 const { initTelegram } = require('./services/telegram');
 const { startMonitoring, getMonitorStatus } = require('./services/flightMonitor');
+const { generateAndSendDailyReport } = require('./services/dailyReport');
+const cron = require('node-cron');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -56,7 +58,7 @@ app.use((err, req, res, next) => {
 async function startServer() {
   try {
     console.log('\n' + '='.repeat(60));
-    console.log('🛫 FLIGHT DEAL FINDER v3.0');
+    console.log('🛫 FLIGHT DEAL FINDER v5.0');
     console.log('='.repeat(60));
     console.log('');
     
@@ -97,6 +99,18 @@ async function startServer() {
         console.log(`⏰ Búsquedas programadas: ${schedule} (${timezone})`);
         console.log('');
         
+        // Informe diario PDF — cada día a las 21:00 (hora Italia)
+        const reportSchedule = process.env.REPORT_SCHEDULE || '0 21 * * *';
+        cron.schedule(reportSchedule, async () => {
+          console.log('\n📄 Generando informe diario PDF...');
+          try {
+            await generateAndSendDailyReport();
+          } catch (err) {
+            console.error('Error generando informe PDF:', err.message);
+          }
+        }, { scheduled: true, timezone });
+        console.log(`📄 Informe diario PDF: ${reportSchedule} (${timezone})`);
+
         // Ejecutar primera búsqueda después de 10 segundos
         setTimeout(() => {
           console.log('🔍 Ejecutando primera búsqueda inicial...');
