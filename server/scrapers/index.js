@@ -9,7 +9,7 @@
  */
 
 const { scrapeGoogleFlights } = require('./puppeteerGoogleFlights');
-const { scrapeTransitPrices } = require('./transitScraper');
+// Transit scraper ya no se usa (rutas actuales son solo vuelos)
 
 // APIs opcionales (solo si hay credenciales)
 let amadeus = null;
@@ -178,5 +178,4 @@ async function searchFlexible(origin, destination, dateFrom, dateTo, isRoundTrip
 module.exports = {
   scrapeAllSources,
   searchFlexible,
-  scrapeTransitPrices,
 };
