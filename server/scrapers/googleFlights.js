@@ -19,8 +19,8 @@ const SERPAPI_DAILY_BUDGET = parseInt(process.env.SERPAPI_DAILY_BUDGET || '8', 1
 // Cache TTL (horas)
 const SERPAPI_CACHE_TTL_HOURS = parseFloat(process.env.SERPAPI_CACHE_TTL_HOURS || '12');
 
-// Timezone objetivo (Italia)
-const MONITOR_TIMEZONE = process.env.MONITOR_TIMEZONE || 'Europe/Rome';
+// Timezone objetivo (Argentina)
+const MONITOR_TIMEZONE = process.env.MONITOR_TIMEZONE || 'America/Argentina/Buenos_Aires';
 
 function getDateInTimeZone(timeZone) {
   // YYYY-MM-DD según timezone dado

@@ -1,24 +1,20 @@
 /**
- * Servicio de Monitoreo de Vuelos y Transporte v5.1
+ * Servicio de Monitoreo de Vuelos v6.0
  *
- * Busca precios usando:
- * - Puppeteer (Google Flights) para vuelos
- * - FlixBus API para autobuses/trenes
+ * Busca precios usando Puppeteer (Google Flights).
  *
  * RUTAS (TODAS con alerta Telegram cuando hay oferta):
- * - Vuelos VCE/VRN → AMS (24-26 mar) — ALERTA ≤ €60
- * - Vuelo MXP → AMS (24-26 mar) — ALERTA ≤ €50
- * - Bus/tren Trento → Múnich (24-26 mar) — ALERTA ≤ €30
- * - Bus/tren Múnich → Amsterdam (24-26 mar) — ALERTA ≤ €40
- * - Bus/tren Milan → Amsterdam (24-26 mar) — ALERTA ≤ €45
- * - Vuelos AMS → MAD (3-5 abr) — ALERTA ≤ €75
- * - Bus/tren Amsterdam → Madrid (3-5 abr) — ALERTA ≤ €60
+ * - Vuelo MDQ → COR (14-20 abr) — ALERTA ≤ €70
+ * - Vuelo SCL → SYD (junio) — ALERTA ≤ €650
+ * - Vuelo SCL → MEL (junio) — ALERTA ≤ €650
+ * - Vuelo EZE → MAD (junio) — ALERTA ≤ €450
+ * - Vuelo EZE → BCN (junio) — ALERTA ≤ €450
  *
  * + Informe diario PDF a las 21:00
  */
 
 const cron = require('node-cron');
-const { scrapeAllSources, scrapeTransitPrices } = require('../scrapers');
+const { scrapeAllSources } = require('../scrapers');
 const { sendDealsReport, sendErrorAlert, isActive } = require('./telegram');
 const { run, get, all, getProviderUsage, wasRecentlyAlerted } = require('../database/db');
 
@@ -29,38 +25,29 @@ let totalDealsFound = 0;
 let cronJob = null;
 
 // Timezone
-const MONITOR_TIMEZONE = process.env.MONITOR_TIMEZONE || 'Europe/Rome';
+const MONITOR_TIMEZONE = process.env.MONITOR_TIMEZONE || 'America/Argentina/Buenos_Aires';
 
 // =============================================
 // CONFIGURACIÓN DE RUTAS Y FECHAS
 // =============================================
 
 const MONITORED_ROUTES = [
-  // ========== VUELOS: Venecia/Verona → Amsterdam (ALERTA ≤ €60) ==========
-  { origin: 'VCE', destination: 'AMS', name: 'Venecia → Amsterdam', mode: 'flight', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 60 },
-  { origin: 'VRN', destination: 'AMS', name: 'Verona → Amsterdam', mode: 'flight', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 60 },
+  // ========== VUELO: Mar del Plata → Córdoba (ALERTA ≤ €70) ==========
+  { origin: 'MDQ', destination: 'COR', name: 'Mar del Plata → Córdoba', mode: 'flight', dates: ['2026-04-14', '2026-04-15', '2026-04-16', '2026-04-17', '2026-04-18', '2026-04-19', '2026-04-20'], tripType: 'oneway', alert: true, threshold: 70 },
 
-  // ========== VUELO: Milán Malpensa → Amsterdam (ALERTA ≤ €50) ==========
-  { origin: 'MXP', destination: 'AMS', name: 'Milán → Amsterdam', mode: 'flight', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 50 },
+  // ========== VUELOS: Santiago → Australia (ALERTA ≤ €650) ==========
+  { origin: 'SCL', destination: 'SYD', name: 'Santiago → Sídney', mode: 'flight', dates: ['2026-06-01', '2026-06-08', '2026-06-15', '2026-06-22', '2026-06-29'], tripType: 'oneway', alert: true, threshold: 650 },
+  { origin: 'SCL', destination: 'MEL', name: 'Santiago → Melbourne', mode: 'flight', dates: ['2026-06-01', '2026-06-08', '2026-06-15', '2026-06-22', '2026-06-29'], tripType: 'oneway', alert: true, threshold: 650 },
 
-  // ========== BUS/TREN: Trento → Múnich → Amsterdam (ALERTA ≤ €30/€40) ==========
-  { origin: 'Trento', destination: 'Munich', name: 'Trento → Múnich', mode: 'transit', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 30 },
-  { origin: 'Munich', destination: 'Amsterdam', name: 'Múnich → Amsterdam', mode: 'transit', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 40 },
-
-  // ========== BUS/TREN: Milán → Amsterdam (ALERTA ≤ €45) ==========
-  { origin: 'Milan', destination: 'Amsterdam', name: 'Milán → Amsterdam', mode: 'transit', dates: ['2026-03-24', '2026-03-25', '2026-03-26'], tripType: 'oneway', alert: true, threshold: 45 },
-
-  // ========== VUELOS: Amsterdam → Madrid (ALERTA ≤ €75) ==========
-  { origin: 'AMS', destination: 'MAD', name: 'Amsterdam → Madrid', mode: 'flight', dates: ['2026-04-03', '2026-04-04', '2026-04-05'], tripType: 'oneway', alert: true, threshold: 75 },
-
-  // ========== BUS/TREN: Amsterdam → Madrid (ALERTA ≤ €60) ==========
-  { origin: 'Amsterdam', destination: 'Madrid', name: 'Amsterdam → Madrid', mode: 'transit', dates: ['2026-04-03', '2026-04-04', '2026-04-05'], tripType: 'oneway', alert: true, threshold: 60 },
+  // ========== VUELOS: Argentina → España (ALERTA ≤ €450) ==========
+  { origin: 'EZE', destination: 'MAD', name: 'Buenos Aires → Madrid', mode: 'flight', dates: ['2026-06-01', '2026-06-08', '2026-06-15', '2026-06-22', '2026-06-29'], tripType: 'oneway', alert: true, threshold: 450 },
+  { origin: 'EZE', destination: 'BCN', name: 'Buenos Aires → Barcelona', mode: 'flight', dates: ['2026-06-01', '2026-06-08', '2026-06-15', '2026-06-22', '2026-06-29'], tripType: 'oneway', alert: true, threshold: 450 },
 ];
 
 // =============================================
 // UMBRALES DE ALERTA (por ruta, definidos arriba)
 // =============================================
-const FLIGHT_ALERT_THRESHOLD = 75; // Referencia máxima para vuelos AMS→MAD
+const FLIGHT_ALERT_THRESHOLD = 650; // Referencia máxima (SCL→AUS)
 
 // =============================================
 // HELPERS
@@ -98,22 +85,19 @@ async function runFullSearch(options = {}) {
   const { notifyDeals = true } = options;
 
   console.log('\n' + '='.repeat(60));
-  console.log('🔍 BÚSQUEDA DE VUELOS Y TRANSPORTE v5.1');
+  console.log('🔍 BÚSQUEDA DE VUELOS v6.0');
   console.log('='.repeat(60));
   console.log(`⏰ ${new Date().toLocaleString('es-ES')}`);
   console.log(`📊 Rutas: ${MONITORED_ROUTES.length} (TODAS con alerta)`);
   console.log('');
   console.log('📋 CONFIGURACIÓN:');
-  console.log('   ✈️ VCE/VRN/MXP → AMS: vuelos 24-26 mar (ALERTA ≤ €60/€50)');
-  console.log('   🚌 Trento → Múnich → AMS: bus/tren 24-26 mar (ALERTA ≤ €30/€40)');
-  console.log('   🚌 Milán → AMS: bus/tren 24-26 mar (ALERTA ≤ €45)');
-  console.log('   ✈️ AMS → MAD: vuelos 3-5 abr (ALERTA ≤ €75)');
-  console.log('   🚌 AMS → MAD: bus/tren 3-5 abr (ALERTA ≤ €60)');
+  console.log('   ✈️ MDQ → COR: vuelos 14-20 abr (ALERTA ≤ €70)');
+  console.log('   ✈️ SCL → SYD/MEL: vuelos junio (ALERTA ≤ €650)');
+  console.log('   ✈️ EZE → MAD/BCN: vuelos junio (ALERTA ≤ €450)');
   console.log('');
 
   const results = {
     flightDeals: [],    // Vuelos que pasan el umbral
-    transitDeals: [],   // Transit que pasan el umbral
     allSearches: [],
     errors: [],
     startTime: new Date(),
@@ -203,65 +187,6 @@ async function runFullSearch(options = {}) {
             console.log(`  ⚠️ Sin precios encontrados`);
           }
 
-        } else if (route.mode === 'transit') {
-          // ══════════════ BUS/TREN ══════════════
-          const transitResult = await scrapeTransitPrices(
-            route.origin,
-            route.destination,
-            departureDate
-          );
-
-          results.allSearches.push({
-            route: route.name,
-            mode: 'transit',
-            date: departureDate,
-            success: transitResult.success,
-          });
-
-          if (transitResult.journeys && transitResult.journeys.length > 0) {
-            for (const journey of transitResult.journeys) {
-              const price = Math.round(journey.price * 100) / 100;
-
-              // Guardar en DB
-              await saveToDatabase({
-                origin: route.origin,
-                destination: route.destination,
-                price,
-                airline: `${journey.provider} (${journey.transportType})`,
-                source: journey.source,
-                departureDate,
-                link: journey.link,
-                mode: 'transit',
-              });
-
-              if (price <= route.threshold) {
-                console.log(`  🔥 OFERTA: €${price} (${journey.provider} ${journey.transportType}) — ${journey.departureTime || ''}`);
-
-                if (route.alert) {
-                  const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
-                  if (!recentlyAlerted) {
-                    results.transitDeals.push({
-                      origin: route.origin,
-                      destination: route.destination,
-                      routeName: route.name,
-                      price,
-                      provider: journey.provider,
-                      transportType: journey.transportType,
-                      departureDate,
-                      departureTime: journey.departureTime,
-                      duration: journey.duration,
-                      bookingUrl: journey.link,
-                      mode: 'transit',
-                    });
-                  } else {
-                    console.log(`  🔕 Ya alertado recientemente (anti-spam)`);
-                  }
-                }
-              }
-            }
-          } else {
-            console.log(`  ⚠️ Sin resultados de transit`);
-          }
         }
       } catch (error) {
         results.errors.push({ route: route.name, error: error.message });
@@ -277,8 +202,7 @@ async function runFullSearch(options = {}) {
 
   // Deduplicar ofertas
   results.flightDeals = deduplicateAndSort(results.flightDeals);
-  results.transitDeals = deduplicateAndSort(results.transitDeals);
-  const totalNewDeals = results.flightDeals.length + results.transitDeals.length;
+  const totalNewDeals = results.flightDeals.length;
   totalDealsFound += totalNewDeals;
 
   // ══════════════ RESUMEN ══════════════
@@ -290,9 +214,7 @@ async function runFullSearch(options = {}) {
   console.log('='.repeat(60));
   console.log(`✅ Búsquedas: ${successCount}/${results.allSearches.length}`);
   if (results.errors.length > 0) console.log(`❌ Errores: ${results.errors.length}`);
-  console.log(`✈️ Ofertas vuelos: ${results.flightDeals.length}`);
-  console.log(`🚌 Ofertas transit: ${results.transitDeals.length}`);
-  console.log(`🔥 Total ofertas alertables: ${totalNewDeals}`);
+  console.log(`✈️ Ofertas encontradas: ${results.flightDeals.length}`);
   console.log(`⏱️ Duración: ${duration.toFixed(1)}s`);
 
   if (results.flightDeals.length > 0) {
@@ -302,16 +224,9 @@ async function runFullSearch(options = {}) {
     });
   }
 
-  if (results.transitDeals.length > 0) {
-    console.log('\n🎯 ALERTAS BUS/TREN:');
-    results.transitDeals.forEach((d, i) => {
-      console.log(`  ${i + 1}. ${d.routeName}: €${d.price} (${d.provider} ${d.transportType}) — ${formatDate(d.departureDate)}`);
-    });
-  }
-
   // ══════════════ TELEGRAM — alertas para TODAS las rutas ══════════════
   if (notifyDeals && isActive() && totalNewDeals > 0) {
-    await sendDealsReport(results.flightDeals, results.transitDeals);
+    await sendDealsReport(results.flightDeals, []);
     console.log(`📱 Alerta Telegram enviada (${totalNewDeals} ofertas)`);
   } else if (totalNewDeals === 0) {
     console.log('📴 Sin ofertas alertables — no se envía Telegram');
@@ -376,13 +291,13 @@ async function quickSearch(origin, destination) {
 // MONITOREO CONTINUO
 // =============================================
 
-function startMonitoring(cronSchedule = '0 */2 * * *', timezone = 'Europe/Rome') {
+function startMonitoring(cronSchedule = '0 */2 * * *', timezone = 'America/Argentina/Buenos_Aires') {
   if (isMonitoring) {
     console.log('⚠️ El monitoreo ya está activo');
     return false;
   }
 
-  console.log('\n🚀 INICIANDO MONITOREO v5.1');
+  console.log('\n🚀 INICIANDO MONITOREO v6.0');
   console.log(`⏰ Programación: ${cronSchedule}`);
   console.log('📋 Rutas (TODAS con alerta Telegram):');
   for (const r of MONITORED_ROUTES) {

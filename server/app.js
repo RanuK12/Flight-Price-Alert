@@ -94,12 +94,12 @@ async function startServer() {
         console.log('🚀 Iniciando monitoreo automático de vuelos...');
         // Buscar cada 30 minutos
         const schedule = process.env.MONITOR_SCHEDULE || '*/30 * * * *';
-        const timezone = process.env.MONITOR_TIMEZONE || 'Europe/Rome';
+        const timezone = process.env.MONITOR_TIMEZONE || 'America/Argentina/Buenos_Aires';
         startMonitoring(schedule, timezone);
         console.log(`⏰ Búsquedas programadas: ${schedule} (${timezone})`);
         console.log('');
         
-        // Informe diario PDF — cada día a las 21:00 (hora Italia)
+        // Informe diario PDF — cada día a las 21:00 (hora Argentina)
         const reportSchedule = process.env.REPORT_SCHEDULE || '0 21 * * *';
         cron.schedule(reportSchedule, async () => {
           console.log('\n📄 Generando informe diario PDF...');

@@ -1,7 +1,7 @@
 /**
  * Servicio de Notificaciones por Telegram v5.1
  *
- * Envía alertas de ofertas para TODAS las rutas (vuelos + bus/tren)
+ * Envía alertas de ofertas para TODAS las rutas (solo vuelos)
  * + informe diario PDF
  */
 
@@ -104,7 +104,7 @@ async function sendDealsReport(flightDeals, transitDeals) {
 
   message += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
   message += `📊 Total: <b>${totalDeals}</b> ofertas\n`;
-  message += `🔗 Reservar en Google Flights / FlixBus`;
+  message += `🔗 Reservar en Google Flights`;
 
   return sendMessage(message);
 }
@@ -286,19 +286,17 @@ Seguimos monitoreando... 👀
  */
 async function sendMonitoringStarted() {
   const message = `
-🚀 <b>Monitor de Vuelos y Transporte v5.1</b>
+🚀 <b>Monitor de Vuelos v6.0</b>
 
 📋 <b>Rutas monitoreadas (TODAS con alerta):</b>
-✈️ VCE/VRN → AMS: 24-26 mar <b>(≤ €60)</b>
-✈️ MXP → AMS: 24-26 mar <b>(≤ €50)</b>
-🚌 Trento → Múnich: 24-26 mar <b>(≤ €30)</b>
-🚌 Múnich → AMS: 24-26 mar <b>(≤ €40)</b>
-🚌 Milán → AMS: 24-26 mar <b>(≤ €45)</b>
-✈️ AMS → MAD: 3-5 abr <b>(≤ €75)</b>
-🚌 AMS → MAD: 3-5 abr <b>(≤ €60)</b>
+✈️ MDQ → COR: 14-20 abr <b>(≤ €70)</b>
+✈️ SCL → SYD: junio <b>(≤ €650)</b>
+✈️ SCL → MEL: junio <b>(≤ €650)</b>
+✈️ EZE → MAD: junio <b>(≤ €450)</b>
+✈️ EZE → BCN: junio <b>(≤ €450)</b>
 
 📢 Alertas Telegram: TODAS las rutas
-📄 Informe diario PDF: 21:00 CET
+📄 Informe diario PDF: 21:00 ART
 
 ⏰ ${new Date().toLocaleString('es-ES')}
 `.trim();
@@ -327,17 +325,15 @@ async function sendTestMessage() {
   const message = `
 ✅ <b>Test de Conexión Exitoso</b>
 
-El bot de Flight Deal Finder v5.1 está funcionando.
+El bot de Flight Deal Finder v6.0 está funcionando.
 
 📋 <b>Alertas activas (TODAS las rutas):</b>
-✈️ VCE/VRN → AMS ≤ €60
-✈️ MXP → AMS ≤ €50
-🚌 Trento → Múnich ≤ €30
-🚌 Múnich → AMS ≤ €40
-🚌 Milán → AMS ≤ €45
-✈️ AMS → MAD ≤ €75
-🚌 AMS → MAD ≤ €60
-📄 Informe diario PDF: 21:00 CET
+✈️ MDQ → COR ≤ €70 (14-20 abr)
+✈️ SCL → SYD ≤ €650 (junio)
+✈️ SCL → MEL ≤ €650 (junio)
+✈️ EZE → MAD ≤ €450 (junio)
+✈️ EZE → BCN ≤ €450 (junio)
+📄 Informe diario PDF: 21:00 ART
 
 ⏰ ${new Date().toLocaleString('es-ES')}
 `.trim();
@@ -494,9 +490,9 @@ function buildNearDealMessage(nearCombinedDeals, searchSummary = null, nearRound
   message += `📅 ${new Date().toLocaleString('es-ES')}\n`;
   message += `━━━━━━━━━━━━━━━━━━━━━\n`;
 
-  // Near-deals roundtrip Ethiopian
+  // Near-deals roundtrip
   if (nearRoundTripDeals && nearRoundTripDeals.length > 0) {
-    message += `\n🎫 <b>EZE → Roma RT</b> (€850-€1050):\n`;
+    message += `\n🎫 <b>Casi oferta (ida y vuelta):</b>\n`;
     for (const deal of nearRoundTripDeals.slice(0, 5)) {
       message += `🟡 <b>€${deal.price}</b> ${deal.routeName}`;
       if (deal.airline) message += ` • ${deal.airline}`;
@@ -505,9 +501,9 @@ function buildNearDealMessage(nearCombinedDeals, searchSummary = null, nearRound
     }
   }
 
-  // Near-deals Europa interna
+  // Near-deals one-way
   if (nearCombinedDeals && nearCombinedDeals.length > 0) {
-    message += `\n🇪🇺 <b>Europa interna — casi oferta:</b>\n`;
+    message += `\n✈️ <b>Casi oferta (solo ida):</b>\n`;
     for (const deal of nearCombinedDeals.slice(0, 7)) {
       message += `🟡 <b>€${deal.price}</b> ${deal.routeName}`;
       if (deal.airline) message += ` • ${deal.airline}`;
@@ -518,7 +514,7 @@ function buildNearDealMessage(nearCombinedDeals, searchSummary = null, nearRound
 
   message += `━━━━━━━━━━━━━━━━━━━━━\n`;
   message += `💡 <i>Precios cercanos al umbral de oferta</i>\n`;
-  message += `🔗 Revisar en Google Flights / Ryanair`;
+  message += `🔗 Revisar en Google Flights`;
 
   // Resumen de búsquedas realizadas
   if (searchSummary) {
