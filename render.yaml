@@ -18,6 +18,6 @@ services:
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
         value: "true"
       - key: MONITOR_TIMEZONE
-        value: Europe/Rome
+        value: America/Argentina/Buenos_Aires
       - key: MONITOR_SCHEDULE
         value: "*/30 * * * *"
