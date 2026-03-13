@@ -1,11 +1,7 @@
 /**
- * Coordinador de búsqueda de vuelos v2.0 — PRECIOS REALES
- * 
- * Fuentes:
- *   1. Puppeteer (Google Flights) — todas las aerolíneas, sin API key
- *   2. Ryanair API — precios directos low-cost (sin Puppeteer, puro HTTP)
+ * Coordinador de búsqueda de vuelos v3.0 — PRECIOS REALES
  *
- * Ambas fuentes se consultan en paralelo y los resultados se combinan.
+ * Fuente principal: Puppeteer (Google Flights) — todas las aerolíneas, sin API key
  */
 
 const { scrapeGoogleFlights } = require('./puppeteerGoogleFlights');
@@ -75,15 +71,6 @@ async function scrapeAllSources(origin, destination, isRoundTrip = false, depart
       .then(r => ({ source: 'Puppeteer (Google Flights)', ...r }))
       .catch(err => ({ source: 'Puppeteer (Google Flights)', success: false, flights: [], minPrice: null, error: err.message }))
   );
-
-  // FUENTE 2: Ryanair API (solo si es one-way y ruta disponible)
-  if (!isRoundTrip && isRyanairRoute(origin, destination)) {
-    promises.push(
-      scrapeRyanair(origin, destination, departureDate)
-        .then(r => ({ source: 'Ryanair API', ...r }))
-        .catch(err => ({ source: 'Ryanair API', success: false, flights: [], minPrice: null, error: err.message }))
-    );
-  }
 
   // Esperar todos los resultados
   const sourceResults = await Promise.all(promises);
