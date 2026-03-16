@@ -61,25 +61,14 @@ const CONFIG = {
 // ============================================
 
 const ROUTES = [
-  // BUENOS AIRES → EUROPA (solo ida y vuelta)
-  { origin: 'Buenos Aires', dest: 'Madrid', goodOneWay: 500, goodRoundTrip: 700, searchType: 'roundTrip' },
-  { origin: 'Buenos Aires', dest: 'Barcelona', goodOneWay: 520, goodRoundTrip: 750, searchType: 'roundTrip' },
-  { origin: 'Buenos Aires', dest: 'Roma', goodOneWay: 550, goodRoundTrip: 800, searchType: 'roundTrip' },
-  { origin: 'Buenos Aires', dest: 'Paris', goodOneWay: 520, goodRoundTrip: 750, searchType: 'roundTrip' },
-  { origin: 'Buenos Aires', dest: 'Lisboa', goodOneWay: 500, goodRoundTrip: 700, searchType: 'roundTrip' },
-  
-  // CÓRDOBA ARGENTINA → EUROPA (solo ida y vuelta)
-  { origin: 'Cordoba Argentina', dest: 'Madrid', goodOneWay: 550, goodRoundTrip: 800, searchType: 'roundTrip' },
-  { origin: 'Cordoba Argentina', dest: 'Barcelona', goodOneWay: 580, goodRoundTrip: 850, searchType: 'roundTrip' },
-  { origin: 'Cordoba Argentina', dest: 'Roma', goodOneWay: 580, goodRoundTrip: 850, searchType: 'roundTrip' },
-  { origin: 'Cordoba Argentina', dest: 'Paris', goodOneWay: 580, goodRoundTrip: 850, searchType: 'roundTrip' },
-  { origin: 'Cordoba Argentina', dest: 'Lisboa', goodOneWay: 550, goodRoundTrip: 800, searchType: 'roundTrip' },
+  // BARCELONA → CHICAGO (solo ida, fechas 20 al 30 de junio)
+  { origin: 'Barcelona', dest: 'Chicago', goodOneWay: 245, wowPrice: 199, goodRoundTrip: 800, searchType: 'oneWay', dates: 'junio-bcn-chi' },
   
   // SANTIAGO DE CHILE → AUSTRALIA (solo ida, fechas junio)
   { origin: 'Santiago de Chile', dest: 'Sidney Australia', goodOneWay: 700, goodRoundTrip: 1100, searchType: 'oneWay', dates: 'junio' },
   
-  // BARCELONA → CHICAGO (solo ida, fechas 20 al 30 de junio)
-  { origin: 'Barcelona', dest: 'Chicago', goodOneWay: 245, wowPrice: 199, goodRoundTrip: 800, searchType: 'oneWay', dates: 'junio-bcn-chi' },
+  // MAR DEL PLATA → CÓRDOBA ARGENTINA (ida y vuelta, 16 al 22 de abril)
+  { origin: 'Mar del Plata', dest: 'Cordoba Argentina', goodOneWay: 50, goodRoundTrip: 75, searchType: 'roundTrip', dates: 'abril-mdp-cor' }
 ];
 
 // ============================================
@@ -254,7 +243,7 @@ async function scrapeFlightPrice(page, origin, dest, date, roundTrip = false) {
 }
 
 function getReturnDate(departDate) {
-  // Vuelta fija: 7 de abril 2026
+  if (departDate === '2026-04-16') return '2026-04-22';
   return '2026-04-07';
 }
 
@@ -263,12 +252,10 @@ function getSearchDates(route) {
   if (route && route.dates === 'junio') {
     return [
       '2026-06-01',
-      '2026-06-05',
-      '2026-06-10',
+      '2026-06-08',
       '2026-06-15',
-      '2026-06-20',
-      '2026-06-25',
-      '2026-06-30'
+      '2026-06-22',
+      '2026-06-29'
     ];
   }
   if (route && route.dates === 'junio-bcn-chi') {
@@ -278,16 +265,10 @@ function getSearchDates(route) {
       '2026-06-28', '2026-06-29', '2026-06-30'
     ];
   }
-  // Fechas de ida: 21 marzo - 7 abril 2026
-  return [
-    '2026-03-21',
-    '2026-03-24',
-    '2026-03-27',
-    '2026-03-30',
-    '2026-04-02',
-    '2026-04-05',
-    '2026-04-07'
-  ];
+  if (route && route.dates === 'abril-mdp-cor') {
+    return [ '2026-04-16' ];
+  }
+  return [];
 }
 
 // ============================================
@@ -580,11 +561,9 @@ async function main() {
   await sendTelegram(
     `🛫 <b>Flight Deal Bot v3.0</b>\n\n` +
     `Monitoreando:\n` +
-    `• Europa ↔ Argentina 🇦🇷\n` +
-    `• Europa → USA 🇺🇸\n` +
-    `• USA → Argentina 🇦🇷\n` +
-    `• Córdoba → Europa 🌍\n` +
-    `• Santiago → Sidney 🇦🇺\n\n` +
+    `• Barcelona → Chicago 🇺🇸\n` +
+    `• Santiago → Sidney 🇦🇺\n` +
+    `• Mar del Plata ↔ Córdoba 🇦🇷\n\n` +
     `📊 Dos listados:\n` +
     `• Solo ida\n` +
     `• Ida y vuelta\n\n` +
