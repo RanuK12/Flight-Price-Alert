@@ -77,6 +77,9 @@ const ROUTES = [
   
   // SANTIAGO DE CHILE → AUSTRALIA (solo ida, fechas junio)
   { origin: 'Santiago de Chile', dest: 'Sidney Australia', goodOneWay: 700, goodRoundTrip: 1100, searchType: 'oneWay', dates: 'junio' },
+  
+  // BARCELONA → CHICAGO (solo ida, fechas 20 al 30 de junio)
+  { origin: 'Barcelona', dest: 'Chicago', goodOneWay: 245, wowPrice: 199, goodRoundTrip: 800, searchType: 'oneWay', dates: 'junio-bcn-chi' },
 ];
 
 // ============================================
@@ -268,6 +271,13 @@ function getSearchDates(route) {
       '2026-06-30'
     ];
   }
+  if (route && route.dates === 'junio-bcn-chi') {
+    return [
+      '2026-06-20', '2026-06-21', '2026-06-22', '2026-06-23',
+      '2026-06-24', '2026-06-25', '2026-06-26', '2026-06-27',
+      '2026-06-28', '2026-06-29', '2026-06-30'
+    ];
+  }
   // Fechas de ida: 21 marzo - 7 abril 2026
   return [
     '2026-03-21',
@@ -388,7 +398,8 @@ async function runSearch() {
               price: oneWay.price,
               date,
               airline: oneWay.airline,
-              url: oneWay.url
+              url: oneWay.url,
+              isWow: route.wowPrice && oneWay.price <= route.wowPrice
             });
           }
         } else {
@@ -459,9 +470,9 @@ async function sendReport(oneWayDeals, roundTripDeals) {
   roundTripDeals.sort((a, b) => a.price - b.price);
   
   const argOW = oneWayDeals.filter(d => d.route.includes('Buenos') || d.route.includes('Cordoba'));
-  const usaOW = oneWayDeals.filter(d => d.route.includes('Nueva York') || d.route.includes('Miami') || d.route.includes('Los Angeles'));
+  const usaOW = oneWayDeals.filter(d => d.route.includes('Nueva York') || d.route.includes('Miami') || d.route.includes('Los Angeles') || d.route.includes('Chicago'));
   const argRT = roundTripDeals.filter(d => d.route.includes('Buenos') || d.route.includes('Cordoba'));
-  const usaRT = roundTripDeals.filter(d => d.route.includes('Nueva York') || d.route.includes('Miami') || d.route.includes('Los Angeles'));
+  const usaRT = roundTripDeals.filter(d => d.route.includes('Nueva York') || d.route.includes('Miami') || d.route.includes('Los Angeles') || d.route.includes('Chicago'));
   const ausOW = oneWayDeals.filter(d => d.route.includes('Sidney'));
   const ausRT = roundTripDeals.filter(d => d.route.includes('Sidney'));
   
@@ -486,7 +497,8 @@ async function sendReport(oneWayDeals, roundTripDeals) {
     if (usaOW.length > 0) {
       msg += `🇺🇸 Estados Unidos:\n`;
       usaOW.slice(0, 4).forEach(d => {
-        msg += `  • <b>€${d.price}</b> ${d.route}\n`;
+        const wowTag = d.isWow ? ' 🚨 <b>¡PRECIO WOW!</b>' : '';
+        msg += `  • <b>€${d.price}</b> ${d.route}${wowTag}\n`;
         msg += `    ${formatDate(d.date)} · ${d.airline}\n`;
         msg += `    <a href="${d.url}">Ver →</a>\n`;
       });
