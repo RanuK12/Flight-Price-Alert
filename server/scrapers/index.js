@@ -1,45 +1,31 @@
 /**
- * Coordinador de búsqueda de vuelos v3.0 — PRECIOS REALES
+ * Coordinador de búsqueda de vuelos v4.0 — API DIRECTA + PUPPETEER FALLBACK
  *
- * Fuente principal: Puppeteer (Google Flights) — todas las aerolíneas, sin API key
+ * Fuente principal: Google Flights API directa (sin browser)
+ * Fallback: Puppeteer (Google Flights scraping)
+ *
+ * La API directa es ~10x más rápida y confiable que Puppeteer.
  */
 
-const { scrapeGoogleFlights } = require('./puppeteerGoogleFlights');
-// Transit scraper ya no se usa (rutas actuales son solo vuelos)
+const { searchFlightsApi, searchDateRange } = require('./googleFlightsApi');
 
-// APIs opcionales (solo si hay credenciales)
-let amadeus = null;
-let kiwi = null;
-let serpApiSearch = null;
-
+// Puppeteer como fallback (lazy load)
+let scrapeGoogleFlights = null;
 try {
-  if (process.env.AMADEUS_API_KEY) {
-    amadeus = require('./amadeus');
-  }
-} catch (e) { /* Módulo no disponible */ }
-
-try {
-  if (process.env.KIWI_API_KEY) {
-    kiwi = require('./kiwi');
-  }
-} catch (e) { /* Módulo no disponible */ }
-
-try {
-  if (process.env.SERPAPI_KEY) {
-    const gf = require('./googleFlights');
-    serpApiSearch = gf.searchGoogleFlights;
-  }
-} catch (e) { /* Módulo no disponible */ }
+  scrapeGoogleFlights = require('./puppeteerGoogleFlights').scrapeGoogleFlights;
+} catch (e) {
+  console.log('⚠️ Puppeteer scraper not available (optional fallback)');
+}
 
 // Fechas de búsqueda por defecto
-const DEFAULT_DEPARTURE = process.env.SEARCH_DATE_DEFAULT_DEPARTURE || '2026-03-28';
-const DEFAULT_RETURN = process.env.SEARCH_DATE_DEFAULT_RETURN || '2026-04-04';
+const DEFAULT_DEPARTURE = process.env.SEARCH_DATE_DEFAULT_DEPARTURE || '2026-04-19';
+const DEFAULT_RETURN = process.env.SEARCH_DATE_DEFAULT_RETURN || '2026-04-24';
 
 /**
  * Buscar vuelos en todas las fuentes disponibles
- * 
+ *
  * @param {string} origin - Código IATA origen
- * @param {string} destination - Código IATA destino  
+ * @param {string} destination - Código IATA destino
  * @param {boolean} isRoundTrip - Si es ida y vuelta
  * @param {string} departureDate - Fecha de ida
  * @param {string} returnDate - Fecha de vuelta (solo para ida y vuelta)
@@ -47,7 +33,7 @@ const DEFAULT_RETURN = process.env.SEARCH_DATE_DEFAULT_RETURN || '2026-04-04';
 async function scrapeAllSources(origin, destination, isRoundTrip = false, departureDate = DEFAULT_DEPARTURE, returnDate = DEFAULT_RETURN) {
   const tripType = isRoundTrip ? 'ida y vuelta' : 'solo ida';
   console.log(`\n🔍 Buscando vuelos: ${origin} → ${destination} (${tripType})`);
-  
+
   const results = {
     origin,
     destination,
@@ -61,44 +47,73 @@ async function scrapeAllSources(origin, destination, isRoundTrip = false, depart
   };
 
   // ══════════════════════════════════════════════════════════════
-  // Lanzar búsquedas en paralelo
+  // SOURCE 1: Google Flights API (primary - fast, no browser)
   // ══════════════════════════════════════════════════════════════
-  const promises = [];
+  let apiResult = null;
+  try {
+    apiResult = await searchFlightsApi(
+      origin, destination, departureDate,
+      isRoundTrip ? returnDate : null
+    );
 
-  // FUENTE 1: Puppeteer (Google Flights)
-  promises.push(
-    scrapeGoogleFlights(origin, destination, departureDate, isRoundTrip ? returnDate : null)
-      .then(r => ({ source: 'Puppeteer (Google Flights)', ...r }))
-      .catch(err => ({ source: 'Puppeteer (Google Flights)', success: false, flights: [], minPrice: null, error: err.message }))
-  );
-
-  // Esperar todos los resultados
-  const sourceResults = await Promise.all(promises);
-
-  // ══════════════════════════════════════════════════════════════
-  // Procesar resultados de cada fuente
-  // ══════════════════════════════════════════════════════════════
-  for (const sr of sourceResults) {
     results.sources.push({
-      name: sr.source,
-      minPrice: sr.minPrice,
-      flightCount: sr.flights?.length || 0,
-      success: sr.success,
-      error: sr.error || null,
+      name: 'Google Flights API',
+      minPrice: apiResult.minPrice,
+      flightCount: apiResult.flights?.length || 0,
+      success: apiResult.success,
+      error: apiResult.error || null,
     });
 
-    if (sr.flights && sr.flights.length > 0) {
-      results.allFlights.push(...sr.flights);
+    if (apiResult.flights && apiResult.flights.length > 0) {
+      results.allFlights.push(...apiResult.flights);
+    }
+  } catch (err) {
+    results.sources.push({
+      name: 'Google Flights API',
+      minPrice: null,
+      flightCount: 0,
+      success: false,
+      error: err.message,
+    });
+  }
 
-      if (sr.minPrice && sr.minPrice < results.minPrice) {
-        results.minPrice = sr.minPrice;
-        results.cheapestFlight = sr.flights[0];
+  // ══════════════════════════════════════════════════════════════
+  // SOURCE 2: Puppeteer fallback (only if API returned 0 results)
+  // ══════════════════════════════════════════════════════════════
+  const apiGotResults = apiResult && apiResult.flights && apiResult.flights.length > 0;
+
+  if (!apiGotResults && scrapeGoogleFlights) {
+    console.log('  🔄 API sin resultados, usando Puppeteer como fallback...');
+    try {
+      const puppeteerResult = await scrapeGoogleFlights(
+        origin, destination, departureDate,
+        isRoundTrip ? returnDate : null
+      );
+
+      results.sources.push({
+        name: 'Puppeteer (Google Flights)',
+        minPrice: puppeteerResult.minPrice,
+        flightCount: puppeteerResult.flights?.length || 0,
+        success: puppeteerResult.success,
+        error: puppeteerResult.error || null,
+      });
+
+      if (puppeteerResult.flights && puppeteerResult.flights.length > 0) {
+        results.allFlights.push(...puppeteerResult.flights);
       }
+    } catch (err) {
+      results.sources.push({
+        name: 'Puppeteer (Google Flights)',
+        minPrice: null,
+        flightCount: 0,
+        success: false,
+        error: err.message,
+      });
     }
   }
 
   // ══════════════════════════════════════════════════════════════
-  // POST-PROCESAMIENTO: Deduplicar y ordenar
+  // POST-PROCESSING: Deduplicate and sort
   // ══════════════════════════════════════════════════════════════
   const uniqueFlights = [];
   const seen = new Set();
@@ -106,7 +121,7 @@ async function scrapeAllSources(origin, destination, isRoundTrip = false, depart
   results.allFlights
     .sort((a, b) => a.price - b.price)
     .forEach(flight => {
-      const key = `${flight.airline}-${Math.round(flight.price)}-${flight.departureDate}`;
+      const key = `${flight.airline}-${Math.round(flight.price)}-${flight.departureDate || departureDate}`;
       if (!seen.has(key)) {
         seen.add(key);
         uniqueFlights.push(flight);
@@ -115,22 +130,50 @@ async function scrapeAllSources(origin, destination, isRoundTrip = false, depart
 
   results.allFlights = uniqueFlights;
 
-  // Resumen
-  if (results.minPrice === Infinity) {
+  // Update min price
+  if (uniqueFlights.length > 0) {
+    results.minPrice = uniqueFlights[0].price;
+    results.cheapestFlight = uniqueFlights[0];
+    const sourcesOk = results.sources.filter(s => s.success).map(s => s.name).join(' + ');
+    console.log(`  ✅ Precio mínimo: $${results.minPrice} (${results.cheapestFlight?.airline || 'N/A'}) [${sourcesOk}]`);
+  } else {
     results.minPrice = null;
     console.log(`  ⚠️ Sin resultados de ninguna fuente`);
-  } else {
-    const sourcesOk = results.sources.filter(s => s.success).map(s => s.name).join(' + ');
-    console.log(`  ✅ Precio mínimo: €${results.minPrice} (${results.cheapestFlight?.airline || 'N/A'}) [${sourcesOk}]`);
   }
 
   return results;
 }
 
 /**
- * Buscar vuelos con fechas flexibles
+ * Buscar vuelos con fechas flexibles usando la API de calendario
  */
 async function searchFlexible(origin, destination, dateFrom, dateTo, isRoundTrip = false) {
+  // Try the calendar API first for a quick overview
+  const calendarResult = await searchDateRange(origin, destination, dateFrom, dateTo);
+
+  if (calendarResult.success && calendarResult.dates.length > 0) {
+    console.log(`  📅 Calendario API: ${calendarResult.dates.length} fechas con precios`);
+
+    // Search top 5 cheapest dates for full details
+    const topDates = calendarResult.dates.slice(0, 5);
+    const allResults = [];
+
+    for (const { date, price } of topDates) {
+      const result = await scrapeAllSources(origin, destination, isRoundTrip, date);
+      if (result.allFlights.length > 0) {
+        allResults.push(...result.allFlights);
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    return {
+      flights: allResults.sort((a, b) => a.price - b.price),
+      dateRange: { from: dateFrom, to: dateTo },
+      calendarPrices: calendarResult.dates,
+    };
+  }
+
+  // Fallback: search every 3 days
   const dates = [];
   let current = new Date(dateFrom);
   const end = new Date(dateTo);
@@ -141,19 +184,16 @@ async function searchFlexible(origin, destination, dateFrom, dateTo, isRoundTrip
   }
 
   const allResults = [];
-
   for (const date of dates) {
     const returnDate = isRoundTrip
-      ? new Date(new Date(date).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      ? new Date(new Date(date).getTime() + 14 * 86400000).toISOString().split('T')[0]
       : null;
 
     const result = await scrapeAllSources(origin, destination, isRoundTrip, date, returnDate);
-
     if (result.allFlights.length > 0) {
       allResults.push(...result.allFlights);
     }
-
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 1000));
   }
 
   return {
