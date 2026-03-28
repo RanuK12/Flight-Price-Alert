@@ -201,13 +201,16 @@ async function detectBlock(page) {
 const IATA_TO_CITY = {
   // Argentina
   'EZE': 'Buenos Aires',
+  'AEP': 'Buenos Aires',
   'COR': 'Cordoba Argentina',
+  'MDQ': 'Mar del Plata Argentina',
   // Chile
   'SCL': 'Santiago Chile',
   // Europa
   'MAD': 'Madrid',
   'BCN': 'Barcelona',
   'FCO': 'Rome',
+  'MXP': 'Milan',
   'CDG': 'Paris',
   'LIS': 'Lisbon',
   'FRA': 'Frankfurt',
@@ -219,6 +222,11 @@ const IATA_TO_CITY = {
   'VIE': 'Vienna',
   // Italia
   'VCE': 'Venice',
+  // USA
+  'ORD': 'Chicago',
+  'JFK': 'New York',
+  'LAX': 'Los Angeles',
+  'MIA': 'Miami',
   // Oceanía
   'SYD': 'Sydney',
   'MEL': 'Melbourne',
