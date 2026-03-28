@@ -1,8 +1,10 @@
 /**
- * Informe Diario PDF v1.0
+ * Informe Diario PDF v2.0
  *
- * Genera un PDF con todos los precios encontrados (vuelos, trenes, buses),
- * recomendaciones y comparativas. Se envía por Telegram una vez al día.
+ * Genera un PDF profesional con precios encontrados, estadísticas,
+ * tendencias y recomendaciones. Se envía por Telegram una vez al día.
+ *
+ * Precios en USD (Google Flights API).
  */
 
 const PDFDocument = require('pdfkit');
@@ -10,19 +12,56 @@ const fs = require('fs');
 const path = require('path');
 const { all } = require('../database/db');
 const { sendMessage } = require('./telegram');
-
 const TelegramBot = require('node-telegram-bot-api');
 
-// Directorio para PDFs temporales
 const PDF_DIR = path.join(__dirname, '..', '..', 'data');
 
-/**
- * Genera el informe diario PDF y lo envía por Telegram
- */
+// ═══════════════════════════════════════════════════════════════
+// COLORS
+// ═══════════════════════════════════════════════════════════════
+const COLORS = {
+  primary: '#0D47A1',
+  secondary: '#1565C0',
+  accent: '#00C853',
+  warning: '#FF6D00',
+  danger: '#D50000',
+  text: '#212121',
+  textLight: '#616161',
+  textMuted: '#9E9E9E',
+  bg: '#F5F5F5',
+  border: '#E0E0E0',
+  white: '#FFFFFF',
+  deal: '#2E7D32',
+  steal: '#D50000',
+};
+
+// Route display names
+const ROUTE_NAMES = {
+  'MDQ': 'Mar del Plata',
+  'COR': 'Córdoba',
+  'MAD': 'Madrid',
+  'BCN': 'Barcelona',
+  'ORD': 'Chicago',
+  'EZE': 'Buenos Aires',
+  'FCO': 'Roma',
+  'MXP': 'Milán',
+};
+
+// Thresholds (must match routes config)
+const THRESHOLDS = {
+  'MDQ-COR': 50,
+  'MAD-ORD': 300, 'BCN-ORD': 280,
+  'EZE-MAD': 450, 'EZE-BCN': 450, 'EZE-FCO': 500, 'EZE-MXP': 500,
+  'COR-MAD': 550, 'COR-BCN': 550, 'COR-FCO': 600, 'COR-MXP': 600,
+};
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN
+// ═══════════════════════════════════════════════════════════════
+
 async function generateAndSendDailyReport() {
   console.log('\n📄 Generando informe diario PDF...');
 
-  // 1. Obtener datos de las últimas 24h
   const prices = await all(`
     SELECT origin, destination, airline, price, source, departure_date, recorded_at
     FROM flight_prices
@@ -35,44 +74,39 @@ async function generateAndSendDailyReport() {
     return null;
   }
 
-  // 2. Agrupar por ruta
   const routes = groupByRoute(prices);
-
-  // 3. Generar PDF
   const filename = `informe-${new Date().toISOString().split('T')[0]}.pdf`;
   const filepath = path.join(PDF_DIR, filename);
 
-  // Asegurar que el directorio existe
   if (!fs.existsSync(PDF_DIR)) {
     fs.mkdirSync(PDF_DIR, { recursive: true });
   }
 
   await createPDF(filepath, routes, prices);
-
   console.log(`  ✅ PDF generado: ${filepath}`);
 
-  // 4. Enviar por Telegram
   await sendPDFToTelegram(filepath, routes);
-
-  // 5. Limpiar PDFs antiguos (>3 días)
   cleanOldPDFs();
 
   return filepath;
 }
 
-/**
- * Agrupa precios por ruta
- */
+// ═══════════════════════════════════════════════════════════════
+// GROUP DATA
+// ═══════════════════════════════════════════════════════════════
+
 function groupByRoute(prices) {
   const groups = {};
   for (const p of prices) {
-    const key = `${p.origin}→${p.destination}`;
+    const key = `${p.origin}-${p.destination}`;
     if (!groups[key]) {
       groups[key] = {
         origin: p.origin,
         destination: p.destination,
-        routeName: key,
+        routeKey: key,
+        routeName: `${ROUTE_NAMES[p.origin] || p.origin} → ${ROUTE_NAMES[p.destination] || p.destination}`,
         prices: [],
+        threshold: THRESHOLDS[key] || null,
       };
     }
     groups[key].prices.push(p);
@@ -80,271 +114,267 @@ function groupByRoute(prices) {
   return Object.values(groups);
 }
 
-/**
- * Detecta si es vuelo, tren o bus según el campo airline/source
- */
-function detectMode(entry) {
-  const airline = (entry.airline || '').toLowerCase();
-  const source = (entry.source || '').toLowerCase();
-  if (airline.includes('flixbus') || airline.includes('bus')) return 'bus';
-  if (airline.includes('train') || airline.includes('tren')) return 'train';
-  if (source.includes('flixbus') || source.includes('transit')) return 'bus';
-  return 'flight';
-}
+// ═══════════════════════════════════════════════════════════════
+// PDF GENERATION
+// ═══════════════════════════════════════════════════════════════
 
-function modeEmoji(mode) {
-  if (mode === 'bus') return '🚌';
-  if (mode === 'train') return '🚂';
-  return '✈️';
-}
-
-function modeLabel(mode) {
-  if (mode === 'bus') return 'Autobús';
-  if (mode === 'train') return 'Tren';
-  return 'Vuelo';
-}
-
-/**
- * Crea el PDF con el informe
- */
 function createPDF(filepath, routes, allPrices) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'A4',
-      margins: { top: 50, bottom: 50, left: 50, right: 50 },
+      margins: { top: 40, bottom: 40, left: 45, right: 45 },
       info: {
-        Title: 'Informe Diario de Precios - Flight Deal Finder',
-        Author: 'Flight Deal Finder Bot',
+        Title: 'Flight Deal Finder — Informe Diario',
+        Author: 'Flight Deal Finder Bot v7.0',
       },
     });
 
     const stream = fs.createWriteStream(filepath);
     doc.pipe(stream);
 
-    const pageWidth = doc.page.width - 100; // margins
+    const pw = doc.page.width - 90; // page width minus margins
     const today = new Date().toLocaleDateString('es-ES', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     });
 
-    // ═══════════ PORTADA ═══════════
-    doc.fontSize(28).font('Helvetica-Bold').fillColor('#1a237e');
-    doc.text('Informe Diario de Precios', { align: 'center' });
-    doc.moveDown(0.3);
-    doc.fontSize(14).font('Helvetica').fillColor('#555');
-    doc.text(today, { align: 'center' });
-    doc.moveDown(0.3);
-    doc.fontSize(11).fillColor('#888');
-    doc.text('Vuelos, Trenes y Autobuses', { align: 'center' });
-    doc.moveDown(1.5);
+    // ═══════════ HEADER BAR ═══════════
+    doc.rect(0, 0, doc.page.width, 85).fill(COLORS.primary);
 
-    // Línea decorativa
-    doc.strokeColor('#1a237e').lineWidth(2);
-    doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
-    doc.moveDown(1);
+    doc.fontSize(22).font('Helvetica-Bold').fillColor(COLORS.white);
+    doc.text('Flight Deal Finder', 45, 18, { width: pw });
+    doc.fontSize(11).font('Helvetica').fillColor('#90CAF5');
+    doc.text(`Informe Diario — ${today}`, 45, 45, { width: pw });
+    doc.fontSize(9).fillColor('#64B5F6');
+    doc.text(`${allPrices.length} precios analizados · ${routes.length} rutas monitoreadas`, 45, 62, { width: pw });
 
-    // ═══════════ RESUMEN EJECUTIVO ═══════════
-    doc.fontSize(16).font('Helvetica-Bold').fillColor('#1a237e');
-    doc.text('Resumen Ejecutivo');
+    doc.y = 100;
+
+    // ═══════════ QUICK STATS ═══════════
+    const stats = computeStats(routes, allPrices);
+
+    drawStatBox(doc, 45, doc.y, pw / 3 - 8, 'Mejor Precio', `$${stats.bestPrice}`, stats.bestRoute, COLORS.deal);
+    drawStatBox(doc, 45 + pw / 3 + 4, doc.y, pw / 3 - 8, 'Ofertas Encontradas', `${stats.dealsCount}`, 'bajo el umbral', COLORS.accent);
+    drawStatBox(doc, 45 + (pw / 3 + 4) * 2, doc.y, pw / 3 - 8, 'Promedio', `$${stats.avgPrice}`, 'todas las rutas', COLORS.secondary);
+
+    doc.y += 70;
     doc.moveDown(0.5);
 
-    // Encontrar las mejores opciones
-    const bestByRoute = {};
+    // ═══════════ RESUMEN POR RUTA ═══════════
+    drawSectionHeader(doc, 'Resumen por Ruta');
+
+    // Table header
+    const cols = [45, 195, 280, 355, 430];
+    doc.fontSize(8).font('Helvetica-Bold').fillColor(COLORS.textLight);
+    doc.text('RUTA', cols[0], doc.y);
+    const hy = doc.y - 9;
+    doc.text('MEJOR', cols[1], hy);
+    doc.text('AEROLÍNEA', cols[2], hy);
+    doc.text('UMBRAL', cols[3], hy);
+    doc.text('ESTADO', cols[4], hy);
+    doc.moveDown(0.3);
+
+    doc.strokeColor(COLORS.border).lineWidth(0.5);
+    doc.moveTo(45, doc.y).lineTo(45 + pw, doc.y).stroke();
+    doc.moveDown(0.2);
+
     for (const route of routes) {
-      const best = route.prices[0]; // ya ordenado por precio
-      bestByRoute[route.routeName] = best;
-    }
+      if (doc.y > doc.page.height - 80) doc.addPage();
 
-    doc.fontSize(10).font('Helvetica').fillColor('#333');
-    doc.text(`Total de opciones encontradas: ${allPrices.length}`, { continued: false });
-    doc.text(`Rutas analizadas: ${routes.length}`);
-    doc.moveDown(0.8);
-
-    // Tabla resumen de mejores precios
-    doc.fontSize(13).font('Helvetica-Bold').fillColor('#2e7d32');
-    doc.text('Mejores Precios por Ruta');
-    doc.moveDown(0.4);
-
-    for (const route of routes) {
       const best = route.prices[0];
-      const mode = detectMode(best);
-      const emoji = modeLabel(mode);
-      const dateStr = best.departure_date ? formatDateES(best.departure_date) : 'N/A';
+      const isDeal = route.threshold && best.price <= route.threshold;
+      const statusColor = isDeal ? COLORS.deal : COLORS.textLight;
+      const statusText = isDeal ? 'OFERTA' : 'Normal';
 
-      doc.fontSize(10).font('Helvetica-Bold').fillColor('#333');
-      doc.text(`${route.routeName}`, { continued: true });
-      doc.font('Helvetica').fillColor('#666');
-      doc.text(`  (${emoji})`, { continued: false });
+      doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.text);
+      doc.text(route.routeName, cols[0], doc.y, { width: 145 });
+      const ry = doc.y - 11;
 
-      doc.fontSize(10).font('Helvetica').fillColor('#333');
-      doc.text(`   Mejor precio: €${best.price} — ${best.airline || 'N/A'} — ${dateStr}`, { indent: 15 });
-      doc.moveDown(0.3);
+      doc.font('Helvetica').fillColor(isDeal ? COLORS.deal : COLORS.text);
+      doc.text(`$${best.price}`, cols[1], ry);
+
+      doc.fillColor(COLORS.text);
+      doc.text(truncate(best.airline || 'N/A', 15), cols[2], ry);
+
+      doc.fillColor(COLORS.textMuted);
+      doc.text(route.threshold ? `≤$${route.threshold}` : '—', cols[3], ry);
+
+      // Status badge
+      doc.fontSize(7).font('Helvetica-Bold').fillColor(statusColor);
+      doc.text(statusText, cols[4], ry + 1);
+
+      doc.moveDown(0.25);
     }
 
-    doc.moveDown(0.5);
-    doc.strokeColor('#ccc').lineWidth(0.5);
-    doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
     doc.moveDown(1);
 
     // ═══════════ DETALLE POR RUTA ═══════════
     for (const route of routes) {
-      // Check if we need a new page
-      if (doc.y > doc.page.height - 200) {
-        doc.addPage();
+      if (doc.y > doc.page.height - 180) doc.addPage();
+
+      // Route header with colored left border
+      const routeY = doc.y;
+      const isDealRoute = route.threshold && route.prices[0].price <= route.threshold;
+      doc.rect(45, routeY, 4, 18).fill(isDealRoute ? COLORS.deal : COLORS.secondary);
+
+      doc.fontSize(12).font('Helvetica-Bold').fillColor(COLORS.text);
+      doc.text(route.routeName, 55, routeY + 2);
+
+      if (route.threshold) {
+        doc.fontSize(8).font('Helvetica').fillColor(COLORS.textMuted);
+        doc.text(`Umbral: ≤$${route.threshold}`, 55 + doc.widthOfString(route.routeName, { fontSize: 12 }) + 15, routeY + 4);
       }
 
-      doc.fontSize(14).font('Helvetica-Bold').fillColor('#1a237e');
-      doc.text(`${route.routeName}`);
-      doc.moveDown(0.3);
+      doc.y = routeY + 25;
 
-      // Separar por modo de transporte
-      const byMode = { flight: [], bus: [], train: [] };
-      for (const p of route.prices) {
-        const mode = detectMode(p);
-        if (!byMode[mode]) byMode[mode] = [];
-        byMode[mode].push(p);
-      }
+      // Mini table of prices
+      const detCols = [60, 150, 280, 380];
+      doc.fontSize(7.5).font('Helvetica-Bold').fillColor(COLORS.textLight);
+      doc.text('PRECIO', detCols[0], doc.y);
+      const dhy = doc.y - 8;
+      doc.text('AEROLÍNEA', detCols[1], dhy);
+      doc.text('FECHA', detCols[2], dhy);
+      doc.text('FUENTE', detCols[3], dhy);
+      doc.moveDown(0.15);
 
-      for (const [mode, entries] of Object.entries(byMode)) {
-        if (entries.length === 0) continue;
+      // Rows (max 6)
+      const shown = route.prices.slice(0, 6);
+      for (let i = 0; i < shown.length; i++) {
+        const p = shown[i];
+        const isBest = i === 0;
+        const dateStr = p.departure_date ? formatDateES(p.departure_date) : 'N/A';
 
-        doc.fontSize(11).font('Helvetica-Bold').fillColor('#555');
-        doc.text(`${modeEmoji(mode)} ${modeLabel(mode)} (${entries.length} opciones)`);
-        doc.moveDown(0.2);
+        if (doc.y > doc.page.height - 60) doc.addPage();
 
-        // Encabezado de tabla
-        const colX = [65, 200, 340, 440];
-        doc.fontSize(9).font('Helvetica-Bold').fillColor('#666');
-        doc.text('Precio', colX[0], doc.y, { continued: false });
-
-        const headerY = doc.y - 11;
-        doc.text('Operador', colX[1], headerY);
-        doc.text('Fecha', colX[2], headerY);
-        doc.text('Fuente', colX[3], headerY);
-        doc.moveDown(0.2);
-
-        // Línea bajo encabezado
-        doc.strokeColor('#ddd').lineWidth(0.5);
-        doc.moveTo(60, doc.y).lineTo(doc.page.width - 60, doc.y).stroke();
-        doc.moveDown(0.1);
-
-        // Filas (máximo 8 por modo)
-        const shown = entries.slice(0, 8);
-        for (let i = 0; i < shown.length; i++) {
-          const p = shown[i];
-          const dateStr = p.departure_date ? formatDateES(p.departure_date) : 'N/A';
-          const isBest = i === 0;
-
-          if (doc.y > doc.page.height - 80) {
-            doc.addPage();
-          }
-
-          doc.fontSize(9).font(isBest ? 'Helvetica-Bold' : 'Helvetica');
-          doc.fillColor(isBest ? '#2e7d32' : '#333');
-          doc.text(`€${p.price}${isBest ? ' ★' : ''}`, colX[0], doc.y, { continued: false });
-
-          const rowY = doc.y - 11;
-          doc.fillColor('#333').font('Helvetica');
-          doc.text(truncate(p.airline || 'N/A', 22), colX[1], rowY);
-          doc.text(dateStr, colX[2], rowY);
-          doc.text(truncate(p.source || 'N/A', 16), colX[3], rowY);
-          doc.moveDown(0.1);
+        // Alternate row background
+        if (i % 2 === 0) {
+          doc.rect(55, doc.y - 2, pw - 15, 12).fill('#FAFAFA');
         }
 
-        if (entries.length > 8) {
-          doc.fontSize(8).font('Helvetica').fillColor('#999');
-          doc.text(`   +${entries.length - 8} opciones más...`);
-        }
-
-        doc.moveDown(0.5);
+        doc.fontSize(8.5).font(isBest ? 'Helvetica-Bold' : 'Helvetica');
+        doc.fillColor(isBest ? COLORS.deal : COLORS.text);
+        doc.text(`$${p.price}${isBest ? ' ★' : ''}`, detCols[0], doc.y);
+        const pry = doc.y - 10;
+        doc.fillColor(COLORS.text).font('Helvetica');
+        doc.text(truncate(p.airline || 'N/A', 22), detCols[1], pry);
+        doc.text(dateStr, detCols[2], pry);
+        doc.fillColor(COLORS.textMuted).fontSize(7.5);
+        doc.text(truncate(p.source || 'N/A', 18), detCols[3], pry);
+        doc.moveDown(0.08);
       }
 
-      // Recomendación para la ruta
-      const cheapest = route.prices[0];
-      const cheapestMode = detectMode(cheapest);
-
-      doc.fontSize(10).font('Helvetica-Bold').fillColor('#1565c0');
-      doc.text(`💡 Recomendación: ${modeLabel(cheapestMode)} a €${cheapest.price}`, { indent: 10 });
-      if (cheapest.airline) {
-        doc.fontSize(9).font('Helvetica').fillColor('#666');
-        doc.text(`   con ${cheapest.airline} — ${formatDateES(cheapest.departure_date || '')}`, { indent: 10 });
+      if (route.prices.length > 6) {
+        doc.fontSize(7).font('Helvetica').fillColor(COLORS.textMuted);
+        doc.text(`  +${route.prices.length - 6} más...`, 60);
       }
 
-      doc.moveDown(0.5);
-      doc.strokeColor('#eee').lineWidth(0.5);
-      doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
       doc.moveDown(0.8);
     }
 
-    // ═══════════ COMPARATIVA GENERAL ═══════════
-    if (doc.y > doc.page.height - 250) {
-      doc.addPage();
-    }
+    // ═══════════ TOP 10 GLOBAL ═══════════
+    if (doc.y > doc.page.height - 250) doc.addPage();
 
-    doc.fontSize(16).font('Helvetica-Bold').fillColor('#1a237e');
-    doc.text('Comparativa: Opciones Más Económicas');
-    doc.moveDown(0.5);
+    drawSectionHeader(doc, 'Top 10 — Mejores Precios Globales');
 
-    // Ordenar todas las opciones por precio
     const allSorted = [...allPrices].sort((a, b) => a.price - b.price);
     const top10 = allSorted.slice(0, 10);
 
-    doc.fontSize(9).font('Helvetica-Bold').fillColor('#666');
-    const compColX = [60, 190, 310, 390, 470];
-    doc.text('Ruta', compColX[0], doc.y);
-    const compHeaderY = doc.y - 11;
-    doc.text('Precio', compColX[1], compHeaderY);
-    doc.text('Operador', compColX[2], compHeaderY);
-    doc.text('Tipo', compColX[3], compHeaderY);
-    doc.text('Fecha', compColX[4], compHeaderY);
-    doc.moveDown(0.3);
-
-    doc.strokeColor('#1a237e').lineWidth(0.5);
-    doc.moveTo(55, doc.y).lineTo(doc.page.width - 55, doc.y).stroke();
-    doc.moveDown(0.2);
-
     for (let i = 0; i < top10.length; i++) {
       const p = top10[i];
-      const mode = detectMode(p);
-      const routeStr = `${p.origin}→${p.destination}`;
+      const routeStr = `${ROUTE_NAMES[p.origin] || p.origin} → ${ROUTE_NAMES[p.destination] || p.destination}`;
       const dateStr = p.departure_date ? formatDateES(p.departure_date) : '';
 
-      doc.fontSize(9).font(i < 3 ? 'Helvetica-Bold' : 'Helvetica');
-      doc.fillColor(i === 0 ? '#2e7d32' : '#333');
-      doc.text(`${i + 1}. ${routeStr}`, compColX[0], doc.y);
+      if (doc.y > doc.page.height - 50) doc.addPage();
 
-      const rowY = doc.y - 11;
-      doc.text(`€${p.price}`, compColX[1], rowY);
-      doc.font('Helvetica').fillColor('#333');
-      doc.text(truncate(p.airline || 'N/A', 14), compColX[2], rowY);
-      doc.text(modeLabel(mode), compColX[3], rowY);
-      doc.text(dateStr, compColX[4], rowY);
+      // Medal colors for top 3
+      const medalColors = [COLORS.deal, COLORS.secondary, '#FF8F00'];
+      const color = i < 3 ? medalColors[i] : COLORS.text;
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+
+      doc.fontSize(9).font(i < 3 ? 'Helvetica-Bold' : 'Helvetica').fillColor(color);
+      doc.text(`${medal}  $${p.price}  —  ${routeStr}  —  ${truncate(p.airline || '', 18)}  —  ${dateStr}`, 50);
       doc.moveDown(0.15);
     }
 
-    // ═══════════ PIE DE PÁGINA ═══════════
+    // ═══════════ FOOTER ═══════════
     doc.moveDown(2);
-    doc.fontSize(8).font('Helvetica').fillColor('#aaa');
-    doc.text(`Generado automáticamente por Flight Deal Finder v5.0 — ${new Date().toLocaleString('es-ES')}`, { align: 'center' });
-    doc.text('Los precios pueden variar. Verificar antes de comprar.', { align: 'center' });
+    doc.strokeColor(COLORS.border).lineWidth(0.5);
+    doc.moveTo(45, doc.y).lineTo(45 + pw, doc.y).stroke();
+    doc.moveDown(0.5);
+
+    doc.fontSize(7).font('Helvetica').fillColor(COLORS.textMuted);
+    doc.text(
+      `Flight Deal Finder v7.0 — Generado ${new Date().toLocaleString('es-ES')} — Precios en USD — Los precios pueden variar`,
+      { align: 'center' }
+    );
 
     doc.end();
-
     stream.on('finish', resolve);
     stream.on('error', reject);
   });
 }
 
-/**
- * Envía el PDF por Telegram
- */
+// ═══════════════════════════════════════════════════════════════
+// PDF DRAWING HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+function drawSectionHeader(doc, title) {
+  doc.fontSize(13).font('Helvetica-Bold').fillColor(COLORS.primary);
+  doc.text(title);
+  doc.moveDown(0.1);
+  doc.strokeColor(COLORS.primary).lineWidth(1.5);
+  doc.moveTo(45, doc.y).lineTo(45 + doc.widthOfString(title, { fontSize: 13 }), doc.y).stroke();
+  doc.moveDown(0.5);
+}
+
+function drawStatBox(doc, x, y, width, label, value, subtitle, color) {
+  const height = 55;
+  // Box background
+  doc.rect(x, y, width, height).fill('#F8F9FA');
+  // Left accent
+  doc.rect(x, y, 3, height).fill(color);
+
+  doc.fontSize(7.5).font('Helvetica').fillColor(COLORS.textMuted);
+  doc.text(label.toUpperCase(), x + 12, y + 8, { width: width - 20 });
+
+  doc.fontSize(18).font('Helvetica-Bold').fillColor(color);
+  doc.text(value, x + 12, y + 20, { width: width - 20 });
+
+  doc.fontSize(7).font('Helvetica').fillColor(COLORS.textLight);
+  doc.text(subtitle, x + 12, y + 42, { width: width - 20 });
+}
+
+function computeStats(routes, allPrices) {
+  const sorted = [...allPrices].sort((a, b) => a.price - b.price);
+  const best = sorted[0] || {};
+  const avg = allPrices.length > 0
+    ? Math.round(allPrices.reduce((s, p) => s + p.price, 0) / allPrices.length)
+    : 0;
+
+  let dealsCount = 0;
+  for (const route of routes) {
+    if (route.threshold) {
+      dealsCount += route.prices.filter(p => p.price <= route.threshold).length;
+    }
+  }
+
+  return {
+    bestPrice: best.price || 0,
+    bestRoute: `${ROUTE_NAMES[best.origin] || best.origin || '?'} → ${ROUTE_NAMES[best.destination] || best.destination || '?'}`,
+    avgPrice: avg,
+    dealsCount,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TELEGRAM
+// ═══════════════════════════════════════════════════════════════
+
 async function sendPDFToTelegram(filepath, routes) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
+  const chatIds = (process.env.TELEGRAM_CHAT_IDS || process.env.TELEGRAM_CHAT_ID || '')
+    .split(',').map(id => id.trim()).filter(id => id);
 
-  if (!token || !chatId) {
+  if (!token || chatIds.length === 0) {
     console.log('  📱 [Telegram disabled] PDF generado pero no enviado');
     return false;
   }
@@ -352,57 +382,53 @@ async function sendPDFToTelegram(filepath, routes) {
   try {
     const bot = new TelegramBot(token, { polling: false });
 
-    // Enviar resumen de texto primero
     let caption = `📄 <b>Informe Diario de Precios</b>\n`;
     caption += `📅 ${new Date().toLocaleDateString('es-ES')}\n\n`;
 
     for (const route of routes) {
       const best = route.prices[0];
-      const mode = detectMode(best);
-      caption += `${modeEmoji(mode)} <b>${route.routeName}</b>: €${best.price}`;
+      const isDeal = route.threshold && best.price <= route.threshold;
+      const dealTag = isDeal ? ' 🔥' : '';
+      caption += `✈️ <b>${route.routeName}</b>: $${best.price}${dealTag}`;
       if (best.airline) caption += ` (${best.airline})`;
       caption += `\n`;
     }
 
     caption += `\n📊 ${routes.reduce((sum, r) => sum + r.prices.length, 0)} opciones analizadas`;
 
-    await bot.sendDocument(chatId, filepath, {
-      caption,
-      parse_mode: 'HTML',
-    });
+    for (const chatId of chatIds) {
+      try {
+        await bot.sendDocument(chatId, filepath, { caption, parse_mode: 'HTML' });
+      } catch (err) {
+        console.error(`  ❌ Error Telegram (${chatId}): ${err.message}`);
+      }
+    }
 
     console.log('  📱 PDF enviado por Telegram');
     return true;
   } catch (err) {
-    console.error(`  ❌ Error enviando PDF por Telegram: ${err.message}`);
-    // Fallback: enviar solo el resumen como texto
-    await sendMessage(`📄 Informe diario generado pero no se pudo enviar el PDF: ${err.message}`);
+    console.error(`  ❌ Error enviando PDF: ${err.message}`);
     return false;
   }
 }
 
-/**
- * Limpia PDFs antiguos (>3 días)
- */
+// ═══════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════
+
 function cleanOldPDFs() {
   try {
     const files = fs.readdirSync(PDF_DIR).filter(f => f.startsWith('informe-') && f.endsWith('.pdf'));
-    const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
-
+    const threeDaysAgo = Date.now() - 3 * 86400000;
     for (const file of files) {
       const filepath = path.join(PDF_DIR, file);
       const stat = fs.statSync(filepath);
       if (stat.mtimeMs < threeDaysAgo) {
         fs.unlinkSync(filepath);
-        console.log(`  🗑️ PDF antiguo eliminado: ${file}`);
       }
     }
-  } catch (err) {
-    // No crítico
-  }
+  } catch (err) { /* non-critical */ }
 }
-
-// ═══════════ HELPERS ═══════════
 
 function formatDateES(dateStr) {
   if (!dateStr) return '';

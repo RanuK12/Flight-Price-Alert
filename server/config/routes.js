@@ -1,91 +1,98 @@
 /**
- * Configuración de Rutas de Vuelo
- * 
- * Define las rutas a monitorear para encontrar ofertas
+ * Configuración de Rutas de Vuelo v2.0
+ *
+ * Rutas activas:
+ * 1. MDQ → COR (Mar del Plata → Córdoba) — 19-24 abr, solo ida
+ * 2. España → Chicago (MAD/BCN → ORD) — 20-30 jun, solo ida
+ * 3. Argentina → Europa (COR/EZE → MAD/BCN/FCO/MXP) — 15 jun - 31 jul, solo ida
+ *
+ * Precios en USD (Google Flights API devuelve USD)
  */
 
-// Rutas Europa → Argentina
-const EUROPE_TO_ARGENTINA = [
-  // Desde España
-  { origin: 'MAD', destination: 'EZE', name: 'Madrid → Buenos Aires' },
-  { origin: 'BCN', destination: 'EZE', name: 'Barcelona → Buenos Aires' },
-  
-  // Desde Portugal (generalmente más barato)
-  { origin: 'LIS', destination: 'EZE', name: 'Lisboa → Buenos Aires' },
-  
-  // Desde Italia
-  { origin: 'FCO', destination: 'EZE', name: 'Roma → Buenos Aires' },
-  { origin: 'MXP', destination: 'EZE', name: 'Milán → Buenos Aires' },
-  
-  // Desde Francia
-  { origin: 'CDG', destination: 'EZE', name: 'París → Buenos Aires' },
-  
-  // Desde Alemania
-  { origin: 'FRA', destination: 'EZE', name: 'Frankfurt → Buenos Aires' },
-  
-  // Desde Países Bajos
-  { origin: 'AMS', destination: 'EZE', name: 'Amsterdam → Buenos Aires' },
-  
-  // Desde Reino Unido
-  { origin: 'LHR', destination: 'EZE', name: 'Londres → Buenos Aires' },
+// ═══════════════════════════════════════════════════════════════
+// RUTA 1: Mar del Plata → Córdoba (doméstico Argentina)
+// ═══════════════════════════════════════════════════════════════
+const ARGENTINA_DOMESTIC = [
+  { origin: 'MDQ', destination: 'COR', name: 'Mar del Plata → Córdoba' },
 ];
 
-// Rutas Europa → Estados Unidos
-const EUROPE_TO_USA = [
-  // A New York
-  { origin: 'MAD', destination: 'JFK', name: 'Madrid → New York' },
-  { origin: 'BCN', destination: 'JFK', name: 'Barcelona → New York' },
-  { origin: 'LIS', destination: 'JFK', name: 'Lisboa → New York' },
-  { origin: 'CDG', destination: 'JFK', name: 'París → New York' },
-  { origin: 'LHR', destination: 'JFK', name: 'Londres → New York' },
-  { origin: 'FRA', destination: 'JFK', name: 'Frankfurt → New York' },
-  { origin: 'AMS', destination: 'JFK', name: 'Amsterdam → New York' },
-  
-  // A Miami (conexión popular)
-  { origin: 'MAD', destination: 'MIA', name: 'Madrid → Miami' },
-  { origin: 'BCN', destination: 'MIA', name: 'Barcelona → Miami' },
-  { origin: 'LIS', destination: 'MIA', name: 'Lisboa → Miami' },
-  
-  // A Los Angeles
-  { origin: 'MAD', destination: 'LAX', name: 'Madrid → Los Angeles' },
-  { origin: 'LHR', destination: 'LAX', name: 'Londres → Los Angeles' },
+// ═══════════════════════════════════════════════════════════════
+// RUTA 2: España → Chicago
+// ═══════════════════════════════════════════════════════════════
+const SPAIN_TO_CHICAGO = [
+  { origin: 'MAD', destination: 'ORD', name: 'Madrid → Chicago' },
+  { origin: 'BCN', destination: 'ORD', name: 'Barcelona → Chicago' },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// RUTA 3: Argentina → Italia/España
+// ═══════════════════════════════════════════════════════════════
+const ARGENTINA_TO_EUROPE = [
+  // Desde Buenos Aires
+  { origin: 'EZE', destination: 'MAD', name: 'Buenos Aires → Madrid' },
+  { origin: 'EZE', destination: 'BCN', name: 'Buenos Aires → Barcelona' },
+  { origin: 'EZE', destination: 'FCO', name: 'Buenos Aires → Roma' },
+  { origin: 'EZE', destination: 'MXP', name: 'Buenos Aires → Milán' },
+  // Desde Córdoba
+  { origin: 'COR', destination: 'MAD', name: 'Córdoba → Madrid' },
+  { origin: 'COR', destination: 'BCN', name: 'Córdoba → Barcelona' },
+  { origin: 'COR', destination: 'FCO', name: 'Córdoba → Roma' },
+  { origin: 'COR', destination: 'MXP', name: 'Córdoba → Milán' },
 ];
 
 /**
- * Precios de referencia actualizados (en EUR)
- * 
- * typical: Precio promedio normal
- * deal: Buena oferta (25-30% menos que típico)
- * steal: Ganga/Error fare (40-50% menos que típico)
- * 
- * Estos precios son para vuelos de IDA
- * Para ida y vuelta, multiplicar por ~1.8
+ * Precios de referencia (en USD, solo ida)
+ *
+ * Investigación de mercado (marzo 2026):
+ *
+ * MDQ → COR: Doméstico Argentina
+ *   - Típico: $60-110 USD
+ *   - Oferta: ≤$50 (Flybondi/JetSMART promos)
+ *   - Ganga: ≤$35
+ *
+ * España → Chicago:
+ *   - MAD-ORD típico: $360-475 (Iberia/AA nonstop)
+ *   - BCN-ORD típico: $294-400 (AA nonstop o conexión)
+ *   - Oferta: ≤$300 MAD, ≤$280 BCN
+ *   - Ganga: ≤$220
+ *
+ * Argentina → España:
+ *   - EZE-MAD típico: $536-624 (Iberia/AR/Air Europa directo)
+ *   - EZE-BCN típico: $550-573
+ *   - Oferta: ≤$450
+ *   - Ganga: ≤$380
+ *
+ * Argentina → Italia:
+ *   - EZE-FCO típico: $654-661 (conexión)
+ *   - EZE-MXP típico: $583+
+ *   - Oferta: ≤$500
+ *   - Ganga: ≤$420
+ *
+ * Córdoba → Europa: ~$100-150 más que desde EZE (conexión vía EZE)
  */
 const PRICE_THRESHOLDS = {
-  // Europa → Argentina (vuelos de ~12-14 horas)
-  'MAD-EZE': { typical: 650, deal: 450, steal: 320, roundTripMultiplier: 1.7 },
-  'BCN-EZE': { typical: 680, deal: 470, steal: 340, roundTripMultiplier: 1.7 },
-  'LIS-EZE': { typical: 600, deal: 400, steal: 280, roundTripMultiplier: 1.7 },
-  'FCO-EZE': { typical: 720, deal: 500, steal: 360, roundTripMultiplier: 1.8 },
-  'MXP-EZE': { typical: 700, deal: 480, steal: 350, roundTripMultiplier: 1.8 },
-  'CDG-EZE': { typical: 750, deal: 520, steal: 380, roundTripMultiplier: 1.8 },
-  'FRA-EZE': { typical: 720, deal: 500, steal: 360, roundTripMultiplier: 1.8 },
-  'AMS-EZE': { typical: 700, deal: 480, steal: 340, roundTripMultiplier: 1.8 },
-  'LHR-EZE': { typical: 780, deal: 540, steal: 400, roundTripMultiplier: 1.8 },
-  
-  // Europa → USA (vuelos de ~8-10 horas)
-  'MAD-JFK': { typical: 420, deal: 280, steal: 200, roundTripMultiplier: 1.6 },
-  'BCN-JFK': { typical: 450, deal: 300, steal: 220, roundTripMultiplier: 1.6 },
-  'LIS-JFK': { typical: 400, deal: 260, steal: 180, roundTripMultiplier: 1.6 },
-  'CDG-JFK': { typical: 400, deal: 250, steal: 170, roundTripMultiplier: 1.5 },
-  'LHR-JFK': { typical: 380, deal: 240, steal: 160, roundTripMultiplier: 1.5 },
-  'FRA-JFK': { typical: 420, deal: 280, steal: 200, roundTripMultiplier: 1.6 },
-  'AMS-JFK': { typical: 400, deal: 260, steal: 180, roundTripMultiplier: 1.6 },
-  'MAD-MIA': { typical: 450, deal: 300, steal: 220, roundTripMultiplier: 1.6 },
-  'BCN-MIA': { typical: 480, deal: 320, steal: 240, roundTripMultiplier: 1.6 },
-  'LIS-MIA': { typical: 420, deal: 280, steal: 200, roundTripMultiplier: 1.6 },
-  'MAD-LAX': { typical: 500, deal: 350, steal: 260, roundTripMultiplier: 1.7 },
-  'LHR-LAX': { typical: 450, deal: 300, steal: 220, roundTripMultiplier: 1.6 },
+  // Doméstico Argentina (USD)
+  'MDQ-COR': { typical: 85, deal: 50, steal: 35 },
+
+  // España → Chicago (USD)
+  'MAD-ORD': { typical: 420, deal: 300, steal: 220 },
+  'BCN-ORD': { typical: 350, deal: 280, steal: 200 },
+
+  // Buenos Aires → España (USD)
+  'EZE-MAD': { typical: 580, deal: 450, steal: 380 },
+  'EZE-BCN': { typical: 560, deal: 450, steal: 380 },
+
+  // Buenos Aires → Italia (USD)
+  'EZE-FCO': { typical: 660, deal: 500, steal: 420 },
+  'EZE-MXP': { typical: 620, deal: 500, steal: 420 },
+
+  // Córdoba → España (USD, ~$100-150 más que EZE)
+  'COR-MAD': { typical: 700, deal: 550, steal: 450 },
+  'COR-BCN': { typical: 680, deal: 550, steal: 450 },
+
+  // Córdoba → Italia (USD)
+  'COR-FCO': { typical: 780, deal: 600, steal: 500 },
+  'COR-MXP': { typical: 750, deal: 600, steal: 500 },
 };
 
 /**
@@ -94,9 +101,8 @@ const PRICE_THRESHOLDS = {
 function analyzePrice(origin, destination, price, tripType = 'oneway') {
   const routeKey = `${origin}-${destination}`;
   const thresholds = PRICE_THRESHOLDS[routeKey];
-  
+
   if (!thresholds) {
-    // Si no tenemos datos de referencia, usar heurística
     return {
       isDeal: false,
       dealLevel: null,
@@ -104,11 +110,9 @@ function analyzePrice(origin, destination, price, tripType = 'oneway') {
     };
   }
 
-  // Ajustar umbrales para ida y vuelta
-  const multiplier = tripType === 'roundtrip' ? thresholds.roundTripMultiplier : 1;
-  const typical = thresholds.typical * multiplier;
-  const deal = thresholds.deal * multiplier;
-  const steal = thresholds.steal * multiplier;
+  const typical = thresholds.typical;
+  const deal = thresholds.deal;
+  const steal = thresholds.steal;
 
   const savings = typical - price;
   const savingsPercent = Math.round((savings / typical) * 100);
@@ -118,36 +122,24 @@ function analyzePrice(origin, destination, price, tripType = 'oneway') {
       isDeal: true,
       dealLevel: 'steal',
       emoji: '🔥🔥🔥',
-      message: `¡GANGA INCREÍBLE! Ahorras €${savings} (${savingsPercent}% menos que lo normal)`,
-      savings,
-      savingsPercent,
-      typical,
-      deal,
-      steal,
+      message: `¡GANGA INCREÍBLE! Ahorras $${savings} (${savingsPercent}% menos que lo normal)`,
+      savings, savingsPercent, typical, deal, steal,
     };
   } else if (price <= deal) {
     return {
       isDeal: true,
       dealLevel: 'great',
       emoji: '🔥🔥',
-      message: `¡MUY BUENA OFERTA! Ahorras €${savings} (${savingsPercent}% menos)`,
-      savings,
-      savingsPercent,
-      typical,
-      deal,
-      steal,
+      message: `¡MUY BUENA OFERTA! Ahorras $${savings} (${savingsPercent}% menos)`,
+      savings, savingsPercent, typical, deal, steal,
     };
   } else if (price <= typical * 0.85) {
     return {
       isDeal: true,
       dealLevel: 'good',
       emoji: '🔥',
-      message: `Buen precio. Ahorras €${savings} (${savingsPercent}% menos)`,
-      savings,
-      savingsPercent,
-      typical,
-      deal,
-      steal,
+      message: `Buen precio. Ahorras $${savings} (${savingsPercent}% menos)`,
+      savings, savingsPercent, typical, deal, steal,
     };
   } else if (price <= typical) {
     return {
@@ -162,44 +154,38 @@ function analyzePrice(origin, destination, price, tripType = 'oneway') {
       isDeal: false,
       dealLevel: 'high',
       emoji: '📈',
-      message: `Precio alto. Típico: €${typical}`,
+      message: `Precio alto. Típico: $${typical}`,
       typical,
     };
   }
 }
 
 /**
- * Genera fechas de búsqueda inteligentes
- * - Evita fines de semana (más caros)
- * - Incluye martes y miércoles (típicamente más baratos)
+ * Genera fechas de búsqueda dentro de un rango
  */
-function generateSmartDates(options = {}) {
-  const {
-    startDaysAhead = 7,
-    endDaysAhead = 90,
-    preferredDays = [2, 3], // Martes, Miércoles
-    maxDates = 10,
-  } = options;
+function generateDatesInRange(startDate, endDate, options = {}) {
+  const { preferredDays = [2, 3], maxDates = 12 } = options;
 
   const dates = [];
-  const today = new Date();
   const preferredDates = [];
   const otherDates = [];
 
-  for (let i = startDaysAhead; i <= endDaysAhead; i++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() + i);
-    const dayOfWeek = date.getDay();
-    const dateStr = date.toISOString().split('T')[0];
+  let current = new Date(startDate);
+  const end = new Date(endDate);
+
+  while (current <= end) {
+    const dateStr = current.toISOString().split('T')[0];
+    const dayOfWeek = current.getDay();
 
     if (preferredDays.includes(dayOfWeek)) {
       preferredDates.push(dateStr);
-    } else if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+    } else {
       otherDates.push(dateStr);
     }
+
+    current.setDate(current.getDate() + 1);
   }
 
-  // Priorizar fechas preferidas
   dates.push(...preferredDates.slice(0, Math.ceil(maxDates * 0.6)));
   dates.push(...otherDates.slice(0, maxDates - dates.length));
 
@@ -211,36 +197,33 @@ function generateSmartDates(options = {}) {
  */
 function getAllRoutes(type = 'all') {
   switch (type) {
-    case 'argentina':
-      return EUROPE_TO_ARGENTINA;
-    case 'usa':
-      return EUROPE_TO_USA;
+    case 'domestic':
+      return ARGENTINA_DOMESTIC;
+    case 'spain-chicago':
+      return SPAIN_TO_CHICAGO;
+    case 'argentina-europe':
+      return ARGENTINA_TO_EUROPE;
     case 'all':
     default:
-      return [...EUROPE_TO_ARGENTINA, ...EUROPE_TO_USA];
+      return [...ARGENTINA_DOMESTIC, ...SPAIN_TO_CHICAGO, ...ARGENTINA_TO_EUROPE];
   }
 }
 
-/**
- * Obtiene rutas específicas desde un origen
- */
 function getRoutesFromOrigin(origin) {
   return getAllRoutes().filter(route => route.origin === origin);
 }
 
-/**
- * Obtiene rutas específicas a un destino
- */
 function getRoutesToDestination(destination) {
   return getAllRoutes().filter(route => route.destination === destination);
 }
 
 module.exports = {
-  EUROPE_TO_ARGENTINA,
-  EUROPE_TO_USA,
+  ARGENTINA_DOMESTIC,
+  SPAIN_TO_CHICAGO,
+  ARGENTINA_TO_EUROPE,
   PRICE_THRESHOLDS,
   analyzePrice,
-  generateSmartDates,
+  generateDatesInRange,
   getAllRoutes,
   getRoutesFromOrigin,
   getRoutesToDestination,

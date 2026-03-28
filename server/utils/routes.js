@@ -18,9 +18,14 @@ const AIRPORTS = {
   AMS: { city: 'Ámsterdam', country: 'Holanda', region: 'Europa' },
   LHR: { city: 'Londres', country: 'Reino Unido', region: 'Europa' },
   
+  // Italia
+  MXP: { city: 'Milán', country: 'Italia', region: 'Europa' },
+
   // Argentina
-  AEP: { city: 'Buenos Aires (Ezeiza)', country: 'Argentina', region: 'América del Sur' },
+  EZE: { city: 'Buenos Aires', country: 'Argentina', region: 'América del Sur' },
+  AEP: { city: 'Buenos Aires (Aeroparque)', country: 'Argentina', region: 'América del Sur' },
   COR: { city: 'Córdoba', country: 'Argentina', region: 'América del Sur' },
+  MDQ: { city: 'Mar del Plata', country: 'Argentina', region: 'América del Sur' },
   MEN: { city: 'Mendoza', country: 'Argentina', region: 'América del Sur' },
   
   // Estados Unidos

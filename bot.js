@@ -1,26 +1,26 @@
 /**
- * 🛫 FLIGHT DEAL BOT v3.0
- * 
- * - Scraping directo de Google Flights
- * - Búsquedas de IDA y de IDA+VUELTA separadas
- * - Precios reales
- * - Listado organizado por Telegram
- * 
+ * 🛫 FLIGHT DEAL BOT v4.0
+ *
+ * Uses Google Flights API directly (no browser needed).
+ * Faster, lighter, more reliable than Puppeteer scraping.
+ *
+ * Routes:
+ *   1. MDQ → COR (19-24 abr) solo ida — ALERTA ≤ $50
+ *   2. MAD/BCN → ORD (20-30 jun) solo ida — ALERTA ≤ $300/$280
+ *   3. EZE/COR → MAD/BCN/FCO/MXP (15 jun - 31 jul) solo ida
+ *
  * Uso: node bot.js
  */
 
 require('dotenv').config();
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const cron = require('node-cron');
 const TelegramBot = require('node-telegram-bot-api');
 const http = require('http');
 const crypto = require('crypto');
-
-puppeteer.use(StealthPlugin());
+const { searchFlightsApi } = require('./server/scrapers/googleFlightsApi');
 
 // ============================================
-// SERVIDOR HTTP PARA EVITAR SLEEP
+// HTTP HEALTH SERVER
 // ============================================
 
 const PORT = process.env.PORT || 3000;
@@ -28,11 +28,11 @@ const PORT = process.env.PORT || 3000;
 const server = http.createServer((req, res) => {
   if (req.url === '/health' || req.url === '/') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ 
-      status: 'ok', 
-      bot: 'Flight Deal Bot v3.0',
+    res.end(JSON.stringify({
+      status: 'ok',
+      bot: 'Flight Deal Bot v4.0 (API)',
       uptime: process.uptime(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     }));
   } else {
     res.writeHead(404);
@@ -45,55 +45,62 @@ server.listen(PORT, () => {
 });
 
 // ============================================
-// CONFIGURACIÓN
+// CONFIGURATION
 // ============================================
 
 const CONFIG = {
   telegramToken: process.env.TELEGRAM_BOT_TOKEN,
-  // Soporta múltiples chat IDs separados por coma
-  telegramChatIds: (process.env.TELEGRAM_CHAT_IDS || process.env.TELEGRAM_CHAT_ID || '').split(',').map(id => id.trim()).filter(id => id),
-  schedule: process.env.SCHEDULE || '*/30 * * * *',
-  headless: 'new'
+  telegramChatIds: (process.env.TELEGRAM_CHAT_IDS || process.env.TELEGRAM_CHAT_ID || '')
+    .split(',').map(id => id.trim()).filter(id => id),
+  schedule: process.env.SCHEDULE || '0 */2 * * *', // Every 2 hours
 };
 
 // ============================================
-// RUTAS A MONITOREAR (precios máximos para considerar oferta)
+// ROUTES
 // ============================================
+
+function dateRange(start, end) {
+  const dates = [];
+  let current = new Date(start);
+  const endDate = new Date(end);
+  while (current <= endDate) {
+    dates.push(current.toISOString().split('T')[0]);
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}
 
 const ROUTES = [
-  // BARCELONA → CHICAGO (solo ida, fechas 20 al 30 de junio)
-  { origin: 'Barcelona', dest: 'Chicago', goodOneWay: 245, wowPrice: 199, goodRoundTrip: 800, searchType: 'oneWay', dates: 'junio-bcn-chi' },
-  
-  // SANTIAGO DE CHILE → AUSTRALIA (solo ida, fechas junio)
-  { origin: 'Santiago de Chile', dest: 'Sidney Australia', goodOneWay: 700, goodRoundTrip: 1100, searchType: 'oneWay', dates: 'junio' },
-  
-  // MAR DEL PLATA → CÓRDOBA ARGENTINA (ida y vuelta, 16 al 22 de abril)
-  { origin: 'Mar del Plata', dest: 'Cordoba Argentina', goodOneWay: 50, goodRoundTrip: 75, searchType: 'roundTrip', dates: 'abril-mdp-cor' }
+  // Mar del Plata → Córdoba (19-24 abr)
+  { origin: 'MDQ', dest: 'COR', name: 'Mar del Plata → Córdoba',
+    dates: dateRange('2026-04-19', '2026-04-24'), threshold: 50, flag: '🇦🇷' },
+
+  // España → Chicago (20-30 jun)
+  { origin: 'MAD', dest: 'ORD', name: 'Madrid → Chicago',
+    dates: dateRange('2026-06-20', '2026-06-30'), threshold: 300, flag: '🇪🇸→🇺🇸' },
+  { origin: 'BCN', dest: 'ORD', name: 'Barcelona → Chicago',
+    dates: dateRange('2026-06-20', '2026-06-30'), threshold: 280, flag: '🇪🇸→🇺🇸' },
+
+  // Buenos Aires → España/Italia (15 jun - 31 jul)
+  { origin: 'EZE', dest: 'MAD', name: 'Buenos Aires → Madrid',
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 450, flag: '🇦🇷→🇪🇸' },
+  { origin: 'EZE', dest: 'BCN', name: 'Buenos Aires → Barcelona',
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 450, flag: '🇦🇷→🇪🇸' },
+  { origin: 'EZE', dest: 'FCO', name: 'Buenos Aires → Roma',
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 500, flag: '🇦🇷→🇮🇹' },
+  { origin: 'EZE', dest: 'MXP', name: 'Buenos Aires → Milán',
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 500, flag: '🇦🇷→🇮🇹' },
+
+  // Córdoba → España/Italia (15 jun - 31 jul)
+  { origin: 'COR', dest: 'MAD', name: 'Córdoba → Madrid',
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 550, flag: '🇦🇷→🇪🇸' },
+  { origin: 'COR', dest: 'BCN', name: 'Córdoba → Barcelona',
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 550, flag: '🇦🇷→🇪🇸' },
+  { origin: 'COR', dest: 'FCO', name: 'Córdoba → Roma',
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 600, flag: '🇦🇷→🇮🇹' },
+  { origin: 'COR', dest: 'MXP', name: 'Córdoba → Milán',
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 600, flag: '🇦🇷→🇮🇹' },
 ];
-
-// ============================================
-// CACHÉ PARA EVITAR DUPLICADOS
-// ============================================
-
-let lastReportHash = null;
-
-function generateHash(oneWayDeals, roundTripDeals) {
-  // Crear una firma única basada en rutas, precios y fechas
-  const data = [...oneWayDeals, ...roundTripDeals]
-    .map(d => `${d.route}|${d.price}|${d.date}`)
-    .sort()
-    .join(';');
-  return crypto.createHash('md5').update(data).digest('hex');
-}
-
-function isNewReport(oneWayDeals, roundTripDeals) {
-  const hash = generateHash(oneWayDeals, roundTripDeals);
-  if (hash === lastReportHash) {
-    return false; // Mismo resultado que antes
-  }
-  lastReportHash = hash;
-  return true; // Resultado nuevo
-}
 
 // ============================================
 // TELEGRAM
@@ -112,13 +119,11 @@ function initTelegram() {
 
 async function sendTelegram(message) {
   if (!bot) return;
-  
-  // Enviar a todos los usuarios configurados
   for (const chatId of CONFIG.telegramChatIds) {
     try {
-      await bot.sendMessage(chatId, message, { 
+      await bot.sendMessage(chatId, message, {
         parse_mode: 'HTML',
-        disable_web_page_preview: true 
+        disable_web_page_preview: true,
       });
     } catch (error) {
       console.error(`Error Telegram (${chatId}):`, error.message);
@@ -127,456 +132,187 @@ async function sendTelegram(message) {
 }
 
 // ============================================
-// SCRAPING GOOGLE FLIGHTS - MÉTODO MEJORADO
+// DUPLICATE DETECTION
 // ============================================
 
-async function scrapeFlightPrice(page, origin, dest, date, roundTrip = false) {
-  try {
-    // Construir URL correcta de Google Flights
-    const returnDate = roundTrip ? `&return=${getReturnDate(date)}` : '';
-    const tripType = roundTrip ? 1 : 2; // 1=round trip, 2=one way
-    
-    // URL más directa usando parámetros de Google Flights
-    const searchQuery = `${origin} to ${dest}`.replace(/ /g, '+');
-    const url = `https://www.google.com/travel/flights/search?tfs=CBwQAhoeEgoyMDI2LTAyLTE4agwIAhIIL20vMDZtMnY${roundTrip ? '' : '&tfu=EgYIBRABGAA'}&curr=EUR&hl=es`;
-    
-    // URL alternativa más simple
-    const simpleUrl = roundTrip 
-      ? `https://www.google.com/travel/flights?q=vuelos+${origin.replace(/ /g,'+')}+a+${dest.replace(/ /g,'+')}+${date}&curr=EUR&hl=es`
-      : `https://www.google.com/travel/flights?q=vuelos+${origin.replace(/ /g,'+')}+a+${dest.replace(/ /g,'+')}+${date}+solo+ida&curr=EUR&hl=es`;
-    
-    await page.goto(simpleUrl, { waitUntil: 'domcontentloaded', timeout: 40000 });
-    
-    // Esperar a que cargue
-    await new Promise(r => setTimeout(r, 4000));
-    
-    // Intentar aceptar cookies
-    try {
-      const acceptBtns = await page.$$('button');
-      for (const btn of acceptBtns) {
-        const text = await page.evaluate(el => el.textContent, btn);
-        if (text && (text.includes('Aceptar') || text.includes('Accept'))) {
-          await btn.click();
-          break;
-        }
-      }
-    } catch(e) {}
-    
-    await new Promise(r => setTimeout(r, 2000));
-    
-    // EXTRAER PRECIO - Método mejorado
-    const result = await page.evaluate((isLongHaul) => {
-      const text = document.body.innerText;
-      const prices = [];
-      
-      // Precio mínimo según destino (evitar capturar números falsos)
-      const minPrice = isLongHaul ? 300 : 180;
-      const maxPrice = isLongHaul ? 2500 : 1200;
-      
-      // Método 1: Buscar precios con formato "XXX €" o "€ XXX"
-      const patterns = [
-        /(\d{3,4})\s*€/g,
-        /€\s*(\d{3,4})/g,
-        /EUR\s*(\d{3,4})/gi
-      ];
-      
-      for (const pattern of patterns) {
-        let match;
-        while ((match = pattern.exec(text)) !== null) {
-          const price = parseInt(match[1]);
-          if (price >= minPrice && price <= maxPrice) {
-            prices.push(price);
-          }
-        }
-      }
-      
-      // Método 2: Buscar en atributos de elementos
-      document.querySelectorAll('[data-price], [aria-label*="€"]').forEach(el => {
-        const attr = el.getAttribute('data-price') || el.getAttribute('aria-label') || '';
-        const match = attr.match(/(\d{3,4})/);
-        if (match) {
-          const price = parseInt(match[1]);
-          if (price >= minPrice && price <= maxPrice) {
-            prices.push(price);
-          }
-        }
-      });
-      
-      // Detectar aerolínea
-      let airline = '';
-      const knownAirlines = [
-        'Iberia', 'Air Europa', 'LATAM', 'Aerolineas Argentinas', 
-        'American Airlines', 'Delta', 'United', 'British Airways', 
-        'Air France', 'Lufthansa', 'TAP', 'KLM', 'Level', 'Emirates'
-      ];
-      for (const a of knownAirlines) {
-        if (text.includes(a)) {
-          airline = a;
-          break;
-        }
-      }
-      
-      // Filtrar y obtener el más bajo real
-      const uniquePrices = [...new Set(prices)].sort((a, b) => a - b);
-      
-      return {
-        price: uniquePrices.length > 0 ? uniquePrices[0] : null,
-        allPrices: uniquePrices.slice(0, 5),
-        airline: airline || 'Varias aerolíneas'
-      };
-    }, dest.includes('Buenos Aires') || dest.includes('Cordoba'));
-    
-    if (result.price) {
-      return {
-        price: result.price,
-        airline: result.airline,
-        url: simpleUrl.replace(/ /g, '+')
-      };
-    }
-    
-    return null;
-    
-  } catch (error) {
-    console.error(`Error: ${error.message}`);
-    return null;
-  }
-}
+let lastReportHash = null;
 
-function getReturnDate(departDate) {
-  if (departDate === '2026-04-16') return '2026-04-22';
-  return '2026-04-07';
-}
-
-function getSearchDates(route) {
-  // Fechas de junio para Santiago-Sidney
-  if (route && route.dates === 'junio') {
-    return [
-      '2026-06-01',
-      '2026-06-08',
-      '2026-06-15',
-      '2026-06-22',
-      '2026-06-29'
-    ];
-  }
-  if (route && route.dates === 'junio-bcn-chi') {
-    return [
-      '2026-06-20', '2026-06-21', '2026-06-22', '2026-06-23',
-      '2026-06-24', '2026-06-25', '2026-06-26', '2026-06-27',
-      '2026-06-28', '2026-06-29', '2026-06-30'
-    ];
-  }
-  if (route && route.dates === 'abril-mdp-cor') {
-    return [ '2026-04-16' ];
-  }
-  return [];
+function isNewReport(deals) {
+  const data = deals.map(d => `${d.origin}-${d.dest}|${d.price}|${d.date}`).sort().join(';');
+  const hash = crypto.createHash('md5').update(data).digest('hex');
+  if (hash === lastReportHash) return false;
+  lastReportHash = hash;
+  return true;
 }
 
 // ============================================
-// BÚSQUEDA PRINCIPAL
+// DATE ROTATION (search subset each run)
+// ============================================
+
+let rotationOffset = 0;
+
+function pickDates(allDates, count = 3) {
+  if (allDates.length <= count) return [...allDates];
+  const picked = [];
+  for (let i = 0; i < count; i++) {
+    const idx = (rotationOffset + i) % allDates.length;
+    picked.push(allDates[idx]);
+  }
+  return picked;
+}
+
+// ============================================
+// MAIN SEARCH
 // ============================================
 
 async function runSearch() {
   const startTime = new Date();
-  console.log('\n' + '═'.repeat(60));
-  console.log(`🔍 BÚSQUEDA - ${startTime.toLocaleString('es-ES')}`);
-  console.log('═'.repeat(60));
-  
-  let browser;
-  try {
-    console.log('🌐 Abriendo navegador...');
-    
-    // Configuración para cualquier entorno (Windows, Linux, Docker, Railway)
-    const launchOptions = {
-      headless: 'new',
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox', 
-        '--disable-dev-shm-usage', 
-        '--disable-gpu',
-        '--disable-extensions',
-        '--disable-software-rasterizer',
-        '--single-process',
-        '--no-zygote',
-        '--disable-features=IsolateOrigins',
-        '--disable-site-isolation-trials'
-      ]
-    };
-    
-    // Usar ruta de entorno si está configurada (Railway, Docker, etc)
-    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-      launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-      console.log(`📍 Usando Chrome configurado: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
-    }
+  console.log('\n' + '='.repeat(60));
+  console.log(`🔍 BÚSQUEDA v4.0 (API Directa) — ${startTime.toLocaleString('es-ES')}`);
+  console.log('='.repeat(60));
 
-    // Intentar lanzar el navegador
-    try {
-      browser = await puppeteer.launch(launchOptions);
-    } catch (launchError) {
-      console.log('⚠️ Error al lanzar navegador, buscando alternativas...');
-      
-      const fs = require('fs');
-      const possiblePaths = [
-        '/nix/store/chromium/bin/chromium',
-        '/usr/bin/chromium',
-        '/usr/bin/chromium-browser', 
-        '/usr/bin/google-chrome',
-        '/usr/bin/google-chrome-stable',
-        '/snap/bin/chromium',
-      ].filter(p => {
-        try { return fs.existsSync(p); } catch { return false; }
-      });
+  rotationOffset = (rotationOffset + 1) % 20;
+  const deals = [];
+  let searchCount = 0;
+  let successCount = 0;
 
-      if (possiblePaths.length > 0) {
-        launchOptions.executablePath = possiblePaths[0];
-        console.log(`📍 Usando Chrome en: ${possiblePaths[0]}`);
-        browser = await puppeteer.launch(launchOptions);
-      } else {
-        throw new Error('No se encontró ningún navegador Chrome/Chromium instalado.');
-      }
-    }
-  } catch (error) {
-    console.error('❌ Error:', error.message);
-    console.log('\n💡 En Railway, configura la variable PUPPETEER_EXECUTABLE_PATH');
-    return;
-  }
-  
-  const page = await browser.newPage();
-  await page.setViewport({ width: 1366, height: 768 });
-  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-  
-  const oneWayDeals = [];
-  const roundTripDeals = [];
-  
-  let count = 0;
-  // Calcular total respetando searchType y fechas por ruta
-  let total = 0;
-  for (const r of ROUTES) {
-    const types = r.searchType || 'both';
-    const routeDates = getSearchDates(r);
-    total += routeDates.length * (types === 'both' ? 2 : 1);
-  }
-  
   for (const route of ROUTES) {
-    console.log(`\n✈️  ${route.origin} → ${route.dest}`);
-    const searchType = route.searchType || 'both';
-    const dates = getSearchDates(route);
-    
-    for (const date of dates) {
-      // ========== SOLO IDA ==========
-      if (searchType === 'oneWay' || searchType === 'both') {
-        count++;
-        process.stdout.write(`   [${count}/${total}] IDA ${date}... `);
-        
-        const oneWay = await scrapeFlightPrice(page, route.origin, route.dest, date, false);
-        
-        if (oneWay && oneWay.price) {
-          const isGood = oneWay.price <= route.goodOneWay;
-          console.log(`€${oneWay.price}${isGood ? ' ✓' : ''}`);
-          
-          if (isGood) {
-            oneWayDeals.push({
-              route: `${route.origin} → ${route.dest}`,
-              price: oneWay.price,
+    const datesToSearch = pickDates(route.dates, 3);
+    console.log(`\n✈️ ${route.name} (${datesToSearch.length} fechas, umbral ≤$${route.threshold})`);
+
+    for (const date of datesToSearch) {
+      searchCount++;
+      try {
+        const result = await searchFlightsApi(route.origin, route.dest, date, null);
+
+        if (result.success && result.flights.length > 0) {
+          successCount++;
+          const best = result.flights[0];
+          const price = Math.round(best.price);
+
+          if (price <= route.threshold && price >= 10) {
+            console.log(`  🔥 $${price} (${best.airline}) — ${date}`);
+            deals.push({
+              origin: route.origin,
+              dest: route.dest,
+              name: route.name,
+              flag: route.flag,
+              price,
+              airline: best.airline,
+              stops: best.stops,
+              duration: best.totalDuration,
               date,
-              airline: oneWay.airline,
-              url: oneWay.url,
-              isWow: route.wowPrice && oneWay.price <= route.wowPrice
+              url: result.searchUrl,
+              threshold: route.threshold,
             });
+          } else {
+            console.log(`  ✈️ $${price} (${best.airline}) — ${date}`);
           }
         } else {
-          console.log('--');
+          console.log(`  ⚠️ Sin resultados — ${date}`);
         }
-        
-        await new Promise(r => setTimeout(r, 2000));
+      } catch (error) {
+        console.error(`  ❌ ${date}: ${error.message}`);
       }
-      
-      // ========== IDA Y VUELTA ==========
-      if (searchType === 'roundTrip' || searchType === 'both') {
-        count++;
-        process.stdout.write(`   [${count}/${total}] I+V ${date}... `);
-        
-        const roundTrip = await scrapeFlightPrice(page, route.origin, route.dest, date, true);
-        
-        if (roundTrip && roundTrip.price) {
-          const isGood = roundTrip.price <= route.goodRoundTrip;
-          console.log(`€${roundTrip.price}${isGood ? ' ✓' : ''}`);
-          
-          if (isGood) {
-            roundTripDeals.push({
-              route: `${route.origin} → ${route.dest}`,
-              price: roundTrip.price,
-              date,
-              returnDate: getReturnDate(date),
-              airline: roundTrip.airline,
-              url: roundTrip.url
-            });
-          }
-        } else {
-          console.log('--');
-        }
-        
-        await new Promise(r => setTimeout(r, 2000));
-      }
+
+      // Short delay between API calls
+      await new Promise(r => setTimeout(r, 300));
     }
   }
-  
-  await browser.close();
-  
-  // Enviar reporte a Telegram
-  await sendReport(oneWayDeals, roundTripDeals);
-  
-  const duration = Math.round((new Date() - startTime) / 1000 / 60);
-  console.log('\n' + '═'.repeat(60));
-  console.log(`✅ Terminado en ${duration} min | IDA: ${oneWayDeals.length} ofertas | I+V: ${roundTripDeals.length} ofertas`);
-  console.log('═'.repeat(60));
+
+  // Sort by price
+  deals.sort((a, b) => a.price - b.price);
+
+  const duration = Math.round((new Date() - startTime) / 1000);
+  console.log('\n' + '='.repeat(60));
+  console.log(`✅ ${successCount}/${searchCount} búsquedas OK | ${deals.length} ofertas | ${duration}s`);
+  console.log('='.repeat(60));
+
+  // Send Telegram report
+  if (deals.length > 0 && isNewReport(deals)) {
+    await sendReport(deals);
+  } else if (deals.length === 0) {
+    console.log('📭 Sin ofertas');
+  } else {
+    console.log('🔁 Resultados idénticos, no se envía');
+  }
 }
 
 // ============================================
-// ENVIAR REPORTE
+// TELEGRAM REPORT
 // ============================================
-
-async function sendReport(oneWayDeals, roundTripDeals) {
-  if (oneWayDeals.length === 0 && roundTripDeals.length === 0) {
-    console.log('📭 Sin ofertas destacadas');
-    return;
-  }
-  
-  // Verificar si el reporte es idéntico al anterior
-  if (!isNewReport(oneWayDeals, roundTripDeals)) {
-    console.log('🔁 Resultados idénticos a la búsqueda anterior. No se envía notificación.');
-    return;
-  }
-  
-  oneWayDeals.sort((a, b) => a.price - b.price);
-  roundTripDeals.sort((a, b) => a.price - b.price);
-  
-  const argOW = oneWayDeals.filter(d => d.route.includes('Buenos') || d.route.includes('Cordoba'));
-  const usaOW = oneWayDeals.filter(d => d.route.includes('Nueva York') || d.route.includes('Miami') || d.route.includes('Los Angeles') || d.route.includes('Chicago'));
-  const argRT = roundTripDeals.filter(d => d.route.includes('Buenos') || d.route.includes('Cordoba'));
-  const usaRT = roundTripDeals.filter(d => d.route.includes('Nueva York') || d.route.includes('Miami') || d.route.includes('Los Angeles') || d.route.includes('Chicago'));
-  const ausOW = oneWayDeals.filter(d => d.route.includes('Sidney'));
-  const ausRT = roundTripDeals.filter(d => d.route.includes('Sidney'));
-  
-  let msg = `✈️ <b>OFERTAS DE VUELOS</b>\n`;
-  msg += `📅 ${new Date().toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'})}\n`;
-  msg += `━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-  
-  // SOLO IDA
-  if (argOW.length > 0 || usaOW.length > 0) {
-    msg += `🎫 <b>SOLO IDA</b>\n\n`;
-    
-    if (argOW.length > 0) {
-      msg += `🇦🇷 Argentina:\n`;
-      argOW.slice(0, 5).forEach(d => {
-        msg += `  • <b>€${d.price}</b> ${d.route}\n`;
-        msg += `    ${formatDate(d.date)} · ${d.airline}\n`;
-        msg += `    <a href="${d.url}">Ver →</a>\n`;
-      });
-      msg += `\n`;
-    }
-    
-    if (usaOW.length > 0) {
-      msg += `🇺🇸 Estados Unidos:\n`;
-      usaOW.slice(0, 4).forEach(d => {
-        const wowTag = d.isWow ? ' 🚨 <b>¡PRECIO WOW!</b>' : '';
-        msg += `  • <b>€${d.price}</b> ${d.route}${wowTag}\n`;
-        msg += `    ${formatDate(d.date)} · ${d.airline}\n`;
-        msg += `    <a href="${d.url}">Ver →</a>\n`;
-      });
-      msg += `\n`;
-    }
-    
-    if (ausOW.length > 0) {
-      msg += `🇦🇺 Australia:\n`;
-      ausOW.slice(0, 3).forEach(d => {
-        msg += `  • <b>€${d.price}</b> ${d.route}\n`;
-        msg += `    ${formatDate(d.date)} · ${d.airline}\n`;
-        msg += `    <a href="${d.url}">Ver →</a>\n`;
-      });
-      msg += `\n`;
-    }
-  }
-  
-  // IDA Y VUELTA
-  if (argRT.length > 0 || usaRT.length > 0) {
-    msg += `🔄 <b>IDA Y VUELTA</b>\n\n`;
-    
-    if (argRT.length > 0) {
-      msg += `🇦🇷 Argentina:\n`;
-      argRT.slice(0, 5).forEach(d => {
-        msg += `  • <b>€${d.price}</b> ${d.route}\n`;
-        msg += `    ${formatDate(d.date)} ↔ ${formatDate(d.returnDate)}\n`;
-        msg += `    <a href="${d.url}">Ver →</a>\n`;
-      });
-      msg += `\n`;
-    }
-    
-    if (usaRT.length > 0) {
-      msg += `🇺🇸 Estados Unidos:\n`;
-      usaRT.slice(0, 4).forEach(d => {
-        msg += `  • <b>€${d.price}</b> ${d.route}\n`;
-        msg += `    ${formatDate(d.date)} ↔ ${formatDate(d.returnDate)}\n`;
-        msg += `    <a href="${d.url}">Ver →</a>\n`;
-      });
-    }
-    
-    if (ausRT.length > 0) {
-      msg += `\n🇦🇺 Australia:\n`;
-      ausRT.slice(0, 3).forEach(d => {
-        msg += `  • <b>€${d.price}</b> ${d.route}\n`;
-        msg += `    ${formatDate(d.date)} ↔ ${formatDate(d.returnDate)}\n`;
-        msg += `    <a href="${d.url}">Ver →</a>\n`;
-      });
-    }
-  }
-  
-  msg += `\n━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-  msg += `🔄 Próxima búsqueda: 30 min`;
-  
-  await sendTelegram(msg);
-  console.log('📱 Reporte enviado');
-}
 
 function formatDate(str) {
   return new Date(str).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 }
 
+async function sendReport(deals) {
+  // Group by flag/region
+  const groups = {};
+  for (const d of deals) {
+    const key = d.flag;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(d);
+  }
+
+  let msg = `✈️ <b>OFERTAS DE VUELOS</b>\n`;
+  msg += `📅 ${new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}\n`;
+  msg += `━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  for (const [flag, groupDeals] of Object.entries(groups)) {
+    msg += `${flag}\n`;
+    for (const d of groupDeals.slice(0, 5)) {
+      const stopsLabel = d.stops === 0 ? 'directo' : d.stops === 1 ? '1 escala' : `${d.stops} escalas`;
+      const durationLabel = d.duration ? `${Math.floor(d.duration / 60)}h${d.duration % 60 > 0 ? d.duration % 60 + 'm' : ''}` : '';
+      msg += `  • <b>$${d.price}</b> ${d.name}\n`;
+      msg += `    ${formatDate(d.date)} · ${d.airline}`;
+      if (stopsLabel) msg += ` · ${stopsLabel}`;
+      if (durationLabel) msg += ` · ${durationLabel}`;
+      msg += `\n`;
+      msg += `    <a href="${d.url}">Ver en Google Flights</a>\n`;
+    }
+    msg += `\n`;
+  }
+
+  msg += `━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  msg += `🔄 Próxima búsqueda: 2h`;
+
+  await sendTelegram(msg);
+  console.log('📱 Reporte enviado');
+}
+
 // ============================================
-// INICIO
+// START
 // ============================================
 
 async function main() {
   console.log('\n');
   console.log('╔════════════════════════════════════════════════════════════╗');
-  console.log('║              🛫 FLIGHT DEAL BOT v3.0                       ║');
-  console.log('║         IDA + IDA Y VUELTA por separado                   ║');
+  console.log('║          🛫 FLIGHT DEAL BOT v4.0 (API Directa)           ║');
+  console.log('║        Sin browser — Más rápido y confiable              ║');
   console.log('╚════════════════════════════════════════════════════════════╝\n');
-  
+
   initTelegram();
-  
+
   console.log(`📋 Rutas: ${ROUTES.length}`);
-  console.log(`📊 Búsquedas: Solo ida + Ida y vuelta`);
-  console.log(`⏰ Frecuencia: cada 30 minutos\n`);
-  
+  console.log('📊 Modo: Solo ida (todas las rutas)');
+  console.log(`⏰ Frecuencia: ${CONFIG.schedule}\n`);
+
+  const routeSummary = ROUTES.map(r => `• ${r.name} (≤$${r.threshold})`).join('\n');
+
   await sendTelegram(
-    `🛫 <b>Flight Deal Bot v3.0</b>\n\n` +
-    `Monitoreando:\n` +
-    `• Barcelona → Chicago 🇺🇸\n` +
-    `• Santiago → Sidney 🇦🇺\n` +
-    `• Mar del Plata ↔ Córdoba 🇦🇷\n\n` +
-    `📊 Dos listados:\n` +
-    `• Solo ida\n` +
-    `• Ida y vuelta\n\n` +
-    `⏰ Cada 30 min\n` +
-    `<i>Iniciando...</i>`
+    `🛫 <b>Flight Deal Bot v4.0</b> (API Directa)\n\n` +
+    `Monitoreando:\n${routeSummary}\n\n` +
+    `⏰ Cada 2 horas\n` +
+    `<i>Iniciando primera búsqueda...</i>`
   );
-  
+
   await runSearch();
-  
+
   cron.schedule(CONFIG.schedule, async () => {
     await runSearch();
   });
-  
+
   console.log('\n🔄 Bot activo. Ctrl+C para detener.\n');
 }
 
