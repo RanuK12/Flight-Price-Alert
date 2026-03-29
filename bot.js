@@ -73,33 +73,33 @@ function dateRange(start, end) {
 const ROUTES = [
   // Mar del Plata → Córdoba (19-24 abr)
   { origin: 'MDQ', dest: 'COR', name: 'Mar del Plata → Córdoba',
-    dates: dateRange('2026-04-19', '2026-04-24'), threshold: 50, flag: '🇦🇷' },
+    dates: dateRange('2026-04-19', '2026-04-24'), threshold: 250, flag: '🇦🇷' },
 
-  // España → Chicago (20-30 jun)
+  // España → Chicago (20-30 jun, temporada alta)
   { origin: 'MAD', dest: 'ORD', name: 'Madrid → Chicago',
-    dates: dateRange('2026-06-20', '2026-06-30'), threshold: 300, flag: '🇪🇸→🇺🇸' },
+    dates: dateRange('2026-06-20', '2026-06-30'), threshold: 480, flag: '🇪🇸→🇺🇸' },
   { origin: 'BCN', dest: 'ORD', name: 'Barcelona → Chicago',
-    dates: dateRange('2026-06-20', '2026-06-30'), threshold: 280, flag: '🇪🇸→🇺🇸' },
+    dates: dateRange('2026-06-20', '2026-06-30'), threshold: 480, flag: '🇪🇸→🇺🇸' },
 
-  // Buenos Aires → España/Italia (15 jun - 31 jul)
+  // Buenos Aires → España/Italia (15 jun - 31 jul, temporada alta)
   { origin: 'EZE', dest: 'MAD', name: 'Buenos Aires → Madrid',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 450, flag: '🇦🇷→🇪🇸' },
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 700, flag: '🇦🇷→🇪🇸' },
   { origin: 'EZE', dest: 'BCN', name: 'Buenos Aires → Barcelona',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 450, flag: '🇦🇷→🇪🇸' },
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 700, flag: '🇦🇷→🇪🇸' },
   { origin: 'EZE', dest: 'FCO', name: 'Buenos Aires → Roma',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 500, flag: '🇦🇷→🇮🇹' },
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 750, flag: '🇦🇷→🇮🇹' },
   { origin: 'EZE', dest: 'MXP', name: 'Buenos Aires → Milán',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 500, flag: '🇦🇷→🇮🇹' },
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 750, flag: '🇦🇷→🇮🇹' },
 
   // Córdoba → España/Italia (15 jun - 31 jul)
   { origin: 'COR', dest: 'MAD', name: 'Córdoba → Madrid',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 550, flag: '🇦🇷→🇪🇸' },
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 850, flag: '🇦🇷→🇪🇸' },
   { origin: 'COR', dest: 'BCN', name: 'Córdoba → Barcelona',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 550, flag: '🇦🇷→🇪🇸' },
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 850, flag: '🇦🇷→🇪🇸' },
   { origin: 'COR', dest: 'FCO', name: 'Córdoba → Roma',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 600, flag: '🇦🇷→🇮🇹' },
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 900, flag: '🇦🇷→🇮🇹' },
   { origin: 'COR', dest: 'MXP', name: 'Córdoba → Milán',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 600, flag: '🇦🇷→🇮🇹' },
+    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 900, flag: '🇦🇷→🇮🇹' },
 ];
 
 // ============================================
