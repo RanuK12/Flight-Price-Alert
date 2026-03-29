@@ -49,10 +49,10 @@ const ROUTE_NAMES = {
 
 // Thresholds (must match routes config)
 const THRESHOLDS = {
-  'MDQ-COR': 50,
-  'MAD-ORD': 300, 'BCN-ORD': 280,
-  'EZE-MAD': 450, 'EZE-BCN': 450, 'EZE-FCO': 500, 'EZE-MXP': 500,
-  'COR-MAD': 550, 'COR-BCN': 550, 'COR-FCO': 600, 'COR-MXP': 600,
+  'MDQ-COR': 250,
+  'MAD-ORD': 480, 'BCN-ORD': 480,
+  'EZE-MAD': 700, 'EZE-BCN': 700, 'EZE-FCO': 750, 'EZE-MXP': 750,
+  'COR-MAD': 850, 'COR-BCN': 850, 'COR-FCO': 900, 'COR-MXP': 900,
 };
 
 // ═══════════════════════════════════════════════════════════════

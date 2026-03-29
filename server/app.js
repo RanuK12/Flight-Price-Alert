@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const http = require('http');
 
 const { initDatabase } = require('./database/db');
 const flightRoutes = require('./routes/flights');
@@ -117,6 +118,34 @@ async function startServer() {
           const { runFullSearch } = require('./services/flightMonitor');
           runFullSearch().catch(err => console.error('Error en búsqueda inicial:', err.message));
         }, 10000);
+
+        // ═══════════ KEEP-ALIVE SELF-PING ═══════════
+        // Railway/Render free tier sleeps after inactivity.
+        // Self-ping every 10 minutes to prevent sleep.
+        const selfUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+          ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/health`
+          : process.env.RENDER_EXTERNAL_URL
+            ? `${process.env.RENDER_EXTERNAL_URL}/health`
+            : null;
+
+        if (selfUrl) {
+          const PING_INTERVAL = 10 * 60 * 1000; // 10 minutes
+          setInterval(() => {
+            http.get(selfUrl.replace('https://', 'http://'), () => {}).on('error', () => {});
+            // Also try https via axios if available
+            try {
+              const axios = require('axios');
+              axios.get(selfUrl, { timeout: 5000 }).catch(() => {});
+            } catch (e) {}
+          }, PING_INTERVAL);
+          console.log(`🏓 Keep-alive ping: ${selfUrl} cada 10 min`);
+        } else {
+          // Fallback: ping localhost
+          setInterval(() => {
+            http.get(`http://localhost:${PORT}/health`, () => {}).on('error', () => {});
+          }, 10 * 60 * 1000);
+          console.log(`🏓 Keep-alive ping: localhost:${PORT} cada 10 min`);
+        }
       }
     });
 
@@ -125,6 +154,14 @@ async function startServer() {
     process.exit(1);
   }
 }
+
+// Handle uncaught errors to prevent crashes
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught exception:', err.message);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Unhandled rejection:', err);
+});
 
 startServer();
 
