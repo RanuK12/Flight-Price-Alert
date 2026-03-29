@@ -82,7 +82,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-04-19', '2026-04-24'),
     tripType: 'oneway',
     alert: true,
-    threshold: 250,  // USD — real $318+, oferta <$250
+    threshold: 270,  // USD — buen precio <$270, deal <$220, steal <$150
   },
 
   // ========== RUTA 2: España → Chicago (20-30 jun, temporada alta) ==========
@@ -92,7 +92,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-20', '2026-06-30'),
     tripType: 'oneway',
     alert: true,
-    threshold: 480,  // USD — real $551+, oferta <$480
+    threshold: 520,  // USD — buen precio <$520, deal <$450, steal <$380
   },
   {
     origin: 'BCN', destination: 'ORD',
@@ -100,7 +100,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-20', '2026-06-30'),
     tripType: 'oneway',
     alert: true,
-    threshold: 480,  // USD — real $561+, oferta <$480
+    threshold: 500,  // USD — buen precio <$500, deal <$430, steal <$350
   },
 
   // ========== RUTA 3: Buenos Aires → España (15 jun - 31 jul, temporada alta) ==========
@@ -110,7 +110,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 700,  // USD — real $606+, oferta <$700
+    threshold: 1100,  // USD — buen precio <$1100, deal <$950, steal <$800
   },
   {
     origin: 'EZE', destination: 'BCN',
@@ -118,7 +118,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 700,  // USD — real $682+, oferta <$700
+    threshold: 1100,  // USD — buen precio <$1100, deal <$950, steal <$800
   },
 
   // ========== RUTA 3b: Buenos Aires → Italia (15 jun - 31 jul) ==========
@@ -128,7 +128,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 750,  // USD — estimado $700+, oferta <$750
+    threshold: 1200,  // USD — buen precio <$1200, deal <$1000, steal <$850
   },
   {
     origin: 'EZE', destination: 'MXP',
@@ -136,7 +136,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 750,  // USD
+    threshold: 1200,  // USD — buen precio <$1200, deal <$1000, steal <$850
   },
 
   // ========== RUTA 3c: Córdoba → España (15 jun - 31 jul) ==========
@@ -146,7 +146,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 850,  // USD — COR +$100-200 vs EZE
+    threshold: 1300,  // USD — buen precio <$1300, deal <$1100, steal <$900
   },
   {
     origin: 'COR', destination: 'BCN',
@@ -154,7 +154,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 850,  // USD
+    threshold: 1300,  // USD — buen precio <$1300, deal <$1100, steal <$900
   },
 
   // ========== RUTA 3d: Córdoba → Italia (15 jun - 31 jul) ==========
@@ -164,7 +164,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 900,  // USD
+    threshold: 1350,  // USD — buen precio <$1350, deal <$1150, steal <$950
   },
   {
     origin: 'COR', destination: 'MXP',
@@ -172,7 +172,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 900,  // USD
+    threshold: 1350,  // USD — buen precio <$1350, deal <$1150, steal <$950
   },
 ];
 
@@ -189,13 +189,14 @@ async function runFullSearch(options = {}) {
   console.log(`⏰ ${new Date().toLocaleString('es-ES')}`);
   console.log(`📊 Rutas: ${MONITORED_ROUTES.length} (TODAS con alerta)`);
   console.log('');
-  console.log('📋 CONFIGURACIÓN (umbrales ajustados a precios reales):');
-  console.log('   ✈️ MDQ → COR: 19-24 abr (ALERTA ≤ $250)');
-  console.log('   ✈️ MAD/BCN → ORD: 20-30 jun (ALERTA ≤ $480)');
-  console.log('   ✈️ EZE → MAD/BCN: 15 jun - 31 jul (ALERTA ≤ $700)');
-  console.log('   ✈️ EZE → FCO/MXP: 15 jun - 31 jul (ALERTA ≤ $750)');
-  console.log('   ✈️ COR → MAD/BCN: 15 jun - 31 jul (ALERTA ≤ $850)');
-  console.log('   ✈️ COR → FCO/MXP: 15 jun - 31 jul (ALERTA ≤ $900)');
+  console.log('📋 CONFIGURACIÓN (umbrales = "buen precio" techo):');
+  console.log('   ✈️ MDQ → COR: 19-24 abr (≤$270 buen precio, ≤$220 deal, ≤$150 steal)');
+  console.log('   ✈️ MAD → ORD: 20-30 jun (≤$520 buen precio, ≤$450 deal, ≤$380 steal)');
+  console.log('   ✈️ BCN → ORD: 20-30 jun (≤$500 buen precio, ≤$430 deal, ≤$350 steal)');
+  console.log('   ✈️ EZE → MAD/BCN: 15 jun - 31 jul (≤$1100, ≤$950 deal, ≤$800 steal)');
+  console.log('   ✈️ EZE → FCO/MXP: 15 jun - 31 jul (≤$1200, ≤$1000 deal, ≤$850 steal)');
+  console.log('   ✈️ COR → MAD/BCN: 15 jun - 31 jul (≤$1300, ≤$1100 deal, ≤$900 steal)');
+  console.log('   ✈️ COR → FCO/MXP: 15 jun - 31 jul (≤$1350, ≤$1150 deal, ≤$950 steal)');
   console.log('');
 
   const results = {
