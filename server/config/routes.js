@@ -43,55 +43,43 @@ const ARGENTINA_TO_EUROPE = [
 /**
  * Precios de referencia (en USD, solo ida)
  *
- * DATOS REALES (marzo 2026, temporada alta jun-jul):
+ * Niveles de alerta:
+ *   steal  = Ofertón (casi imposible, error de tarifa)
+ *   deal   = Muy bajo (promo loca)
+ *   good   = Normal para abajo (buen precio)
+ *   typical = Precio real mínimo de referencia actual
  *
- * MDQ → COR: Doméstico Argentina
- *   - Real: $318-$342 (con escalas)
- *   - Oferta: ≤$250
- *   - Ganga: ≤$180
- *
- * España → Chicago (jun 2026):
- *   - MAD-ORD real: $551 min (Iberia/AA nonstop)
- *   - BCN-ORD real: $561 min (TAP/Turkish conexión)
- *   - Oferta: ≤$480
- *   - Ganga: ≤$380
- *
- * Argentina → España (jun-jul 2026, temporada alta):
- *   - EZE-MAD real: $606 min (ITA conexión), $1099+ directo AR
- *   - EZE-BCN real: $682 min (ITA), $771 (LEVEL)
- *   - Oferta: ≤$700
- *   - Ganga: ≤$550
- *
- * Argentina → Italia (jun-jul 2026):
- *   - EZE-FCO/MXP: estimado $700-850 (conexión)
- *   - Oferta: ≤$750
- *   - Ganga: ≤$600
- *
- * Córdoba → Europa: ~$100-200 más que desde EZE (conexión vía EZE)
+ * MDQ→COR:     steal <$150 | deal $150-$220 | good $220-$270 | típico $318
+ * MAD→ORD:     steal <$380 | deal $380-$450 | good $450-$520 | típico $551
+ * BCN→ORD:     steal <$350 | deal $350-$430 | good $430-$500 | típico $561
+ * EZE→MAD/BCN: steal <$800 | deal $800-$950 | good $950-$1100 | típico $1200+
+ * EZE→FCO/MXP: steal <$850 | deal $850-$1000 | good $1000-$1200 | típico $1300+
+ * COR→España:  steal <$900 | deal $900-$1100 | good $1100-$1300 | típico $1400+
+ * COR→Italia:  steal <$950 | deal $950-$1150 | good $1150-$1350 | típico $1500+
  */
 const PRICE_THRESHOLDS = {
-  // Doméstico Argentina (USD)
-  'MDQ-COR': { typical: 350, deal: 250, steal: 180 },
+  // Doméstico Argentina
+  'MDQ-COR': { typical: 318, deal: 220, steal: 150 },
 
-  // España → Chicago (USD, temporada alta)
-  'MAD-ORD': { typical: 600, deal: 480, steal: 380 },
-  'BCN-ORD': { typical: 620, deal: 480, steal: 380 },
+  // España → Chicago
+  'MAD-ORD': { typical: 551, deal: 450, steal: 380 },
+  'BCN-ORD': { typical: 561, deal: 430, steal: 350 },
 
-  // Buenos Aires → España (USD, temporada alta jun-jul)
-  'EZE-MAD': { typical: 850, deal: 700, steal: 550 },
-  'EZE-BCN': { typical: 800, deal: 700, steal: 550 },
+  // Buenos Aires → España (temporada alta jun-jul)
+  'EZE-MAD': { typical: 1200, deal: 950, steal: 800 },
+  'EZE-BCN': { typical: 1200, deal: 950, steal: 800 },
 
-  // Buenos Aires → Italia (USD, temporada alta)
-  'EZE-FCO': { typical: 900, deal: 750, steal: 600 },
-  'EZE-MXP': { typical: 850, deal: 750, steal: 600 },
+  // Buenos Aires → Italia (temporada alta)
+  'EZE-FCO': { typical: 1300, deal: 1000, steal: 850 },
+  'EZE-MXP': { typical: 1300, deal: 1000, steal: 850 },
 
-  // Córdoba → España (USD, +$100-200 vs EZE)
-  'COR-MAD': { typical: 1000, deal: 850, steal: 700 },
-  'COR-BCN': { typical: 950, deal: 850, steal: 700 },
+  // Córdoba → España
+  'COR-MAD': { typical: 1400, deal: 1100, steal: 900 },
+  'COR-BCN': { typical: 1400, deal: 1100, steal: 900 },
 
-  // Córdoba → Italia (USD)
-  'COR-FCO': { typical: 1100, deal: 900, steal: 750 },
-  'COR-MXP': { typical: 1050, deal: 900, steal: 750 },
+  // Córdoba → Italia
+  'COR-FCO': { typical: 1500, deal: 1150, steal: 950 },
+  'COR-MXP': { typical: 1500, deal: 1150, steal: 950 },
 };
 
 /**
