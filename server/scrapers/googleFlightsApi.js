@@ -101,6 +101,7 @@ function buildFiltersArray({
   maxStops = MAX_STOPS.ANY,
   sortBy = SORT_BY.CHEAPEST,
   maxPrice = null,
+  currency = 'EUR',
 }) {
   const formattedSegments = segments.map(seg => [
     [[[seg.origin, 0]]],       // departure airports
@@ -133,7 +134,9 @@ function buildFiltersArray({
       maxPrice ? [null, maxPrice] : null,
       null, null, null, null, null,
       formattedSegments,
-      null, null, null,
+      null,
+      [currency],           // index 15: currency
+      null,
       1,
     ],
     sortBy,
@@ -337,6 +340,7 @@ async function searchDateRange(origin, destination, dateFrom, dateTo, options = 
     adults,
     maxStops,
     sortBy: SORT_BY.CHEAPEST,
+    currency: 'EUR',
   });
 
   const payload = encodePayload(filters);
@@ -399,7 +403,7 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
     adults = 1,
     maxStops = MAX_STOPS.ANY,
     sortBy = SORT_BY.CHEAPEST,
-    currency = 'USD',
+    currency = 'EUR',
   } = options;
 
   const tripType = returnDate ? TRIP_TYPE.ROUND_TRIP : TRIP_TYPE.ONE_WAY;
@@ -431,6 +435,7 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
     adults,
     maxStops,
     sortBy,
+    currency,
   });
 
   const payload = encodePayload(filters);
@@ -560,9 +565,9 @@ async function rateLimit() {
 function buildGoogleFlightsUrl(origin, destination, departureDate, returnDate = null) {
   const base = 'https://www.google.com/travel/flights';
   if (returnDate) {
-    return `${base}?q=Flights+from+${origin}+to+${destination}+on+${departureDate}+return+${returnDate}&curr=USD&hl=es`;
+    return `${base}?q=Flights+from+${origin}+to+${destination}+on+${departureDate}+return+${returnDate}&curr=EUR&hl=es`;
   }
-  return `${base}?q=Flights+from+${origin}+to+${destination}+on+${departureDate}+one+way&curr=USD&hl=es`;
+  return `${base}?q=Flights+from+${origin}+to+${destination}+on+${departureDate}+one+way&curr=EUR&hl=es`;
 }
 
 // ═══════════════════════════════════════════════════════════════
