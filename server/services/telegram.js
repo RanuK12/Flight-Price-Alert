@@ -65,10 +65,10 @@ async function sendDealsReport(flightDeals, transitDeals) {
 
     for (const [routeName, deals] of Object.entries(flightsByRoute)) {
       const threshold = deals[0].threshold || '?';
-      message += `\n✈️ <b>${routeName}</b> (≤ $${threshold})\n`;
+      message += `\n✈️ <b>${routeName}</b> (≤ €${threshold})\n`;
       for (const deal of deals.slice(0, 5)) {
         const emoji = deal.price <= deal.threshold * 0.6 ? '🔥🔥🔥' : (deal.price <= deal.threshold * 0.8 ? '🔥🔥' : '🔥');
-        message += `${emoji} <b>$${deal.price}</b>`;
+        message += `${emoji} <b>€${deal.price}</b>`;
         if (deal.airline) message += ` • ${deal.airline}`;
         if (deal.departureDate && deal.departureDate !== 'Flexible') {
           message += ` • ${formatDateShort(deal.departureDate)}`;
@@ -90,7 +90,7 @@ async function sendDealsReport(flightDeals, transitDeals) {
     for (const [routeName, deals] of Object.entries(transitByRoute)) {
       message += `\n🚌 <b>${routeName}</b>\n`;
       for (const deal of deals.slice(0, 5)) {
-        message += `🔥 <b>$${deal.price}</b>`;
+        message += `🔥 <b>€${deal.price}</b>`;
         if (deal.provider) message += ` • ${deal.provider}`;
         if (deal.transportType) message += ` (${deal.transportType})`;
         if (deal.departureDate && deal.departureDate !== 'Flexible') {
@@ -188,7 +188,7 @@ async function sendDealAlert(deal) {
     const typical = priceInsights.typicalPriceRange[1];
     const savings = typical - lowestPrice;
     if (savings > 0) {
-      savingsText = `\n💰 Ahorras ~$${Math.round(savings)} vs precio típico`;
+      savingsText = `\n💰 Ahorras ~€${Math.round(savings)} vs precio típico`;
     }
   }
 
@@ -196,7 +196,7 @@ async function sendDealAlert(deal) {
 ${levelEmoji[dealLevel] || '✈️ Vuelo encontrado'}
 
 <b>🛫 ${originCity} → ${destCity}</b>
-<b>💵 Precio: $${lowestPrice}</b>
+<b>💵 Precio: €${lowestPrice}</b>
 ${savingsText}
 
 📅 Fecha: ${outboundDate}${returnDate ? ` - ${returnDate}` : ''}
@@ -239,7 +239,7 @@ async function sendSearchSummary(summary) {
     const topDeals = deals.slice(0, 5);
     for (const deal of topDeals) {
       const emoji = deal.dealLevel === 'steal' ? '🔥🔥🔥' : (deal.dealLevel === 'great' ? '🔥🔥' : '🔥');
-      message += `\n${emoji} ${deal.origin}→${deal.destination}: $${deal.lowestPrice} (${deal.outboundDate})`;
+      message += `\n${emoji} ${deal.origin}→${deal.destination}: €${deal.lowestPrice} (${deal.outboundDate})`;
     }
   } else {
     message += '\n\nSin ofertas destacadas en esta búsqueda. Seguimos monitoreando...';
@@ -289,13 +289,13 @@ async function sendMonitoringStarted() {
 🚀 <b>Monitor de Vuelos v8.0</b>
 
 📋 <b>Rutas monitoreadas (TODAS con alerta):</b>
-✈️ MDQ → COR: 19-24 abr <b>(≤ $140)</b>
-✈️ MAD → ORD: 20-30 jun <b>(≤ $485)</b>
-✈️ BCN → ORD: 20-30 jun <b>(≤ $450)</b>
-✈️ EZE → MAD/BCN: 15 jun - 31 jul <b>(≤ $1100)</b>
-✈️ EZE → FCO/MXP: 15 jun - 31 jul <b>(≤ $1150)</b>
-✈️ COR → MAD/BCN: 15 jun - 31 jul <b>(≤ $1250)</b>
-✈️ COR → FCO/MXP: 15 jun - 31 jul <b>(≤ $1300)</b>
+✈️ MDQ → COR: 19-24 abr <b>(≤ €140)</b>
+✈️ MAD → ORD: 20-30 jun <b>(≤ €485)</b>
+✈️ BCN → ORD: 20-30 jun <b>(≤ €450)</b>
+✈️ EZE → MAD/BCN: 15 jun - 31 jul <b>(≤ €1100)</b>
+✈️ EZE → FCO/MXP: 15 jun - 31 jul <b>(≤ €1150)</b>
+✈️ COR → MAD/BCN: 15 jun - 31 jul <b>(≤ €1250)</b>
+✈️ COR → FCO/MXP: 15 jun - 31 jul <b>(≤ €1300)</b>
 
 📢 Alertas Telegram: TODAS las rutas
 📄 Informe diario PDF: 21:00 ART
@@ -310,7 +310,7 @@ async function sendMonitoringStarted() {
  * Genera URL de Google Flights
  */
 function generateGoogleFlightsUrl(origin, destination, date) {
-  return `https://www.google.com/travel/flights?q=Flights%20from%20${origin}%20to%20${destination}%20on%20${date}&curr=USD&hl=es`;
+  return `https://www.google.com/travel/flights?q=Flights%20from%20${origin}%20to%20${destination}%20on%20${date}&curr=EUR&hl=es`;
 }
 
 /**
@@ -330,13 +330,13 @@ async function sendTestMessage() {
 El bot de Flight Deal Finder v8.0 está funcionando.
 
 📋 <b>Alertas activas (TODAS las rutas):</b>
-✈️ MDQ → COR ≤ $140 (19-24 abr)
-✈️ MAD → ORD ≤ $485 (20-30 jun)
-✈️ BCN → ORD ≤ $450 (20-30 jun)
-✈️ EZE → MAD/BCN ≤ $1100 (15 jun - 31 jul)
-✈️ EZE → FCO/MXP ≤ $1150 (15 jun - 31 jul)
-✈️ COR → MAD/BCN ≤ $1250 (15 jun - 31 jul)
-✈️ COR → FCO/MXP ≤ $1300 (15 jun - 31 jul)
+✈️ MDQ → COR ≤ €140 (19-24 abr)
+✈️ MAD → ORD ≤ €485 (20-30 jun)
+✈️ BCN → ORD ≤ €450 (20-30 jun)
+✈️ EZE → MAD/BCN ≤ €1100 (15 jun - 31 jul)
+✈️ EZE → FCO/MXP ≤ €1150 (15 jun - 31 jul)
+✈️ COR → MAD/BCN ≤ €1250 (15 jun - 31 jul)
+✈️ COR → FCO/MXP ≤ €1300 (15 jun - 31 jul)
 📄 Informe diario PDF: 21:00 ART
 
 ⏰ ${new Date().toLocaleString('es-ES')}

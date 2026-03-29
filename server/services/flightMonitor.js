@@ -14,7 +14,7 @@
  * 6. COR → MAD/BCN (15 jun - 31 jul) solo ida — ALERTA ≤ $1250
  * 7. COR → FCO/MXP (15 jun - 31 jul) solo ida — ALERTA ≤ $1300
  *
- * Precios en USD.
+ * Precios en EUR.
  * + Informe diario PDF a las 21:00
  */
 
@@ -83,7 +83,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-04-19', '2026-04-24'),
     tripType: 'oneway',
     alert: true,
-    threshold: 140,  // USD — normal-bajo <$140, muy bajo <$100, ofertón <$55
+    threshold: 140,  // EUR — normal-bajo <€140, muy bajo <€100, ofertón <€55
   },
 
   // ========== RUTA 2: España → Chicago (20-30 jun, temporada alta) ==========
@@ -93,7 +93,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-20', '2026-06-30'),
     tripType: 'oneway',
     alert: true,
-    threshold: 485,  // USD — normal-bajo <$485, muy bajo <$450, ofertón <$360
+    threshold: 485,  // EUR — normal-bajo <€485, muy bajo <€450, ofertón <€360
   },
   {
     origin: 'BCN', destination: 'ORD',
@@ -101,7 +101,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-20', '2026-06-30'),
     tripType: 'oneway',
     alert: true,
-    threshold: 450,  // USD — normal-bajo <$450, muy bajo <$390, ofertón <$300
+    threshold: 450,  // EUR — normal-bajo <€450, muy bajo <€390, ofertón <€300
   },
 
   // ========== RUTA 3: Buenos Aires → España (15 jun - 31 jul, temporada alta) ==========
@@ -111,7 +111,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1100,  // USD — normal-bajo <$1100, muy bajo <$900, ofertón <$750
+    threshold: 1100,  // EUR — normal-bajo <€1100, muy bajo <€900, ofertón <€750
   },
   {
     origin: 'EZE', destination: 'BCN',
@@ -119,7 +119,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1100,  // USD — normal-bajo <$1100, muy bajo <$900, ofertón <$750
+    threshold: 1100,  // EUR — normal-bajo <€1100, muy bajo <€900, ofertón <€750
   },
 
   // ========== RUTA 3b: Buenos Aires → Italia (15 jun - 31 jul) ==========
@@ -129,7 +129,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1150,  // USD — normal-bajo <$1150, muy bajo <$950, ofertón <$800
+    threshold: 1150,  // EUR — normal-bajo <€1150, muy bajo <€950, ofertón <€800
   },
   {
     origin: 'EZE', destination: 'MXP',
@@ -137,7 +137,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1150,  // USD — normal-bajo <$1150, muy bajo <$950, ofertón <$800
+    threshold: 1150,  // EUR — normal-bajo <€1150, muy bajo <€950, ofertón <€800
   },
 
   // ========== RUTA 3c: Córdoba → España (15 jun - 31 jul) ==========
@@ -147,7 +147,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1250,  // USD — normal-bajo <$1250, muy bajo <$1000, ofertón <$850
+    threshold: 1250,  // EUR — normal-bajo <€1250, muy bajo <€1000, ofertón <€850
   },
   {
     origin: 'COR', destination: 'BCN',
@@ -155,7 +155,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1250,  // USD — normal-bajo <$1250, muy bajo <$1000, ofertón <$850
+    threshold: 1250,  // EUR — normal-bajo <€1250, muy bajo <€1000, ofertón <€850
   },
 
   // ========== RUTA 3d: Córdoba → Italia (15 jun - 31 jul) ==========
@@ -165,7 +165,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1300,  // USD — normal-bajo <$1300, muy bajo <$1100, ofertón <$900
+    threshold: 1300,  // EUR — normal-bajo <€1300, muy bajo <€1100, ofertón <€900
   },
   {
     origin: 'COR', destination: 'MXP',
@@ -173,7 +173,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1300,  // USD — normal-bajo <$1300, muy bajo <$1100, ofertón <$900
+    threshold: 1300,  // EUR — normal-bajo <€1300, muy bajo <€1100, ofertón <€900
   },
 ];
 
@@ -191,13 +191,13 @@ async function runFullSearch(options = {}) {
   console.log(`📊 Rutas: ${MONITORED_ROUTES.length} (TODAS con alerta)`);
   console.log('');
   console.log('📋 CONFIGURACIÓN (umbrales = "normal-bajo" techo):');
-  console.log('   ✈️ MDQ → COR: 19-24 abr (≤$140 normal-bajo, ≤$100 muy bajo, ≤$55 ofertón)');
-  console.log('   ✈️ MAD → ORD: 20-30 jun (≤$485 normal-bajo, ≤$450 muy bajo, ≤$360 ofertón)');
-  console.log('   ✈️ BCN → ORD: 20-30 jun (≤$450 normal-bajo, ≤$390 muy bajo, ≤$300 ofertón)');
-  console.log('   ✈️ EZE → MAD/BCN: 15 jun - 31 jul (≤$1100, ≤$900 muy bajo, ≤$750 ofertón)');
-  console.log('   ✈️ EZE → FCO/MXP: 15 jun - 31 jul (≤$1150, ≤$950 muy bajo, ≤$800 ofertón)');
-  console.log('   ✈️ COR → MAD/BCN: 15 jun - 31 jul (≤$1250, ≤$1000 muy bajo, ≤$850 ofertón)');
-  console.log('   ✈️ COR → FCO/MXP: 15 jun - 31 jul (≤$1300, ≤$1100 muy bajo, ≤$900 ofertón)');
+  console.log('   ✈️ MDQ → COR: 19-24 abr (≤€140 normal-bajo, ≤€100 muy bajo, ≤€55 ofertón)');
+  console.log('   ✈️ MAD → ORD: 20-30 jun (≤€485 normal-bajo, ≤€450 muy bajo, ≤€360 ofertón)');
+  console.log('   ✈️ BCN → ORD: 20-30 jun (≤€450 normal-bajo, ≤€390 muy bajo, ≤€300 ofertón)');
+  console.log('   ✈️ EZE → MAD/BCN: 15 jun - 31 jul (≤€1100, ≤€900 muy bajo, ≤€750 ofertón)');
+  console.log('   ✈️ EZE → FCO/MXP: 15 jun - 31 jul (≤€1150, ≤€950 muy bajo, ≤€800 ofertón)');
+  console.log('   ✈️ COR → MAD/BCN: 15 jun - 31 jul (≤€1250, ≤€1000 muy bajo, ≤€850 ofertón)');
+  console.log('   ✈️ COR → FCO/MXP: 15 jun - 31 jul (≤€1300, ≤€1100 muy bajo, ≤€900 ofertón)');
   console.log('');
 
   const results = {
@@ -215,7 +215,7 @@ async function runFullSearch(options = {}) {
     const datesToSearch = pickDatesForRun(route.dates, 3);
 
     for (const departureDate of datesToSearch) {
-      console.log(`\n✈️ ${route.name} — ${departureDate} [ALERTA ≤ $${route.threshold}]`);
+      console.log(`\n✈️ ${route.name} — ${departureDate} [ALERTA ≤ €${route.threshold}]`);
 
       try {
         const searchResult = await scrapeAllSources(
@@ -238,7 +238,7 @@ async function runFullSearch(options = {}) {
 
             // Validar precio realista
             if (price < 10 || price > 5000) {
-              console.log(`  ⚠️ Precio irreal ignorado: $${price}`);
+              console.log(`  ⚠️ Precio irreal ignorado: €${price}`);
               continue;
             }
 
@@ -254,7 +254,7 @@ async function runFullSearch(options = {}) {
             });
 
             if (price <= route.threshold) {
-              console.log(`  🔥 OFERTA: $${price} (${flight.airline}) — ${formatDate(departureDate)}`);
+              console.log(`  🔥 OFERTA: €${price} (${flight.airline}) — ${formatDate(departureDate)}`);
 
               if (route.alert) {
                 const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
@@ -278,7 +278,7 @@ async function runFullSearch(options = {}) {
                 }
               }
             } else {
-              console.log(`  ✈️ $${price} (${flight.airline}) — no es oferta (máx $${route.threshold})`);
+              console.log(`  ✈️ €${price} (${flight.airline}) — no es oferta (máx €${route.threshold})`);
             }
           }
         } else {
@@ -317,7 +317,7 @@ async function runFullSearch(options = {}) {
   if (results.flightDeals.length > 0) {
     console.log('\n🎯 ALERTAS:');
     results.flightDeals.forEach((d, i) => {
-      console.log(`  ${i + 1}. ${d.routeName}: $${d.price} (${d.airline}) — ${formatDate(d.departureDate)}`);
+      console.log(`  ${i + 1}. ${d.routeName}: €${d.price} (${d.airline}) — ${formatDate(d.departureDate)}`);
     });
   }
 
@@ -401,7 +401,7 @@ function startMonitoring(cronSchedule = '0 */2 * * *', timezone = 'America/Argen
     const dateLabel = r.dates.length > 6
       ? `${r.dates[0]} a ${r.dates[r.dates.length - 1]}`
       : r.dates.join(', ');
-    console.log(`   ✈️ ${r.name} — ${dateLabel} [ALERTA ≤ $${r.threshold}]`);
+    console.log(`   ✈️ ${r.name} — ${dateLabel} [ALERTA ≤ €${r.threshold}]`);
   }
   console.log('');
 
