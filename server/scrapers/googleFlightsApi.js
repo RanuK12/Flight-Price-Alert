@@ -31,14 +31,26 @@ const SEAT_TYPE = { ECONOMY: 1, PREMIUM_ECONOMY: 2, BUSINESS: 3, FIRST: 4 };
 const MAX_STOPS = { ANY: 0, NON_STOP: 1, ONE_STOP: 2, TWO_STOPS: 3 };
 const SORT_BY = { NONE: 0, TOP: 1, CHEAPEST: 2, DEPARTURE: 3, ARRIVAL: 4, DURATION: 5 };
 
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:123.0) Gecko/20100101 Firefox/123.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.15'
+];
+
+function getRandomUserAgent() {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
 const REQUEST_HEADERS = {
   'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
   'Accept': '*/*',
   'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+  'Accept-Encoding': 'gzip, deflate, br',
   'Origin': 'https://www.google.com',
   'Referer': 'https://www.google.com/travel/flights',
-  'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+  'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
   'Sec-Ch-Ua-Mobile': '?0',
   'Sec-Ch-Ua-Platform': '"Windows"',
   'Sec-Fetch-Dest': 'empty',
@@ -48,7 +60,7 @@ const REQUEST_HEADERS = {
 
 // Rate limiting
 let lastRequestTime = 0;
-const MIN_DELAY_MS = 150; // ~6 req/sec max
+const MIN_DELAY_MS = 2000; // Evitamos saturar con pausas base de 2 segs
 
 // Circuit breaker
 const circuitBreaker = {
@@ -347,8 +359,12 @@ async function searchDateRange(origin, destination, dateFrom, dateTo, options = 
 
   try {
     await rateLimit();
+    const headersConfig = {
+      ...REQUEST_HEADERS,
+      'User-Agent': getRandomUserAgent(),
+    };
     const response = await axios.post(CALENDAR_URL, payload, {
-      headers: REQUEST_HEADERS,
+      headers: headersConfig,
       timeout: 15000,
     });
 
@@ -443,11 +459,13 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
   try {
     await rateLimit();
 
+    const headersConfig = {
+      ...REQUEST_HEADERS,
+      'User-Agent': getRandomUserAgent(),
+      'Cookie': `CONSENT=YES+; NID=${generateNid()}`,
+    };
     const response = await axios.post(SEARCH_URL, payload, {
-      headers: {
-        ...REQUEST_HEADERS,
-        'Cookie': `CONSENT=YES+; NID=${generateNid()}`,
-      },
+      headers: headersConfig,
       timeout: 15000,
       validateStatus: s => s < 500,
     });
