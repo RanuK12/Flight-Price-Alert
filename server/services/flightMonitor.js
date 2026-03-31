@@ -220,11 +220,11 @@ const MONITORED_ROUTES = [
     thresholdOferton: 390,
   },
 
-  // ========== RUTA 5: Ámsterdam → Buenos Aires (15 jun - 31 jul) ==========
+  // ========== RUTA 5: Ámsterdam → Buenos Aires (mayo 2026) ==========
   {
     origin: 'AMS', destination: 'EZE',
     name: 'Ámsterdam → Buenos Aires',
-    dates: dateRange('2026-06-15', '2026-07-31'),
+    dates: dateRange('2026-05-01', '2026-05-31'),
     tripType: 'oneway',
     alert: true,
     threshold: 720,
