@@ -459,6 +459,9 @@ async function extractFlights(page) {
 // ═══════════════════════════════════════════════════════════════
 async function waitForResults(page) {
   try {
+    // Retraso intermedio para imitar latencia humana
+    await new Promise(r => setTimeout(r, Math.random() * 2000 + 1000));
+    
     // Scroll para activar lazy loading
     await page.evaluate(() => window.scrollTo(0, 500));
     await new Promise(r => setTimeout(r, 1500));
@@ -547,10 +550,14 @@ async function scrapeGoogleFlights(origin, destination, departureDate, returnDat
       browser = await puppeteer.launch(getLaunchOptions());
       const page = await browser.newPage();
 
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-      );
-      await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-ES,es;q=0.9' });
+      const USER_AGENTS = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:123.0) Gecko/20100101 Firefox/123.0',
+      ];
+      await page.setUserAgent(USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]);
+      await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-ES,es;q=0.9', 'Accept-Encoding': 'gzip, deflate, br' });
 
       // Navegar
       await page.goto(url, { waitUntil: 'networkidle2', timeout: TIMEOUT });

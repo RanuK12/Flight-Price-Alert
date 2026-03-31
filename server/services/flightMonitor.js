@@ -289,8 +289,9 @@ async function runFullSearch(options = {}) {
         console.error(`  ❌ Error: ${error.message}`);
       }
 
-      // Delay entre búsquedas (más corto que Puppeteer ya que no hay browser)
-      await sleep(500);
+      // Delay aleatorio entre búsquedas (evita el Error 429 de Google)
+      const randomDelay = Math.floor(Math.random() * 4000) + 3000; // Entre 3 y 7 segundos
+      await sleep(randomDelay);
     }
   }
 
