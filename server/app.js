@@ -112,12 +112,20 @@ async function startServer() {
         }, { scheduled: true, timezone });
         console.log(`📄 Informe diario PDF: ${reportSchedule} (${timezone})`);
 
-        // Ejecutar primera búsqueda después de 10 segundos
-        setTimeout(() => {
+        // Ejecutar primera búsqueda después de 15 segundos
+        setTimeout(async () => {
+          console.log('');
           console.log('🔍 Ejecutando primera búsqueda inicial...');
-          const { runFullSearch } = require('./services/flightMonitor');
-          runFullSearch().catch(err => console.error('Error en búsqueda inicial:', err.message));
-        }, 10000);
+          console.log(`⏰ ${new Date().toLocaleString('es-ES')}`);
+          try {
+            const { runFullSearch } = require('./services/flightMonitor');
+            await runFullSearch();
+            console.log('✅ Primera búsqueda completada');
+          } catch (err) {
+            console.error('❌ Error en búsqueda inicial:', err.message);
+            console.error(err.stack);
+          }
+        }, 15000);
 
         // ═══════════ KEEP-ALIVE SELF-PING ═══════════
         // Railway/Render free tier sleeps after inactivity.
