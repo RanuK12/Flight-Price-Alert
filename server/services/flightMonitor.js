@@ -6,13 +6,13 @@
  *
  * RUTAS MONITOREADAS (TODAS con alerta Telegram):
  *
- * 1. MDQ → COR (19-24 abr) solo ida — ALERTA ≤ $140
- * 2. MAD → ORD (20-30 jun) solo ida — ALERTA ≤ $485
- * 3. BCN → ORD (20-30 jun) solo ida — ALERTA ≤ $450
- * 4. EZE → MAD/BCN (15 jun - 31 jul) solo ida — ALERTA ≤ $1100
- * 5. EZE → FCO/MXP (15 jun - 31 jul) solo ida — ALERTA ≤ $1150
- * 6. COR → MAD/BCN (15 jun - 31 jul) solo ida — ALERTA ≤ $1250
- * 7. COR → FCO/MXP (15 jun - 31 jul) solo ida — ALERTA ≤ $1300
+ * 1. MDQ → COR (19-24 abr) solo ida — ALERTA ≤ €110
+ * 2. MAD → ORD (20-30 jun) solo ida — ALERTA ≤ €420
+ * 3. BCN → ORD (20-30 jun) solo ida — ALERTA ≤ €390
+ * 4. EZE → MAD/BCN (15 jun - 31 jul) solo ida — ALERTA ≤ €690
+ * 5. EZE → FCO/MXP (15 jun - 31 jul) solo ida — ALERTA ≤ €750
+ * 6. COR → MAD/BCN (15 jun - 31 jul) solo ida — ALERTA ≤ €820
+ * 7. COR → FCO/MXP (15 jun - 31 jul) solo ida — ALERTA ≤ €850
  *
  * Precios en EUR.
  * + Informe diario PDF a las 21:00
@@ -83,7 +83,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-04-19', '2026-04-24'),
     tripType: 'oneway',
     alert: true,
-    threshold: 140,  // EUR — normal-bajo <€140, muy bajo <€100, ofertón <€55
+    threshold: 110,  // EUR — normal-bajo <€110, muy bajo <€75, ofertón <€42
   },
 
   // ========== RUTA 2: España → Chicago (20-30 jun, temporada alta) ==========
@@ -93,7 +93,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-20', '2026-06-30'),
     tripType: 'oneway',
     alert: true,
-    threshold: 485,  // EUR — normal-bajo <€485, muy bajo <€450, ofertón <€360
+    threshold: 420,  // EUR — normal-bajo <€420, muy bajo <€320, ofertón <€220
   },
   {
     origin: 'BCN', destination: 'ORD',
@@ -101,7 +101,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-20', '2026-06-30'),
     tripType: 'oneway',
     alert: true,
-    threshold: 450,  // EUR — normal-bajo <€450, muy bajo <€390, ofertón <€300
+    threshold: 390,  // EUR — normal-bajo <€390, muy bajo <€295, ofertón <€205
   },
 
   // ========== RUTA 3: Buenos Aires → España (15 jun - 31 jul, temporada alta) ==========
@@ -111,7 +111,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1100,  // EUR — normal-bajo <€1100, muy bajo <€900, ofertón <€750
+    threshold: 690,  // EUR — normal-bajo <€690, muy bajo <€570, ofertón <€450
   },
   {
     origin: 'EZE', destination: 'BCN',
@@ -119,7 +119,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1100,  // EUR — normal-bajo <€1100, muy bajo <€900, ofertón <€750
+    threshold: 690,  // EUR — normal-bajo <€690, muy bajo <€570, ofertón <€450
   },
 
   // ========== RUTA 3b: Buenos Aires → Italia (15 jun - 31 jul) ==========
@@ -129,7 +129,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1150,  // EUR — normal-bajo <€1150, muy bajo <€950, ofertón <€800
+    threshold: 750,  // EUR — normal-bajo <€750, muy bajo <€630, ofertón <€480
   },
   {
     origin: 'EZE', destination: 'MXP',
@@ -137,7 +137,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1150,  // EUR — normal-bajo <€1150, muy bajo <€950, ofertón <€800
+    threshold: 750,  // EUR — normal-bajo <€750, muy bajo <€630, ofertón <€480
   },
 
   // ========== RUTA 3c: Córdoba → España (15 jun - 31 jul) ==========
@@ -147,7 +147,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1250,  // EUR — normal-bajo <€1250, muy bajo <€1000, ofertón <€850
+    threshold: 820,  // EUR — normal-bajo <€820, muy bajo <€690, ofertón <€520
   },
   {
     origin: 'COR', destination: 'BCN',
@@ -155,7 +155,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1250,  // EUR — normal-bajo <€1250, muy bajo <€1000, ofertón <€850
+    threshold: 820,  // EUR — normal-bajo <€820, muy bajo <€690, ofertón <€520
   },
 
   // ========== RUTA 3d: Córdoba → Italia (15 jun - 31 jul) ==========
@@ -165,7 +165,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1300,  // EUR — normal-bajo <€1300, muy bajo <€1100, ofertón <€900
+    threshold: 850,  // EUR — normal-bajo <€850, muy bajo <€730, ofertón <€540
   },
   {
     origin: 'COR', destination: 'MXP',
@@ -173,7 +173,7 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 1300,  // EUR — normal-bajo <€1300, muy bajo <€1100, ofertón <€900
+    threshold: 850,  // EUR — normal-bajo <€850, muy bajo <€730, ofertón <€540
   },
 ];
 
@@ -191,13 +191,13 @@ async function runFullSearch(options = {}) {
   console.log(`📊 Rutas: ${MONITORED_ROUTES.length} (TODAS con alerta)`);
   console.log('');
   console.log('📋 CONFIGURACIÓN (umbrales = "normal-bajo" techo):');
-  console.log('   ✈️ MDQ → COR: 19-24 abr (≤€140 normal-bajo, ≤€100 muy bajo, ≤€55 ofertón)');
-  console.log('   ✈️ MAD → ORD: 20-30 jun (≤€485 normal-bajo, ≤€450 muy bajo, ≤€360 ofertón)');
-  console.log('   ✈️ BCN → ORD: 20-30 jun (≤€450 normal-bajo, ≤€390 muy bajo, ≤€300 ofertón)');
-  console.log('   ✈️ EZE → MAD/BCN: 15 jun - 31 jul (≤€1100, ≤€900 muy bajo, ≤€750 ofertón)');
-  console.log('   ✈️ EZE → FCO/MXP: 15 jun - 31 jul (≤€1150, ≤€950 muy bajo, ≤€800 ofertón)');
-  console.log('   ✈️ COR → MAD/BCN: 15 jun - 31 jul (≤€1250, ≤€1000 muy bajo, ≤€850 ofertón)');
-  console.log('   ✈️ COR → FCO/MXP: 15 jun - 31 jul (≤€1300, ≤€1100 muy bajo, ≤€900 ofertón)');
+  console.log('   ✈️ MDQ → COR: 19-24 abr (≤€110 normal-bajo, ≤€75 muy bajo, ≤€42 ofertón)');
+  console.log('   ✈️ MAD → ORD: 20-30 jun (≤€420 normal-bajo, ≤€320 muy bajo, ≤€220 ofertón)');
+  console.log('   ✈️ BCN → ORD: 20-30 jun (≤€390 normal-bajo, ≤€295 muy bajo, ≤€205 ofertón)');
+  console.log('   ✈️ EZE → MAD/BCN: 15 jun - 31 jul (≤€690 normal-bajo, ≤€570 muy bajo, ≤€450 ofertón)');
+  console.log('   ✈️ EZE → FCO/MXP: 15 jun - 31 jul (≤€750 normal-bajo, ≤€630 muy bajo, ≤€480 ofertón)');
+  console.log('   ✈️ COR → MAD/BCN: 15 jun - 31 jul (≤€820 normal-bajo, ≤€690 muy bajo, ≤€520 ofertón)');
+  console.log('   ✈️ COR → FCO/MXP: 15 jun - 31 jul (≤€850 normal-bajo, ≤€730 muy bajo, ≤€540 ofertón)');
   console.log('');
 
   const results = {
