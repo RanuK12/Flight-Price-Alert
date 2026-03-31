@@ -83,7 +83,9 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-04-19', '2026-04-24'),
     tripType: 'oneway',
     alert: true,
-    threshold: 110,  // EUR — normal-bajo <€110, muy bajo <€75, ofertón <€42
+    threshold: 110,       // normal-bajo (precio aceptable)
+    thresholdMuyBajo: 75, // muy bajo (muy buena oferta)
+    thresholdOferton: 42, // ofertón (tarifa error/promo)
   },
 
   // ========== RUTA 2: España → Chicago (20-30 jun, temporada alta) ==========
@@ -93,7 +95,9 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-20', '2026-06-30'),
     tripType: 'oneway',
     alert: true,
-    threshold: 420,  // EUR — normal-bajo <€420, muy bajo <€320, ofertón <€220
+    threshold: 420,
+    thresholdMuyBajo: 320,
+    thresholdOferton: 220,
   },
   {
     origin: 'BCN', destination: 'ORD',
@@ -101,17 +105,21 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-20', '2026-06-30'),
     tripType: 'oneway',
     alert: true,
-    threshold: 390,  // EUR — normal-bajo <€390, muy bajo <€295, ofertón <€205
+    threshold: 390,
+    thresholdMuyBajo: 295,
+    thresholdOferton: 205,
   },
 
-  // ========== RUTA 3: Buenos Aires → España (15 jun - 31 jul, temporada alta) ==========
+  // ========== RUTA 3: Buenos Aires → España (15 jun - 31 jul) ==========
   {
     origin: 'EZE', destination: 'MAD',
     name: 'Buenos Aires → Madrid',
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 690,  // EUR — normal-bajo <€690, muy bajo <€570, ofertón <€450
+    threshold: 690,
+    thresholdMuyBajo: 570,
+    thresholdOferton: 450,
   },
   {
     origin: 'EZE', destination: 'BCN',
@@ -119,7 +127,9 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 690,  // EUR — normal-bajo <€690, muy bajo <€570, ofertón <€450
+    threshold: 690,
+    thresholdMuyBajo: 570,
+    thresholdOferton: 450,
   },
 
   // ========== RUTA 3b: Buenos Aires → Italia (15 jun - 31 jul) ==========
@@ -129,7 +139,9 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 750,  // EUR — normal-bajo <€750, muy bajo <€630, ofertón <€480
+    threshold: 750,
+    thresholdMuyBajo: 630,
+    thresholdOferton: 480,
   },
   {
     origin: 'EZE', destination: 'MXP',
@@ -137,7 +149,9 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 750,  // EUR — normal-bajo <€750, muy bajo <€630, ofertón <€480
+    threshold: 750,
+    thresholdMuyBajo: 630,
+    thresholdOferton: 480,
   },
 
   // ========== RUTA 3c: Córdoba → España (15 jun - 31 jul) ==========
@@ -147,7 +161,9 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 820,  // EUR — normal-bajo <€820, muy bajo <€690, ofertón <€520
+    threshold: 820,
+    thresholdMuyBajo: 690,
+    thresholdOferton: 520,
   },
   {
     origin: 'COR', destination: 'BCN',
@@ -155,7 +171,9 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 820,  // EUR — normal-bajo <€820, muy bajo <€690, ofertón <€520
+    threshold: 820,
+    thresholdMuyBajo: 690,
+    thresholdOferton: 520,
   },
 
   // ========== RUTA 3d: Córdoba → Italia (15 jun - 31 jul) ==========
@@ -165,7 +183,9 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 850,  // EUR — normal-bajo <€850, muy bajo <€730, ofertón <€540
+    threshold: 850,
+    thresholdMuyBajo: 730,
+    thresholdOferton: 540,
   },
   {
     origin: 'COR', destination: 'MXP',
@@ -173,7 +193,43 @@ const MONITORED_ROUTES = [
     dates: dateRange('2026-06-15', '2026-07-31'),
     tripType: 'oneway',
     alert: true,
-    threshold: 850,  // EUR — normal-bajo <€850, muy bajo <€730, ofertón <€540
+    threshold: 850,
+    thresholdMuyBajo: 730,
+    thresholdOferton: 540,
+  },
+
+  // ========== RUTA 4: Europa → Buenos Aires (15 jun - 31 jul) ==========
+  {
+    origin: 'MAD', destination: 'EZE',
+    name: 'Madrid → Buenos Aires',
+    dates: dateRange('2026-06-15', '2026-07-31'),
+    tripType: 'oneway',
+    alert: true,
+    threshold: 590,
+    thresholdMuyBajo: 480,
+    thresholdOferton: 390,
+  },
+  {
+    origin: 'BCN', destination: 'EZE',
+    name: 'Barcelona → Buenos Aires',
+    dates: dateRange('2026-06-15', '2026-07-31'),
+    tripType: 'oneway',
+    alert: true,
+    threshold: 590,
+    thresholdMuyBajo: 480,
+    thresholdOferton: 390,
+  },
+
+  // ========== RUTA 5: Ámsterdam → Buenos Aires (15 jun - 31 jul) ==========
+  {
+    origin: 'AMS', destination: 'EZE',
+    name: 'Ámsterdam → Buenos Aires',
+    dates: dateRange('2026-06-15', '2026-07-31'),
+    tripType: 'oneway',
+    alert: true,
+    threshold: 720,
+    thresholdMuyBajo: 580,
+    thresholdOferton: 460,
   },
 ];
 
@@ -198,6 +254,8 @@ async function runFullSearch(options = {}) {
   console.log('   ✈️ EZE → FCO/MXP: 15 jun - 31 jul (≤€750 normal-bajo, ≤€630 muy bajo, ≤€480 ofertón)');
   console.log('   ✈️ COR → MAD/BCN: 15 jun - 31 jul (≤€820 normal-bajo, ≤€690 muy bajo, ≤€520 ofertón)');
   console.log('   ✈️ COR → FCO/MXP: 15 jun - 31 jul (≤€850 normal-bajo, ≤€730 muy bajo, ≤€540 ofertón)');
+  console.log('   ✈️ MAD/BCN → EZE: 15 jun - 31 jul (≤€590 normal-bajo, ≤€480 muy bajo, ≤€390 ofertón)');
+  console.log('   ✈️ AMS → EZE: 15 jun - 31 jul (≤€720 normal-bajo, ≤€580 muy bajo, ≤€460 ofertón)');
   console.log('');
 
   const results = {
@@ -254,7 +312,19 @@ async function runFullSearch(options = {}) {
             });
 
             if (price <= route.threshold) {
-              console.log(`  🔥 OFERTA: €${price} (${flight.airline}) — ${formatDate(departureDate)}`);
+              // Clasificar nivel de oferta
+              let dealLevel, dealEmoji;
+              if (price <= (route.thresholdOferton || route.threshold * 0.4)) {
+                dealLevel = 'oferton';
+                dealEmoji = '🚨🔥🔥🔥';
+              } else if (price <= (route.thresholdMuyBajo || route.threshold * 0.7)) {
+                dealLevel = 'muy_bajo';
+                dealEmoji = '💰🔥🔥';
+              } else {
+                dealLevel = 'normal_bajo';
+                dealEmoji = '✅🔥';
+              }
+              console.log(`  ${dealEmoji} ${dealLevel.toUpperCase()}: €${price} (${flight.airline}) — ${formatDate(departureDate)}`);
 
               if (route.alert) {
                 const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
@@ -270,6 +340,9 @@ async function runFullSearch(options = {}) {
                     bookingUrl: flight.link,
                     tripType: 'oneway',
                     threshold: route.threshold,
+                    thresholdMuyBajo: route.thresholdMuyBajo,
+                    thresholdOferton: route.thresholdOferton,
+                    dealLevel,
                     stops: flight.stops,
                     totalDuration: flight.totalDuration,
                   });

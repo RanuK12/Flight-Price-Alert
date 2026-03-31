@@ -67,8 +67,19 @@ async function sendDealsReport(flightDeals, transitDeals) {
       const threshold = deals[0].threshold || '?';
       message += `\n✈️ <b>${routeName}</b> (≤ €${threshold})\n`;
       for (const deal of deals.slice(0, 5)) {
-        const emoji = deal.price <= deal.threshold * 0.6 ? '🔥🔥🔥' : (deal.price <= deal.threshold * 0.8 ? '🔥🔥' : '🔥');
-        message += `${emoji} <b>€${deal.price}</b>`;
+        // Emojis según nivel de oferta real
+        let emoji, levelTag;
+        if (deal.dealLevel === 'oferton') {
+          emoji = '🚨🔥🔥🔥';
+          levelTag = '¡OFERTÓN!';
+        } else if (deal.dealLevel === 'muy_bajo') {
+          emoji = '💰🔥🔥';
+          levelTag = 'MUY BAJO';
+        } else {
+          emoji = '✅🔥';
+          levelTag = 'Buen precio';
+        }
+        message += `${emoji} <b>€${deal.price}</b> — ${levelTag}`;
         if (deal.airline) message += ` • ${deal.airline}`;
         if (deal.departureDate && deal.departureDate !== 'Flexible') {
           message += ` • ${formatDateShort(deal.departureDate)}`;
@@ -104,6 +115,7 @@ async function sendDealsReport(flightDeals, transitDeals) {
 
   message += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
   message += `📊 Total: <b>${totalDeals}</b> ofertas\n`;
+  message += `\n🚨 = OFERTÓN | 💰 = Muy bajo | ✅ = Buen precio\n`;
   message += `🔗 Reservar en Google Flights`;
 
   return sendMessage(message);
@@ -286,18 +298,21 @@ Seguimos monitoreando... 👀
  */
 async function sendMonitoringStarted() {
   const message = `
-🚀 <b>Monitor de Vuelos v8.0</b>
+🚀 <b>Monitor de Vuelos v9.0</b>
 
 📋 <b>Rutas monitoreadas (TODAS con alerta):</b>
-✈️ MDQ → COR: 19-24 abr <b>(≤ €140)</b>
-✈️ MAD → ORD: 20-30 jun <b>(≤ €485)</b>
-✈️ BCN → ORD: 20-30 jun <b>(≤ €450)</b>
-✈️ EZE → MAD/BCN: 15 jun - 31 jul <b>(≤ €1100)</b>
-✈️ EZE → FCO/MXP: 15 jun - 31 jul <b>(≤ €1150)</b>
-✈️ COR → MAD/BCN: 15 jun - 31 jul <b>(≤ €1250)</b>
-✈️ COR → FCO/MXP: 15 jun - 31 jul <b>(≤ €1300)</b>
+✈️ MDQ → COR: 19-24 abr <b>(≤ €110)</b>
+✈️ MAD → ORD: 20-30 jun <b>(≤ €420)</b>
+✈️ BCN → ORD: 20-30 jun <b>(≤ €390)</b>
+✈️ EZE → MAD/BCN: 15 jun - 31 jul <b>(≤ €690)</b>
+✈️ EZE → FCO/MXP: 15 jun - 31 jul <b>(≤ €750)</b>
+✈️ COR → MAD/BCN: 15 jun - 31 jul <b>(≤ €820)</b>
+✈️ COR → FCO/MXP: 15 jun - 31 jul <b>(≤ €850)</b>
+✈️ MAD/BCN → EZE: 15 jun - 31 jul <b>(≤ €590)</b>
+✈️ AMS → EZE: 15 jun - 31 jul <b>(≤ €720)</b>
 
 📢 Alertas Telegram: TODAS las rutas
+🚨 = OFERTÓN | 💰 = Muy bajo | ✅ = Buen precio
 📄 Informe diario PDF: 21:00 ART
 
 ⏰ ${new Date().toLocaleString('es-ES')}
@@ -327,16 +342,20 @@ async function sendTestMessage() {
   const message = `
 ✅ <b>Test de Conexión Exitoso</b>
 
-El bot de Flight Deal Finder v8.0 está funcionando.
+El bot de Flight Deal Finder v9.0 está funcionando.
 
 📋 <b>Alertas activas (TODAS las rutas):</b>
-✈️ MDQ → COR ≤ €140 (19-24 abr)
-✈️ MAD → ORD ≤ €485 (20-30 jun)
-✈️ BCN → ORD ≤ €450 (20-30 jun)
-✈️ EZE → MAD/BCN ≤ €1100 (15 jun - 31 jul)
-✈️ EZE → FCO/MXP ≤ €1150 (15 jun - 31 jul)
-✈️ COR → MAD/BCN ≤ €1250 (15 jun - 31 jul)
-✈️ COR → FCO/MXP ≤ €1300 (15 jun - 31 jul)
+✈️ MDQ → COR ≤ €110 (19-24 abr)
+✈️ MAD → ORD ≤ €420 (20-30 jun)
+✈️ BCN → ORD ≤ €390 (20-30 jun)
+✈️ EZE → MAD/BCN ≤ €690 (15 jun - 31 jul)
+✈️ EZE → FCO/MXP ≤ €750 (15 jun - 31 jul)
+✈️ COR → MAD/BCN ≤ €820 (15 jun - 31 jul)
+✈️ COR → FCO/MXP ≤ €850 (15 jun - 31 jul)
+✈️ MAD/BCN → EZE ≤ €590 (15 jun - 31 jul)
+✈️ AMS → EZE ≤ €720 (15 jun - 31 jul)
+
+🚨 = OFERTÓN | 💰 = Muy bajo | ✅ = Buen precio
 📄 Informe diario PDF: 21:00 ART
 
 ⏰ ${new Date().toLocaleString('es-ES')}
