@@ -112,20 +112,24 @@ async function startServer() {
         }, { scheduled: true, timezone });
         console.log(`📄 Informe diario PDF: ${reportSchedule} (${timezone})`);
 
-        // Ejecutar primera búsqueda después de 15 segundos
+        // Ejecutar primera búsqueda después de 20 segundos (dar más tiempo a que todo inicie)
         setTimeout(async () => {
           console.log('');
           console.log('🔍 Ejecutando primera búsqueda inicial...');
           console.log(`⏰ ${new Date().toLocaleString('es-ES')}`);
+          const searchStart = Date.now();
           try {
             const { runFullSearch } = require('./services/flightMonitor');
             await runFullSearch();
-            console.log('✅ Primera búsqueda completada');
+            const elapsed = ((Date.now() - searchStart) / 1000).toFixed(1);
+            console.log(`✅ Primera búsqueda completada en ${elapsed}s`);
+            console.log(`⏰ Próxima búsqueda CRON: en ~30 minutos (${new Date(Date.now() + 30*60*1000).toLocaleString('es-ES')})`);
           } catch (err) {
             console.error('❌ Error en búsqueda inicial:', err.message);
-            console.error(err.stack);
+            console.error('Stack:', err.stack);
+            console.log('⚠️ El proceso sigue vivo. El CRON ejecutará la próxima búsqueda en ~30 minutos.');
           }
-        }, 15000);
+        }, 20000);
 
         // ═══════════ KEEP-ALIVE SELF-PING ═══════════
         // Railway/Render free tier sleeps after inactivity.
@@ -165,10 +169,13 @@ async function startServer() {
 
 // Handle uncaught errors to prevent crashes
 process.on('uncaughtException', (err) => {
-  console.error('❌ Uncaught exception:', err.message);
+  console.error(`\n❌ [${new Date().toLocaleString('es-ES')}] Uncaught exception:`, err.message);
+  console.error(err.stack);
+  // Don't exit — keep the cron alive
 });
-process.on('unhandledRejection', (err) => {
-  console.error('❌ Unhandled rejection:', err);
+process.on('unhandledRejection', (reason) => {
+  console.error(`\n❌ [${new Date().toLocaleString('es-ES')}] Unhandled rejection:`, reason);
+  // Don't exit — keep the cron alive
 });
 
 startServer();

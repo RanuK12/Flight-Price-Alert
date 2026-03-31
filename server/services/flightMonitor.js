@@ -25,6 +25,7 @@ const { run, get, all, wasRecentlyAlerted } = require('../database/db');
 
 // Estado del monitor
 let isMonitoring = false;
+let searchRunning = false;
 let lastSearchTime = null;
 let totalDealsFound = 0;
 let cronJob = null;
@@ -237,14 +238,44 @@ const MONITORED_ROUTES = [
 // BÚSQUEDA PRINCIPAL
 // =============================================
 
+// Timeout global para evitar que una búsqueda cuelgue el proceso
+const SEARCH_TIMEOUT_MS = 8 * 60 * 1000; // 8 minutos máximo
+
 async function runFullSearch(options = {}) {
   const { notifyDeals = true } = options;
 
+  // Timeout global protector
+  return Promise.race([
+    _runFullSearchInternal(options),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('TIMEOUT: búsqueda excedió 8 minutos')), SEARCH_TIMEOUT_MS)
+    ),
+  ]).catch(err => {
+    console.error(`\n❌ runFullSearch FAILED: ${err.message}`);
+    logMemory();
+    return { flightDeals: [], allSearches: [], errors: [{ route: 'global', error: err.message }] };
+  });
+}
+
+function logMemory() {
+  try {
+    const mem = process.memoryUsage();
+    const rss = (mem.rss / 1024 / 1024).toFixed(1);
+    const heap = (mem.heapUsed / 1024 / 1024).toFixed(1);
+    const heapTotal = (mem.heapTotal / 1024 / 1024).toFixed(1);
+    console.log(`🧠 Memoria: RSS=${rss}MB, Heap=${heap}/${heapTotal}MB`);
+  } catch (e) {}
+}
+
+async function _runFullSearchInternal(options = {}) {
+  const { notifyDeals = true } = options;
+
   console.log('\n' + '='.repeat(60));
-  console.log('🔍 BÚSQUEDA DE VUELOS v8.0 (API Directa)');
+  console.log('🔍 BÚSQUEDA DE VUELOS v9.0 (API Directa + Robustez)');
   console.log('='.repeat(60));
   console.log(`⏰ ${new Date().toLocaleString('es-ES')}`);
   console.log(`📊 Rutas: ${MONITORED_ROUTES.length} (TODAS con alerta)`);
+  logMemory();
   console.log('');
   console.log('📋 CONFIGURACIÓN (umbrales = "normal-bajo" techo):');
   console.log('   ✈️ MDQ → COR: 19-24 abr (≤€110 normal-bajo, ≤€75 muy bajo, ≤€42 ofertón)');
@@ -360,11 +391,19 @@ async function runFullSearch(options = {}) {
       } catch (error) {
         results.errors.push({ route: route.name, error: error.message });
         console.error(`  ❌ Error: ${error.message}`);
+        // No crashear el loop entero por un error individual
       }
 
       // Delay aleatorio entre búsquedas (evita el Error 429 de Google)
       const randomDelay = Math.floor(Math.random() * 4000) + 3000; // Entre 3 y 7 segundos
       await sleep(randomDelay);
+    }
+
+    // Log de progreso entre rutas
+    const routeIdx = MONITORED_ROUTES.indexOf(route) + 1;
+    if (routeIdx % 5 === 0) {
+      logMemory();
+      console.log(`📊 Progreso: ${routeIdx}/${MONITORED_ROUTES.length} rutas`);
     }
   }
 
@@ -381,12 +420,16 @@ async function runFullSearch(options = {}) {
   const successCount = results.allSearches.filter(s => s.success).length;
 
   console.log('\n' + '='.repeat(60));
-  console.log('📊 RESUMEN');
+  console.log('📊 RESUMEN DE BÚSQUEDA');
   console.log('='.repeat(60));
   console.log(`✅ Búsquedas: ${successCount}/${results.allSearches.length}`);
-  if (results.errors.length > 0) console.log(`❌ Errores: ${results.errors.length}`);
+  if (results.errors.length > 0) {
+    console.log(`❌ Errores: ${results.errors.length}`);
+    results.errors.forEach(e => console.log(`   • ${e.route}: ${e.error}`));
+  }
   console.log(`✈️ Ofertas encontradas: ${results.flightDeals.length}`);
   console.log(`⏱️ Duración: ${duration.toFixed(1)}s`);
+  logMemory();
 
   if (results.flightDeals.length > 0) {
     console.log('\n🎯 ALERTAS:');
@@ -397,11 +440,18 @@ async function runFullSearch(options = {}) {
 
   // ══════════════ TELEGRAM ══════════════
   if (notifyDeals && isActive() && totalNewDeals > 0) {
-    await sendDealsReport(results.flightDeals, []);
-    console.log(`📱 Alerta Telegram enviada (${totalNewDeals} ofertas)`);
+    try {
+      await sendDealsReport(results.flightDeals, []);
+      console.log(`📱 Alerta Telegram enviada (${totalNewDeals} ofertas)`);
+    } catch (telegramErr) {
+      console.error(`❌ Error enviando Telegram: ${telegramErr.message}`);
+    }
   } else if (totalNewDeals === 0) {
     console.log('📴 Sin ofertas alertables — no se envía Telegram');
   }
+
+  console.log(`\n✅ BÚSQUEDA COMPLETADA a las ${new Date().toLocaleString('es-ES')}`);
+  console.log('='.repeat(60) + '\n');
 
   return results;
 }
@@ -480,12 +530,23 @@ function startMonitoring(cronSchedule = '0 */2 * * *', timezone = 'America/Argen
   console.log('');
 
   cronJob = cron.schedule(cronSchedule, async () => {
-    console.log(`\n⏰ Búsqueda programada: ${new Date().toLocaleString('es-ES')}`);
+    console.log('\n' + '🔔'.repeat(30));
+    console.log(`⏰ BÚSQUEDA PROGRAMADA CRON: ${new Date().toLocaleString('es-ES')}`);
+    console.log('🔔'.repeat(30));
     try {
+      searchRunning = true;
       await runFullSearch();
     } catch (error) {
-      console.error('Error en búsqueda:', error);
-      if (isActive()) sendErrorAlert(error, 'Búsqueda programada');
+      console.error('❌ Error FATAL en búsqueda programada:', error.message);
+      console.error(error.stack);
+      try {
+        if (isActive()) await sendErrorAlert(error, 'Búsqueda programada');
+      } catch (e) {
+        console.error('❌ No se pudo enviar alerta de error:', e.message);
+      }
+    } finally {
+      searchRunning = false;
+      console.log(`⏰ Próxima búsqueda: en ~30 minutos (${new Date(Date.now() + 30*60*1000).toLocaleString('es-ES')})`);
     }
   }, {
     scheduled: true,
@@ -493,7 +554,8 @@ function startMonitoring(cronSchedule = '0 */2 * * *', timezone = 'America/Argen
   });
 
   isMonitoring = true;
-  console.log('✅ Monitoreo iniciado\n');
+  console.log('✅ Monitoreo CRON iniciado — el proceso DEBE seguir vivo');
+  console.log(`⏰ Próxima búsqueda programada: ~30 minutos\n`);
   return true;
 }
 

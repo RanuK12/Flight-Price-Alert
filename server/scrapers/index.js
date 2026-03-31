@@ -79,10 +79,12 @@ async function scrapeAllSources(origin, destination, isRoundTrip = false, depart
 
   // ══════════════════════════════════════════════════════════════
   // SOURCE 2: Puppeteer fallback (only if API returned 0 results)
+  // DISABLED in production (Render free = 512MB, Chrome uses ~400MB → OOM kill)
   // ══════════════════════════════════════════════════════════════
   const apiGotResults = apiResult && apiResult.flights && apiResult.flights.length > 0;
+  const isLowMemoryEnv = process.env.RENDER || process.env.DISABLE_PUPPETEER === 'true';
 
-  if (!apiGotResults && scrapeGoogleFlights) {
+  if (!apiGotResults && scrapeGoogleFlights && !isLowMemoryEnv) {
     console.log('  🔄 API sin resultados, usando Puppeteer como fallback...');
     try {
       const puppeteerResult = await scrapeGoogleFlights(
@@ -110,6 +112,8 @@ async function scrapeAllSources(origin, destination, isRoundTrip = false, depart
         error: err.message,
       });
     }
+  } else if (!apiGotResults && isLowMemoryEnv) {
+    console.log('  ⏭️ Puppeteer deshabilitado en Render (poca memoria) — solo API');
   }
 
   // ══════════════════════════════════════════════════════════════
