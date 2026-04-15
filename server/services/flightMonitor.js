@@ -223,26 +223,35 @@ const MONITORED_ROUTES = [
     thresholdOferton: 390,
   },
 
-  // ========== RUTA 5: Italia → Tokio (sep/oct 2026, ~10 días) ==========
+  // ========== RUTA 5: Italia → Tokio (sep/oct 2026, ida y vuelta ~10 días) ==========
+  // Precios reales relevados en Kayak el 15/04/2026 (FCO → TYO, sep 2026):
+  //   Mínimo real:  ~USD 1,341 (ITA Airways directo) → ~€1,180 EUR
+  //   Precio típico: USD 1,626–1,706 → ~€1,430–1,500 EUR
+  //   Precio alto:   USD 1,800+ → €1,580+ EUR
+  //
+  // Thresholds en EUR:
+  //   ✈️ Buen precio  ≤ €1,250 EUR  (por debajo del mínimo real)
+  //   🔥🔥 Oferta     ≤ €1,100 EUR  (muy por debajo del mercado)
+  //   🔥🔥🔥 Ofertón  ≤ €900 EUR    (tarifa error / promo excepcional)
   {
     origin: 'FCO', destination: 'TYO',
     name: 'Roma → Tokio',
-    dates: dateRange('2026-09-01', '2026-10-31'),
+    dates: dateRange('2026-09-01', '2026-10-21'), // salidas que permiten ~10 días antes de oct fin
     tripType: 'roundtrip',
     alert: true,
-    threshold: 1350,      // precio aceptable (típico normal)
-    thresholdMuyBajo: 1100, // muy buena oferta
-    thresholdOferton: 950,  // ofertón / tarifa error
+    threshold: 1250,        // ✈️ buen precio
+    thresholdMuyBajo: 1100, // 🔥🔥 oferta
+    thresholdOferton: 900,  // 🔥🔥🔥 ofertón
   },
   {
     origin: 'MXP', destination: 'TYO',
     name: 'Milán → Tokio',
-    dates: dateRange('2026-09-01', '2026-10-31'),
+    dates: dateRange('2026-09-01', '2026-10-21'),
     tripType: 'roundtrip',
     alert: true,
-    threshold: 1350,
+    threshold: 1250,
     thresholdMuyBajo: 1100,
-    thresholdOferton: 950,
+    thresholdOferton: 900,
   },
 ];
 
