@@ -13,6 +13,8 @@
  * 5. EZE → FCO/MXP (15 jun - 31 jul) solo ida — ALERTA ≤ €750
  * 6. COR → MAD/BCN (15 jun - 31 jul) solo ida — ALERTA ≤ €820
  * 7. COR → FCO/MXP (15 jun - 31 jul) solo ida — ALERTA ≤ €850
+ * 8. FCO → TYO (1 sep - 31 oct) ida/vuelta — ALERTA ≤ $1,100 USD
+ * 9. MXP → TYO (1 sep - 31 oct) ida/vuelta — ALERTA ≤ $1,100 USD
  *
  * Precios en EUR.
  * + Informe diario PDF a las 21:00
@@ -221,16 +223,26 @@ const MONITORED_ROUTES = [
     thresholdOferton: 390,
   },
 
-  // ========== RUTA 5: Ámsterdam → Buenos Aires (mayo 2026) ==========
+  // ========== RUTA 5: Italia → Tokio (sep/oct 2026, ~10 días) ==========
   {
-    origin: 'AMS', destination: 'EZE',
-    name: 'Ámsterdam → Buenos Aires',
-    dates: dateRange('2026-05-01', '2026-05-31'),
-    tripType: 'oneway',
+    origin: 'FCO', destination: 'TYO',
+    name: 'Roma → Tokio',
+    dates: dateRange('2026-09-01', '2026-10-31'),
+    tripType: 'roundtrip',
     alert: true,
-    threshold: 720,
-    thresholdMuyBajo: 580,
-    thresholdOferton: 460,
+    threshold: 1350,      // precio aceptable (típico normal)
+    thresholdMuyBajo: 1100, // muy buena oferta
+    thresholdOferton: 950,  // ofertón / tarifa error
+  },
+  {
+    origin: 'MXP', destination: 'TYO',
+    name: 'Milán → Tokio',
+    dates: dateRange('2026-09-01', '2026-10-31'),
+    tripType: 'roundtrip',
+    alert: true,
+    threshold: 1350,
+    thresholdMuyBajo: 1100,
+    thresholdOferton: 950,
   },
 ];
 
