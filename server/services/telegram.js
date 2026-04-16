@@ -306,11 +306,11 @@ async function sendMonitoringStarted() {
 ✈️ MDQ → COR: 19-24 abr <b>(≤ €75 muy bajo)</b>
 ✈️ MAD → ORD: 20-30 jun <b>(≤ €320 muy bajo)</b>
 ✈️ BCN → ORD: 20-30 jun <b>(≤ €295 muy bajo)</b>
-✈️ EZE → MAD/BCN: 15 jun-31 jul <b>(≤ €570 muy bajo)</b>
-✈️ EZE → FCO/MXP: 15 jun-31 jul <b>(≤ €630 muy bajo)</b>
-✈️ COR → MAD/BCN: 15 jun-31 jul <b>(≤ €690 muy bajo)</b>
-✈️ COR → FCO/MXP: 15 jun-31 jul <b>(≤ €730 muy bajo)</b>
-✈️ MAD/BCN → EZE: 15 jun-31 jul <b>(≤ €480 muy bajo)</b>
+✈️ EZE → MAD/BCN: jun-jul <b>(≤ €570 muy bajo)</b>
+✈️ EZE → FCO/MXP: jun-jul <b>(≤ €630 muy bajo)</b>
+✈️ COR → MAD/BCN: jun-jul <b>(≤ €690 muy bajo)</b>
+✈️ COR → FCO/MXP: jun-jul <b>(≤ €730 muy bajo)</b>
+✈️ MAD/BCN → EZE: jun-jul <b>(≤ €480 muy bajo)</b>
 ✈️ AMS → EZE: may 2026 <b>(≤ €580 muy bajo)</b>
 
 <b>🗼 Ida y vuelta — alertan todos los niveles:</b>
@@ -353,11 +353,11 @@ El bot de Flight Deal Finder v9.1 está funcionando.
 ✈️ MDQ → COR ≤ €75 (19-24 abr)
 ✈️ MAD → ORD ≤ €320 (20-30 jun)
 ✈️ BCN → ORD ≤ €295 (20-30 jun)
-✈️ EZE → MAD/BCN ≤ €570 (15 jun-31 jul)
-✈️ EZE → FCO/MXP ≤ €630 (15 jun-31 jul)
-✈️ COR → MAD/BCN ≤ €690 (15 jun-31 jul)
-✈️ COR → FCO/MXP ≤ €730 (15 jun-31 jul)
-✈️ MAD/BCN → EZE ≤ €480 (15 jun-31 jul)
+✈️ EZE → MAD/BCN ≤ €570 (jun-jul)
+✈️ EZE → FCO/MXP ≤ €630 (jun-jul)
+✈️ COR → MAD/BCN ≤ €690 (jun-jul)
+✈️ COR → FCO/MXP ≤ €730 (jun-jul)
+✈️ MAD/BCN → EZE ≤ €480 (jun-jul)
 ✈️ AMS → EZE ≤ €580 (may 2026)
 
 <b>🗼 Ida y vuelta 10d — todos los niveles:</b>
