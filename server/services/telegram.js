@@ -298,21 +298,26 @@ Seguimos monitoreando... 👀
  */
 async function sendMonitoringStarted() {
   const message = `
-🚀 <b>Monitor de Vuelos v9.0</b>
+🚀 <b>Monitor de Vuelos v9.1</b>
 
-📋 <b>Rutas monitoreadas (TODAS con alerta):</b>
-✈️ MDQ → COR: 19-24 abr <b>(≤ €110)</b>
-✈️ MAD → ORD: 20-30 jun <b>(≤ €420)</b>
-✈️ BCN → ORD: 20-30 jun <b>(≤ €390)</b>
-✈️ EZE → MAD/BCN: 15 jun - 31 jul <b>(≤ €690)</b>
-✈️ EZE → FCO/MXP: 15 jun - 31 jul <b>(≤ €750)</b>
-✈️ COR → MAD/BCN: 15 jun - 31 jul <b>(≤ €820)</b>
-✈️ COR → FCO/MXP: 15 jun - 31 jul <b>(≤ €850)</b>
-✈️ MAD/BCN → EZE: 15 jun - 31 jul <b>(≤ €590)</b>
-✈️ AMS → EZE: 15 jun - 31 jul <b>(≤ €720)</b>
+📋 <b>Rutas monitoreadas:</b>
 
-📢 Alertas Telegram: TODAS las rutas
-🚨 = OFERTÓN | 💰 = Muy bajo | ✅ = Buen precio
+<b>⚡ Solo ida — alertan MUY BAJO u OFERTÓN:</b>
+✈️ MDQ → COR: 19-24 abr <b>(≤ €75 muy bajo)</b>
+✈️ MAD → ORD: 20-30 jun <b>(≤ €320 muy bajo)</b>
+✈️ BCN → ORD: 20-30 jun <b>(≤ €295 muy bajo)</b>
+✈️ EZE → MAD/BCN: 15 jun-31 jul <b>(≤ €570 muy bajo)</b>
+✈️ EZE → FCO/MXP: 15 jun-31 jul <b>(≤ €630 muy bajo)</b>
+✈️ COR → MAD/BCN: 15 jun-31 jul <b>(≤ €690 muy bajo)</b>
+✈️ COR → FCO/MXP: 15 jun-31 jul <b>(≤ €730 muy bajo)</b>
+✈️ MAD/BCN → EZE: 15 jun-31 jul <b>(≤ €480 muy bajo)</b>
+✈️ AMS → EZE: may 2026 <b>(≤ €580 muy bajo)</b>
+
+<b>🗼 Ida y vuelta — alertan todos los niveles:</b>
+✈️ FCO/MXP → NRT (Tokio): 1 sep-15 oct <b>(≤ €950)</b> 🇯🇵
+   Viaje 10 días • Busca precios económicos I/V
+
+📢 Alertas: 🚨 = OFERTÓN | 💰 = Muy bajo | ✅ = Buen precio (solo Tokio)
 📄 Informe diario PDF: 21:00 ART
 
 ⏰ ${new Date().toLocaleString('es-ES')}
@@ -342,20 +347,24 @@ async function sendTestMessage() {
   const message = `
 ✅ <b>Test de Conexión Exitoso</b>
 
-El bot de Flight Deal Finder v9.0 está funcionando.
+El bot de Flight Deal Finder v9.1 está funcionando.
 
-📋 <b>Alertas activas (TODAS las rutas):</b>
-✈️ MDQ → COR ≤ €110 (19-24 abr)
-✈️ MAD → ORD ≤ €420 (20-30 jun)
-✈️ BCN → ORD ≤ €390 (20-30 jun)
-✈️ EZE → MAD/BCN ≤ €690 (15 jun - 31 jul)
-✈️ EZE → FCO/MXP ≤ €750 (15 jun - 31 jul)
-✈️ COR → MAD/BCN ≤ €820 (15 jun - 31 jul)
-✈️ COR → FCO/MXP ≤ €850 (15 jun - 31 jul)
-✈️ MAD/BCN → EZE ≤ €590 (15 jun - 31 jul)
-✈️ AMS → EZE ≤ €720 (15 jun - 31 jul)
+<b>⚡ Solo ida — solo MUY BAJO u OFERTÓN:</b>
+✈️ MDQ → COR ≤ €75 (19-24 abr)
+✈️ MAD → ORD ≤ €320 (20-30 jun)
+✈️ BCN → ORD ≤ €295 (20-30 jun)
+✈️ EZE → MAD/BCN ≤ €570 (15 jun-31 jul)
+✈️ EZE → FCO/MXP ≤ €630 (15 jun-31 jul)
+✈️ COR → MAD/BCN ≤ €690 (15 jun-31 jul)
+✈️ COR → FCO/MXP ≤ €730 (15 jun-31 jul)
+✈️ MAD/BCN → EZE ≤ €480 (15 jun-31 jul)
+✈️ AMS → EZE ≤ €580 (may 2026)
 
-🚨 = OFERTÓN | 💰 = Muy bajo | ✅ = Buen precio
+<b>🗼 Ida y vuelta 10d — todos los niveles:</b>
+✈️ FCO → NRT (Tokio) ≤ €950 (1 sep-15 oct) 🇯🇵
+✈️ MXP → NRT (Tokio) ≤ €950 (1 sep-15 oct) 🇯🇵
+
+🚨 = OFERTÓN | 💰 = Muy bajo | ✅ = Buen precio (solo Tokio)
 📄 Informe diario PDF: 21:00 ART
 
 ⏰ ${new Date().toLocaleString('es-ES')}

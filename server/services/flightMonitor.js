@@ -1,19 +1,25 @@
 /**
- * Servicio de Monitoreo de Vuelos v8.0
+ * Servicio de Monitoreo de Vuelos v9.1
  *
  * Busca precios usando Google Flights API directa (sin Puppeteer).
  * Puppeteer solo como fallback si la API no devuelve resultados.
  *
- * RUTAS MONITOREADAS (TODAS con alerta Telegram):
+ * RUTAS MONITOREADAS:
  *
- * 1. MDQ → COR (19-24 abr) solo ida — ALERTA ≤ €110
- * 2. MAD → ORD (20-30 jun) solo ida — ALERTA ≤ €420
- * 3. BCN → ORD (20-30 jun) solo ida — ALERTA ≤ €390
- * 4. EZE → MAD/BCN (15 jun - 31 jul) solo ida — ALERTA ≤ €690
- * 5. EZE → FCO/MXP (15 jun - 31 jul) solo ida — ALERTA ≤ €750
- * 6. COR → MAD/BCN (15 jun - 31 jul) solo ida — ALERTA ≤ €820
- * 7. COR → FCO/MXP (15 jun - 31 jul) solo ida — ALERTA ≤ €850
+ * 1. MDQ → COR (19-24 abr) solo ida — SOLO MUY BAJO ≤ €75
+ * 2. MAD → ORD (20-30 jun) solo ida — SOLO MUY BAJO ≤ €320
+ * 3. BCN → ORD (20-30 jun) solo ida — SOLO MUY BAJO ≤ €295
+ * 4. EZE → MAD/BCN (15 jun - 31 jul) solo ida — SOLO MUY BAJO ≤ €570
+ * 5. EZE → FCO/MXP (15 jun - 31 jul) solo ida — SOLO MUY BAJO ≤ €630
+ * 6. COR → MAD/BCN (15 jun - 31 jul) solo ida — SOLO MUY BAJO ≤ €690
+ * 7. COR → FCO/MXP (15 jun - 31 jul) solo ida — SOLO MUY BAJO ≤ €730
+ * 8. MAD/BCN → EZE (15 jun - 31 jul) solo ida — SOLO MUY BAJO ≤ €480
+ * 9. AMS → EZE (may 2026) solo ida — SOLO MUY BAJO ≤ €580
+ * 10. FCO → NRT (sep-oct 2026) IDA Y VUELTA 10d — ALERTA ≤ €950
+ * 11. MXP → NRT (sep-oct 2026) IDA Y VUELTA 10d — ALERTA ≤ €950
  *
+ * Nota: rutas 1-9 solo alertan en nivel MUY BAJO u OFERTÓN.
+ * Rutas 10-11 (Tokio) alertan en todos los niveles.
  * Precios en EUR.
  * + Informe diario PDF a las 21:00
  */
@@ -232,6 +238,30 @@ const MONITORED_ROUTES = [
     thresholdMuyBajo: 580,
     thresholdOferton: 460,
   },
+
+  // ========== RUTA 6: Italia → Tokio (IDA Y VUELTA, 10 días, sep-oct 2026) ==========
+  {
+    origin: 'FCO', destination: 'NRT',
+    name: 'Roma → Tokio',
+    dates: dateRange('2026-09-01', '2026-10-15'),
+    tripType: 'roundtrip',   // ida y vuelta
+    returnOffsetDays: 10,    // fecha vuelta = salida + 10 días
+    alert: true,
+    threshold: 950,
+    thresholdMuyBajo: 780,
+    thresholdOferton: 620,
+  },
+  {
+    origin: 'MXP', destination: 'NRT',
+    name: 'Milán → Tokio',
+    dates: dateRange('2026-09-01', '2026-10-15'),
+    tripType: 'roundtrip',
+    returnOffsetDays: 10,
+    alert: true,
+    threshold: 950,
+    thresholdMuyBajo: 780,
+    thresholdOferton: 620,
+  },
 ];
 
 // =============================================
@@ -277,16 +307,19 @@ async function _runFullSearchInternal(options = {}) {
   console.log(`📊 Rutas: ${MONITORED_ROUTES.length} (TODAS con alerta)`);
   logMemory();
   console.log('');
-  console.log('📋 CONFIGURACIÓN (umbrales = "normal-bajo" techo):');
-  console.log('   ✈️ MDQ → COR: 19-24 abr (≤€110 normal-bajo, ≤€75 muy bajo, ≤€42 ofertón)');
-  console.log('   ✈️ MAD → ORD: 20-30 jun (≤€420 normal-bajo, ≤€320 muy bajo, ≤€220 ofertón)');
-  console.log('   ✈️ BCN → ORD: 20-30 jun (≤€390 normal-bajo, ≤€295 muy bajo, ≤€205 ofertón)');
-  console.log('   ✈️ EZE → MAD/BCN: 15 jun - 31 jul (≤€690 normal-bajo, ≤€570 muy bajo, ≤€450 ofertón)');
-  console.log('   ✈️ EZE → FCO/MXP: 15 jun - 31 jul (≤€750 normal-bajo, ≤€630 muy bajo, ≤€480 ofertón)');
-  console.log('   ✈️ COR → MAD/BCN: 15 jun - 31 jul (≤€820 normal-bajo, ≤€690 muy bajo, ≤€520 ofertón)');
-  console.log('   ✈️ COR → FCO/MXP: 15 jun - 31 jul (≤€850 normal-bajo, ≤€730 muy bajo, ≤€540 ofertón)');
-  console.log('   ✈️ MAD/BCN → EZE: 15 jun - 31 jul (≤€590 normal-bajo, ≤€480 muy bajo, ≤€390 ofertón)');
-  console.log('   ✈️ AMS → EZE: 15 jun - 31 jul (≤€720 normal-bajo, ≤€580 muy bajo, ≤€460 ofertón)');
+  console.log('📋 CONFIGURACIÓN:');
+  console.log('   ⚡ Rutas 1-9 (solo ida): alertan solo MUY BAJO u OFERTÓN');
+  console.log('   ✈️ MDQ → COR: 19-24 abr (≤€75 muy bajo, ≤€42 ofertón)');
+  console.log('   ✈️ MAD → ORD: 20-30 jun (≤€320 muy bajo, ≤€220 ofertón)');
+  console.log('   ✈️ BCN → ORD: 20-30 jun (≤€295 muy bajo, ≤€205 ofertón)');
+  console.log('   ✈️ EZE → MAD/BCN: 15 jun-31 jul (≤€570 muy bajo, ≤€450 ofertón)');
+  console.log('   ✈️ EZE → FCO/MXP: 15 jun-31 jul (≤€630 muy bajo, ≤€480 ofertón)');
+  console.log('   ✈️ COR → MAD/BCN: 15 jun-31 jul (≤€690 muy bajo, ≤€520 ofertón)');
+  console.log('   ✈️ COR → FCO/MXP: 15 jun-31 jul (≤€730 muy bajo, ≤€540 ofertón)');
+  console.log('   ✈️ MAD/BCN → EZE: 15 jun-31 jul (≤€480 muy bajo, ≤€390 ofertón)');
+  console.log('   ✈️ AMS → EZE: may 2026 (≤€580 muy bajo, ≤€460 ofertón)');
+  console.log('   🗼 Rutas 10-11 (Tokio I/V 10d): alertan todos los niveles');
+  console.log('   ✈️ FCO/MXP → NRT: 1 sep-15 oct (≤€950 normal, ≤€780 muy bajo, ≤€620 ofertón)');
   console.log('');
 
   const results = {
@@ -304,15 +337,26 @@ async function _runFullSearchInternal(options = {}) {
     const datesToSearch = pickDatesForRun(route.dates, 3);
 
     for (const departureDate of datesToSearch) {
-      console.log(`\n✈️ ${route.name} — ${departureDate} [ALERTA ≤ €${route.threshold}]`);
+      const isRoundTrip = route.tripType === 'roundtrip';
+      // Para rutas roundtrip, calcular fecha de vuelta = salida + returnOffsetDays
+      const returnDate = isRoundTrip
+        ? new Date(new Date(departureDate).getTime() + (route.returnOffsetDays || 10) * 86400000)
+            .toISOString().split('T')[0]
+        : undefined;
+
+      const tripLabel = isRoundTrip ? `I/V ${route.returnOffsetDays || 10}d (vuelta: ${returnDate})` : 'solo ida';
+      const alertLabel = isRoundTrip
+        ? `ALERTA todos niveles ≤ €${route.threshold}`
+        : `ALERTA solo MUY BAJO ≤ €${route.thresholdMuyBajo}`;
+      console.log(`\n✈️ ${route.name} — ${departureDate} [${tripLabel}] [${alertLabel}]`);
 
       try {
         const searchResult = await scrapeAllSources(
           route.origin,
           route.destination,
-          false, // one-way
+          isRoundTrip,
           departureDate,
-          undefined
+          returnDate
         );
 
         results.allSearches.push({
@@ -358,27 +402,41 @@ async function _runFullSearchInternal(options = {}) {
               console.log(`  ${dealEmoji} ${dealLevel.toUpperCase()}: €${price} (${flight.airline}) — ${formatDate(departureDate)}`);
 
               if (route.alert) {
-                const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
-                if (!recentlyAlerted) {
-                  results.flightDeals.push({
-                    origin: route.origin,
-                    destination: route.destination,
-                    routeName: route.name,
-                    price,
-                    airline: flight.airline,
-                    source: flight.source,
-                    departureDate,
-                    bookingUrl: flight.link,
-                    tripType: 'oneway',
-                    threshold: route.threshold,
-                    thresholdMuyBajo: route.thresholdMuyBajo,
-                    thresholdOferton: route.thresholdOferton,
-                    dealLevel,
-                    stops: flight.stops,
-                    totalDuration: flight.totalDuration,
-                  });
+                // Rutas oneway: solo alertar muy_bajo u oferton (filtra el ruido)
+                // Rutas roundtrip (Tokio): alertar en todos los niveles
+                const shouldAlert = route.tripType === 'roundtrip'
+                  ? true
+                  : dealLevel !== 'normal_bajo';
+
+                if (!shouldAlert) {
+                  console.log(`  🔇 normal_bajo en ruta oneway — sin alerta Telegram`);
                 } else {
-                  console.log(`  🔕 Ya alertado recientemente (anti-spam)`);
+                  const recentlyAlerted = await wasRecentlyAlerted(route.origin, route.destination, price, 24);
+                  if (!recentlyAlerted) {
+                    results.flightDeals.push({
+                      origin: route.origin,
+                      destination: route.destination,
+                      routeName: route.name,
+                      price,
+                      airline: flight.airline,
+                      source: flight.source,
+                      departureDate,
+                      returnDate: route.tripType === 'roundtrip'
+                        ? new Date(new Date(departureDate).getTime() + (route.returnOffsetDays || 10) * 86400000)
+                            .toISOString().split('T')[0]
+                        : undefined,
+                      bookingUrl: flight.link,
+                      tripType: route.tripType || 'oneway',
+                      threshold: route.threshold,
+                      thresholdMuyBajo: route.thresholdMuyBajo,
+                      thresholdOferton: route.thresholdOferton,
+                      dealLevel,
+                      stops: flight.stops,
+                      totalDuration: flight.totalDuration,
+                    });
+                  } else {
+                    console.log(`  🔕 Ya alertado recientemente (anti-spam)`);
+                  }
                 }
               }
             } else {
