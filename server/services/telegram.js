@@ -82,7 +82,11 @@ async function sendDealsReport(flightDeals, transitDeals) {
         message += `${emoji} <b>€${deal.price}</b> — ${levelTag}`;
         if (deal.airline) message += ` • ${deal.airline}`;
         if (deal.departureDate && deal.departureDate !== 'Flexible') {
-          message += ` • ${formatDateShort(deal.departureDate)}`;
+          let dateText = formatDateShort(deal.departureDate);
+          if (deal.returnDate) {
+            dateText += ` - ${formatDateShort(deal.returnDate)}`;
+          }
+          message += ` • ${dateText}`;
         }
         message += `\n`;
       }
