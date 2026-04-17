@@ -316,12 +316,7 @@ async function sendMonitoringStarted() {
 ✈️ COR → FCO/MXP: jun-jul <b>(≤ €730 muy bajo)</b>
 ✈️ MAD/BCN → EZE: jun-jul <b>(≤ €480 muy bajo)</b>
 ✈️ AMS → EZE: may 2026 <b>(≤ €580 muy bajo)</b>
-
-<b>🗼 Ida y vuelta — alertan todos los niveles:</b>
-✈️ FCO/MXP → NRT (Tokio): 1 sep-15 oct <b>(≤ €950)</b> 🇯🇵
-   Viaje 10 días • Busca precios económicos I/V
-
-📢 Alertas: 🚨 = OFERTÓN | 💰 = Muy bajo | ✅ = Buen precio (solo Tokio)
+📢 Alertas: 🚨 = OFERTÓN | 💰 = Muy bajo
 📄 Informe diario PDF: 21:00 ART
 
 ⏰ ${new Date().toLocaleString('es-ES')}
@@ -363,12 +358,7 @@ El bot de Flight Deal Finder v9.1 está funcionando.
 ✈️ COR → FCO/MXP ≤ €730 (jun-jul)
 ✈️ MAD/BCN → EZE ≤ €480 (jun-jul)
 ✈️ AMS → EZE ≤ €580 (may 2026)
-
-<b>🗼 Ida y vuelta 10d — todos los niveles:</b>
-✈️ FCO → NRT (Tokio) ≤ €950 (1 sep-15 oct) 🇯🇵
-✈️ MXP → NRT (Tokio) ≤ €950 (1 sep-15 oct) 🇯🇵
-
-🚨 = OFERTÓN | 💰 = Muy bajo | ✅ = Buen precio (solo Tokio)
+🚨 = OFERTÓN | 💰 = Muy bajo
 📄 Informe diario PDF: 21:00 ART
 
 ⏰ ${new Date().toLocaleString('es-ES')}

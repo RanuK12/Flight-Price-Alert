@@ -40,16 +40,7 @@ const ARGENTINA_TO_EUROPE = [
   { origin: 'COR', destination: 'MXP', name: 'Córdoba → Milán' },
 ];
 
-// ═══════════════════════════════════════════════════════════════
-// RUTA 4: Italia → Tokio (sep/oct 2026, ~10 días, ida y vuelta)
-//
-// Precios reales Google Flights (abr 2026):
-//   FCO/MXP → TYO sep/oct: mínimo ~$1,030 USD, típico ~$1,350, alto ~$1,700+
-// ═══════════════════════════════════════════════════════════════
-const ITALY_TO_TOKYO = [
-  { origin: 'FCO', destination: 'TYO', name: 'Roma → Tokio' },
-  { origin: 'MXP', destination: 'TYO', name: 'Milán → Tokio' },
-];
+
 
 /**
  * Precios de referencia (en USD, solo ida)
@@ -92,11 +83,7 @@ const PRICE_THRESHOLDS = {
   'COR-FCO': { typical: 1500, deal: 1150, steal: 950 },
   'COR-MXP': { typical: 1500, deal: 1150, steal: 950 },
 
-  // Italia → Tokio (ida y vuelta, ~10 días, sep/oct 2026)
-  // Datos reales Google Flights abr 2026:
-  //   mínimo ~$1,030 | típico ~$1,350 | alto ~$1,700+
-  'FCO-TYO': { typical: 1350, deal: 1100, steal: 950 },
-  'MXP-TYO': { typical: 1350, deal: 1100, steal: 950 },
+
 };
 
 /**
@@ -207,11 +194,9 @@ function getAllRoutes(type = 'all') {
       return SPAIN_TO_CHICAGO;
     case 'argentina-europe':
       return ARGENTINA_TO_EUROPE;
-    case 'italy-tokyo':
-      return ITALY_TO_TOKYO;
     case 'all':
     default:
-      return [...ARGENTINA_DOMESTIC, ...SPAIN_TO_CHICAGO, ...ARGENTINA_TO_EUROPE, ...ITALY_TO_TOKYO];
+      return [...ARGENTINA_DOMESTIC, ...SPAIN_TO_CHICAGO, ...ARGENTINA_TO_EUROPE];
   }
 }
 
@@ -227,7 +212,6 @@ module.exports = {
   ARGENTINA_DOMESTIC,
   SPAIN_TO_CHICAGO,
   ARGENTINA_TO_EUROPE,
-  ITALY_TO_TOKYO,
   PRICE_THRESHOLDS,
   analyzePrice,
   generateDatesInRange,
