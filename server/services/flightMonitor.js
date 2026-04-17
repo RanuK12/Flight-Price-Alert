@@ -15,11 +15,8 @@
  * 7. COR → FCO/MXP (jun - jul) solo ida — SOLO MUY BAJO ≤ €730
  * 8. MAD/BCN → EZE (jun - jul) solo ida — SOLO MUY BAJO ≤ €480
  * 9. AMS → EZE (may 2026) solo ida — SOLO MUY BAJO ≤ €580
- * 10. FCO → NRT (sep-oct 2026) IDA Y VUELTA 10d — ALERTA ≤ €950
- * 11. MXP → NRT (sep-oct 2026) IDA Y VUELTA 10d — ALERTA ≤ €950
  *
  * Nota: rutas 1-9 solo alertan en nivel MUY BAJO u OFERTÓN.
- * Rutas 10-11 (Tokio) alertan en todos los niveles.
  * Precios en EUR.
  * + Informe diario PDF a las 21:00
  */
@@ -239,29 +236,7 @@ const MONITORED_ROUTES = [
     thresholdOferton: 460,
   },
 
-  // ========== RUTA 6: Italia → Tokio (IDA Y VUELTA, 10 días, sep-oct 2026) ==========
-  {
-    origin: 'FCO', destination: 'NRT',
-    name: 'Roma → Tokio',
-    dates: dateRange('2026-09-01', '2026-10-15'),
-    tripType: 'roundtrip',   // ida y vuelta
-    returnOffsetDays: 10,    // fecha vuelta = salida + 10 días
-    alert: true,
-    threshold: 950,
-    thresholdMuyBajo: 780,
-    thresholdOferton: 620,
-  },
-  {
-    origin: 'MXP', destination: 'NRT',
-    name: 'Milán → Tokio',
-    dates: dateRange('2026-09-01', '2026-10-15'),
-    tripType: 'roundtrip',
-    returnOffsetDays: 10,
-    alert: true,
-    threshold: 950,
-    thresholdMuyBajo: 780,
-    thresholdOferton: 620,
-  },
+
 ];
 
 // =============================================
@@ -318,8 +293,6 @@ async function _runFullSearchInternal(options = {}) {
   console.log('   ✈️ COR → FCO/MXP: jun-jul (≤€730 muy bajo, ≤€540 ofertón)');
   console.log('   ✈️ MAD/BCN → EZE: jun-jul (≤€480 muy bajo, ≤€390 ofertón)');
   console.log('   ✈️ AMS → EZE: may 2026 (≤€580 muy bajo, ≤€460 ofertón)');
-  console.log('   🗼 Rutas 10-11 (Tokio I/V 10d): alertan todos los niveles');
-  console.log('   ✈️ FCO/MXP → NRT: 1 sep-15 oct (≤€950 normal, ≤€780 muy bajo, ≤€620 ofertón)');
   console.log('');
 
   const results = {
@@ -403,7 +376,7 @@ async function _runFullSearchInternal(options = {}) {
 
               if (route.alert) {
                 // Rutas oneway: solo alertar muy_bajo u oferton (filtra el ruido)
-                // Rutas roundtrip (Tokio): alertar en todos los niveles
+                // Rutas roundtrip: alertar en todos los niveles
                 const shouldAlert = route.tripType === 'roundtrip'
                   ? true
                   : dealLevel !== 'normal_bajo';
