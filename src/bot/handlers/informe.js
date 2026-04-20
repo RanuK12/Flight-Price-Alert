@@ -26,9 +26,8 @@ async function sendInformeOnDemand(bot, chatId, _userId) {
   await bot.sendMessage(chatId, '📄 Generando informe diario… esto puede tardar unos segundos.');
   try {
     // eslint-disable-next-line global-require
-    const { generateAndSendDailyReport } = require('../../../server/services/dailyReport');
-    await generateAndSendDailyReport();
-    await bot.sendMessage(chatId, '✅ Informe enviado.', { reply_markup: kb.mainMenu() });
+    const { runDaily } = require('../../services/dailyReport');
+    await runDaily();
   } catch (err) {
     logger.error('Informe failed', /** @type {Error} */ (err));
     await bot.sendMessage(chatId,

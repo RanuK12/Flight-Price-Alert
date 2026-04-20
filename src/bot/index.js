@@ -14,6 +14,7 @@ const logger = require('../utils/logger').child('bot');
 const startHandler = require('./handlers/start');
 const buscarHandler = require('./handlers/buscar');
 const misAlertasHandler = require('./handlers/misAlertas');
+const ofertasHandler = require('./handlers/ofertas');
 const nuevaAlertaHandler = require('./handlers/nuevaAlerta');
 const informeHandler = require('./handlers/informe');
 const inspirarHandler = require('./handlers/inspirar');
@@ -42,6 +43,7 @@ function startBot() {
   startHandler.register(bot);
   buscarHandler.register(bot);
   misAlertasHandler.register(bot);
+  ofertasHandler.register(bot);
   nuevaAlertaHandler.register(bot);
   informeHandler.register(bot);
   inspirarHandler.register(bot);

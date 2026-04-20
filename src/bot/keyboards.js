@@ -27,10 +27,13 @@ function mainMenu() {
       ],
       [
         { text: '📋 Mis alertas', callback_data: 'menu:mis_alertas' },
-        { text: '📄 Informe PDF', callback_data: 'menu:informe' },
+        { text: '🔔 Últimas ofertas', callback_data: 'menu:ofertas' },
       ],
       [
         { text: '💡 Inspirarme', callback_data: 'menu:inspirar' },
+        { text: '📄 Informe diario', callback_data: 'menu:informe' },
+      ],
+      [
         { text: '⚙️ Configuración', callback_data: 'menu:config' },
       ],
     ],
