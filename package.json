@@ -1,14 +1,18 @@
 {
   "name": "flight-deal-finder",
-  "version": "3.0.0",
-  "description": "Buscador de ofertas de vuelos Europa→Argentina/USA con alertas Telegram y monitoreo automático",
-  "main": "server/app.js",
+  "version": "4.0.0",
+  "description": "Bot Telegram de ofertas de vuelos (Amadeus + Google Flights híbrido) con alertas y PDF diario.",
+  "main": "src/app.js",
   "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
-    "start": "node server/app.js",
-    "bot": "node bot.js",
-    "server": "node server/app.js",
-    "dev": "node server/app.js",
+    "start": "node src/app.js",
+    "start:legacy": "node server/app.js",
+    "bot": "node src/app.js",
+    "server": "node src/app.js",
+    "dev": "node src/app.js",
     "test": "jest --detectOpenHandles",
     "test:scraper": "jest server/scrapers --testTimeout=30000",
     "test:api": "jest server/routes --testTimeout=10000",

@@ -1,23 +1,67 @@
-# Render Blueprint — Flight Deal Finder v6.0
-# Para deploy automático: https://render.com/deploy
+# Render Blueprint — Flight Deal Bot v4.0
+# Docs: https://render.com/docs/blueprint-spec
 services:
   - type: web
     name: flight-price-bot
     runtime: docker
     plan: free
     healthCheckPath: /health
+    # Disco persistente para SQLite (sin esto Render borra el .db en cada deploy).
+    disk:
+      name: flight-data
+      mountPath: /app/data
+      sizeGB: 1
     envVars:
+      # --- Telegram (configurar valor en el dashboard de Render) ---
       - key: TELEGRAM_BOT_TOKEN
-        sync: false  # Se configura manualmente en el dashboard
+        sync: false
       - key: TELEGRAM_CHAT_ID
         sync: false
+      - key: TELEGRAM_POLLING
+        value: "true"
+
+      # --- Amadeus Production (configurar en el dashboard) ---
+      - key: AMADEUS_API_KEY
+        sync: false
+      - key: AMADEUS_API_SECRET
+        sync: false
+      - key: AMADEUS_BASE_URL
+        value: https://api.amadeus.com
+      - key: AMADEUS_RATE_LIMIT_RPS
+        value: "8"
+      - key: AMADEUS_MONTHLY_BUDGET
+        value: "2000"
+
+      # --- Runtime ---
       - key: NODE_ENV
         value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: TZ
+        value: America/Argentina/Buenos_Aires
+      - key: PORT
+        value: "4000"
+
+      # --- Puppeteer (scraper fallback) ---
       - key: PUPPETEER_EXECUTABLE_PATH
         value: /usr/bin/chromium
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
         value: "true"
-      - key: MONITOR_TIMEZONE
-        value: America/Argentina/Buenos_Aires
+
+      # --- Scheduler ---
+      - key: AUTO_MONITOR
+        value: "true"
       - key: MONITOR_SCHEDULE
-        value: "*/30 * * * *"
+        value: "0 */2 * * *"
+      - key: DAILY_REPORT_SCHEDULE
+        value: "0 21 * * *"
+
+      # --- Cache ---
+      - key: CACHE_TTL_MS
+        value: "21600000"
+      - key: CACHE_TTL_GF_MS
+        value: "3600000"
+
+      # --- DB ---
+      - key: SQLITE_PATH
+        value: /app/data/flights.db
