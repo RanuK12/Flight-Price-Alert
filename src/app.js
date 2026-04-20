@@ -8,6 +8,8 @@
 'use strict';
 
 const express = require('express');
+const http = require('http');
+const https = require('https');
 const cron = require('node-cron');
 
 const { config } = require('./config');
@@ -78,6 +80,21 @@ async function main() {
       logger.error('Housekeeping failed', /** @type {Error} */ (err));
     }
   });
+
+  // 5. Keep-alive self-ping (Render Free duerme a los 15 min de inactividad).
+  //    Pingeamos cada 10 min al propio /health. Si no hay URL pública, al
+  //    localhost (igualmente mantiene el loop activo).
+  const selfUrl = process.env.RENDER_EXTERNAL_URL
+    ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')}/health`
+    : `http://localhost:${config.port}/health`;
+  const pingMs = 10 * 60 * 1000;
+  setInterval(() => {
+    const agent = selfUrl.startsWith('https') ? https : http;
+    const req = agent.get(selfUrl, (res) => res.resume());
+    req.on('error', (err) => logger.warn('keep-alive ping failed', { err: err.message }));
+    req.setTimeout(5000, () => req.destroy());
+  }, pingMs);
+  logger.info(`Keep-alive self-ping: ${selfUrl} cada ${pingMs / 60000} min`);
 
   logger.info('✅ App ready');
 }

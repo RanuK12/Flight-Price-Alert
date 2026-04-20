@@ -6,11 +6,10 @@ services:
     runtime: docker
     plan: free
     healthCheckPath: /health
-    # Disco persistente para SQLite (sin esto Render borra el .db en cada deploy).
-    disk:
-      name: flight-data
-      mountPath: /app/data
-      sizeGB: 1
+    # Free plan: sin disco persistente. SQLite vive en el FS efímero del
+    # contenedor y se resetea en cada deploy/reinicio. Las migraciones se
+    # corren al arrancar, así que el schema siempre queda listo, pero las
+    # rutas/alertas guardadas se pierden. Upgradear a Starter para disk.
     envVars:
       # --- Telegram (configurar valor en el dashboard de Render) ---
       - key: TELEGRAM_BOT_TOKEN
