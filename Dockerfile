@@ -1,5 +1,5 @@
 # ── Flight Deal Finder ─ Render / Docker ──
-FROM node:18-slim
+FROM node:20-slim
 
 # Instalar Chromium y dependencias para Puppeteer
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -44,4 +44,4 @@ EXPOSE 4000
 HEALTHCHECK --interval=60s --timeout=10s --retries=3 \
   CMD wget -qO- http://localhost:${PORT:-4000}/health || exit 1
 
-CMD ["node", "server/app.js"]
+CMD ["node", "src/app.js"]
