@@ -136,14 +136,15 @@ function routeLine(r) {
 function searchModeInfo(mode) {
   const descriptions = {
     hybrid:
-      '<b>🔀 Modo Híbrido</b>\nUsa Amadeus para respuestas rápidas y precisas. ' +
-      'Si falla o no alcanza la cuota, cae al scraper. <i>Recomendado.</i>',
+      '<b>🔀 Modo Híbrido</b>\nAmadeus para búsquedas interactivas (precio oficial + ' +
+      'booking URL). Scraper para el cron de fondo (cero costo Amadeus). Si se ' +
+      'agota la cuota diaria, cae a scraper automáticamente. <i>Recomendado.</i>',
     amadeus:
       '<b>🎯 Solo Amadeus</b>\nPrecios oficiales con taxes incluidos y confirmación ' +
-      'de disponibilidad. Más lento si hay mucho tráfico. Gasta cuota mensual.',
+      'de disponibilidad. Consume cuota diaria/mensual — si se agota, falla.',
     scraper:
-      '<b>🌐 Solo Scraper</b>\nMotor Google Flights. Más cobertura de LCC (Flybondi, ' +
-      'JetSmart, Ryanair) pero precios a veces sin taxes. No gasta cuota Amadeus.',
+      '<b>🌐 Solo Scraper</b>\nGoogle Flights. Más cobertura de LCC (Flybondi, ' +
+      'JetSmart, Ryanair), precios a veces sin taxes. Cero consumo Amadeus.',
   };
   return descriptions[mode] || descriptions.hybrid;
 }

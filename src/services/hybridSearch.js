@@ -49,13 +49,26 @@ const amadeusCache = cacheRepo.createAdapter({ ttlMs: config.cache.amadeusTtlMs 
 const amadeusProvider = new amadeus.FlightOffersProvider({ cache: amadeusCache });
 
 /**
- * Indica si podemos usar Amadeus ahora mismo (budget mensual).
- * @returns {Promise<{ok: boolean, used: number, budget: number}>}
+ * Indica si podemos usar Amadeus ahora mismo (budget mensual + diario).
+ * `ok` es true sólo si quedan llamadas en ambos cubetas.
+ * @returns {Promise<{ok: boolean, okMonthly: boolean, okDaily: boolean,
+ *   used: number, budget: number, usedToday: number, dailyBudget: number}>}
  */
 async function checkAmadeusBudget() {
-  const used = await usageRepo.getMonthly(PROVIDER_NAMES.AMADEUS);
+  const [used, usedToday] = await Promise.all([
+    usageRepo.getMonthly(PROVIDER_NAMES.AMADEUS),
+    usageRepo.getToday(PROVIDER_NAMES.AMADEUS),
+  ]);
   const budget = config.amadeus.monthlyBudget;
-  return { ok: used < budget, used, budget };
+  const dailyBudget = config.amadeus.dailyBudget;
+  const okMonthly = used < budget;
+  const okDaily = usedToday < dailyBudget;
+  return {
+    ok: okMonthly && okDaily,
+    okMonthly, okDaily,
+    used, budget,
+    usedToday, dailyBudget,
+  };
 }
 
 /**
@@ -76,8 +89,11 @@ async function search(params, opts = {}) {
   if (opts.forceProvider === PROVIDER_NAMES.AMADEUS) {
     const budget = await checkAmadeusBudget();
     if (!budget.ok) {
+      const which = !budget.okDaily ? 'daily' : 'monthly';
       throw new QuotaExceededError(
-        `Amadeus monthly budget reached (${budget.used}/${budget.budget})`,
+        `Amadeus ${which} budget reached ` +
+        `(day ${budget.usedToday}/${budget.dailyBudget}, ` +
+        `month ${budget.used}/${budget.budget})`,
       );
     }
     const result = await amadeusProvider.search(params);
@@ -90,7 +106,12 @@ async function search(params, opts = {}) {
   if (preferAmadeus) {
     const budget = await checkAmadeusBudget();
     if (!budget.ok) {
-      warnings.push(`Amadeus monthly budget reached (${budget.used}/${budget.budget})`);
+      const which = !budget.okDaily ? 'diaria' : 'mensual';
+      warnings.push(
+        `Cuota Amadeus ${which} agotada — usando scraper ` +
+        `(día ${budget.usedToday}/${budget.dailyBudget}, ` +
+        `mes ${budget.used}/${budget.budget})`,
+      );
       logger.warn('Amadeus budget exhausted, falling back', budget);
       return runScraper(params, warnings);
     }
@@ -196,7 +217,10 @@ async function confirmPrice(flight) {
   }
   const budget = await checkAmadeusBudget();
   if (!budget.ok) {
-    return { confirmed: false, reason: 'Amadeus budget exhausted' };
+    return {
+      confirmed: false,
+      reason: `Amadeus budget exhausted (day ${budget.usedToday}/${budget.dailyBudget})`,
+    };
   }
   const result = await amadeus.pricing.confirmOffer(flight.raw);
   await usageRepo.increment(PROVIDER_NAMES.AMADEUS);
@@ -212,8 +236,11 @@ async function confirmPrice(flight) {
 async function inspire(params) {
   const budget = await checkAmadeusBudget();
   if (!budget.ok) {
+    const which = !budget.okDaily ? 'diaria' : 'mensual';
     throw new QuotaExceededError(
-      `Amadeus monthly budget reached (${budget.used}/${budget.budget})`,
+      `Cuota Amadeus ${which} agotada ` +
+      `(día ${budget.usedToday}/${budget.dailyBudget}, ` +
+      `mes ${budget.used}/${budget.budget}). Probá de nuevo mañana.`,
     );
   }
   const results = await amadeus.inspiration.searchDestinations(params);
