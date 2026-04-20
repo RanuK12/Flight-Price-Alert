@@ -83,9 +83,47 @@ function startBot() {
     }
   });
 
-  bot.on('polling_error', (err) => {
-    logger.error('polling_error', /** @type {Error} */ (err));
+  // polling_error recovery:
+  //  - 409 Conflict = otro proceso está haciendo getUpdates con el mismo token.
+  //    En Render suele ocurrir durante redeploys con overlap de contenedores.
+  //    Paramos polling, esperamos backoff y reintentamos. Evita spam de logs.
+  let pollingBackoffMs = 0;
+  let recovering = false;
+  bot.on('polling_error', async (err) => {
+    const msg = /** @type {Error & {code?:string}} */ (err).message || '';
+    const is409 = msg.includes('409') || msg.includes('terminated by other getUpdates');
+    if (!is409) {
+      logger.error('polling_error', /** @type {Error} */ (err));
+      return;
+    }
+    if (recovering) return;
+    recovering = true;
+    pollingBackoffMs = Math.min(60_000, Math.max(5_000, pollingBackoffMs * 2 || 5_000));
+    logger.warn('polling 409 — reiniciando polling', { backoffMs: pollingBackoffMs });
+    try {
+      await bot.stopPolling({ cancel: true }).catch(() => {});
+      await new Promise((r) => setTimeout(r, pollingBackoffMs));
+      await bot.startPolling({ restart: true });
+      logger.info('polling reanudado OK');
+      pollingBackoffMs = 0;
+    } catch (e) {
+      logger.error('polling restart falló', /** @type {Error} */ (e));
+    } finally {
+      recovering = false;
+    }
   });
+
+  // Commands menu nativo de Telegram
+  bot.setMyCommands([
+    { command: 'start', description: '🏠 Menú principal' },
+    { command: 'buscar', description: '🔎 Buscar vuelos' },
+    { command: 'mis_alertas', description: '📋 Mis alertas' },
+    { command: 'ofertas', description: '🔔 Últimas ofertas' },
+    { command: 'nueva_alerta', description: '➕ Nueva alerta' },
+    { command: 'inspirar', description: '💡 Inspirarme' },
+    { command: 'informe', description: '📄 Informe diario' },
+    { command: 'cancel', description: '🚫 Cancelar acción' },
+  ]).catch((e) => logger.warn('setMyCommands falló', { err: e.message }));
 
   logger.info('Bot iniciado', { polling: config.telegram.polling });
   return bot;
