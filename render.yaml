@@ -30,6 +30,10 @@ services:
         value: "8"
       - key: AMADEUS_MONTHLY_BUDGET
         value: "2000"
+      - key: AMADEUS_DAILY_BUDGET
+        value: "66"
+      - key: AMADEUS_CONFIRM_STEALS
+        value: "false"
 
       # --- Runtime ---
       - key: NODE_ENV

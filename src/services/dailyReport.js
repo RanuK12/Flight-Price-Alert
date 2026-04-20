@@ -76,10 +76,9 @@ async function sendSummaryForUser(bot, userId, chatId) {
     weekday: 'long', day: 'numeric', month: 'long',
   });
 
-  const budgetPct = budget.budget > 0
-    ? Math.round((budget.used / budget.budget) * 100)
-    : 0;
-  const budgetBar = progressBar(budgetPct);
+  const monthPct = budget.budget > 0 ? Math.round((budget.used / budget.budget) * 100) : 0;
+  const dayPct = budget.dailyBudget > 0
+    ? Math.round((budget.usedToday / budget.dailyBudget) * 100) : 0;
 
   const header =
     `📄 <b>Informe diario — ${today}</b>\n` +
@@ -90,7 +89,9 @@ async function sendSummaryForUser(bot, userId, chatId) {
     (stats.min_price
       ? `💰 Mejor del día: <b>${fmt.price(stats.min_price, latest[0]?.currency || 'EUR')}</b>\n`
       : '') +
-    `🎫 Cuota Amadeus: <b>${budget.used}/${budget.budget}</b> ${budgetBar} ${budgetPct}%`;
+    `🎫 Cuota Amadeus:\n` +
+    `   · Hoy:  <b>${budget.usedToday}/${budget.dailyBudget}</b> ${progressBar(dayPct)} ${dayPct}%\n` +
+    `   · Mes:  <b>${budget.used}/${budget.budget}</b> ${progressBar(monthPct)} ${monthPct}%`;
 
   await bot.sendMessage(chatId, header, {
     parse_mode: 'HTML',

@@ -67,11 +67,21 @@ async function handleMenuCallback(bot, cq) {
   }
 
   if (action === 'config') {
+    // eslint-disable-next-line global-require
+    const hybrid = require('../../services/hybridSearch');
+    const budget = await hybrid.checkAmadeusBudget();
+    const dayPct = budget.dailyBudget > 0
+      ? Math.round((budget.usedToday / budget.dailyBudget) * 100) : 0;
+    const monthPct = budget.budget > 0
+      ? Math.round((budget.used / budget.budget) * 100) : 0;
     await bot.editMessageText(
       '⚙️ <b>Configuración</b>\n\n' +
       `🔀 Modo: <b>${fmt.esc(prefs.search_mode)}</b>\n` +
       `🚨 Alertas: <b>${fmt.esc(prefs.alert_min_level)}</b>\n` +
-      `💱 Moneda: <b>${fmt.esc(prefs.currency)}</b>`,
+      `💱 Moneda: <b>${fmt.esc(prefs.currency)}</b>\n\n` +
+      `🎫 <b>Cuota Amadeus</b>\n` +
+      `   · Hoy: ${budget.usedToday}/${budget.dailyBudget} (${dayPct}%)\n` +
+      `   · Mes: ${budget.used}/${budget.budget} (${monthPct}%)`,
       {
         chat_id: chatId, message_id: cq.message.message_id,
         parse_mode: 'HTML', reply_markup: kb.configMenu(),

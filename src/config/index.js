@@ -20,6 +20,8 @@ require('dotenv').config();
  * @property {string} baseUrl
  * @property {number} rateLimitRps
  * @property {number} monthlyBudget
+ * @property {number} dailyBudget
+ * @property {boolean} confirmStealsWithAmadeus
  */
 
 /**
@@ -125,6 +127,18 @@ const config = Object.freeze({
     baseUrl: optionalEnv('AMADEUS_BASE_URL', 'https://api.amadeus.com').replace(/\/$/, ''),
     rateLimitRps: parseInteger(optionalEnv('AMADEUS_RATE_LIMIT_RPS', '8'), 'AMADEUS_RATE_LIMIT_RPS'),
     monthlyBudget: parseInteger(optionalEnv('AMADEUS_MONTHLY_BUDGET', '2000'), 'AMADEUS_MONTHLY_BUDGET'),
+    // Tope diario para no quemar el mes en 2 días. Default = monthly/30.
+    dailyBudget: parseInteger(
+      optionalEnv('AMADEUS_DAILY_BUDGET',
+        String(Math.max(20, Math.floor(
+          parseInteger(optionalEnv('AMADEUS_MONTHLY_BUDGET', '2000'), 'AMADEUS_MONTHLY_BUDGET') / 30,
+        )))),
+      'AMADEUS_DAILY_BUDGET',
+    ),
+    // Si true, cuando el scraper encuentra un steal, se confirma con
+    // Amadeus pricing para obtener precio exacto y booking URL oficial.
+    // Cuesta 1 call Amadeus extra por ofertón. Default false para ahorrar.
+    confirmStealsWithAmadeus: parseBool(optionalEnv('AMADEUS_CONFIRM_STEALS', 'false')),
   }),
 
   scheduler: Object.freeze({
@@ -164,6 +178,8 @@ function summary() {
       baseUrl: config.amadeus.baseUrl,
       rateLimitRps: config.amadeus.rateLimitRps,
       monthlyBudget: config.amadeus.monthlyBudget,
+      dailyBudget: config.amadeus.dailyBudget,
+      confirmStealsWithAmadeus: config.amadeus.confirmStealsWithAmadeus,
       hasCredentials: Boolean(config.amadeus.apiKey && config.amadeus.apiSecret),
     },
     scheduler: config.scheduler,
