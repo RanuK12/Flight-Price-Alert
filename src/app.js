@@ -15,6 +15,7 @@ const cron = require('node-cron');
 const { config } = require('./config');
 const logger = require('./utils/logger').child('app');
 const { runMigrations } = require('./database/migrations');
+const { seedIfEmpty } = require('./bootstrap/seedDefaultRoutes');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
 const sessions = require('./bot/sessions');
@@ -24,8 +25,11 @@ async function main() {
     env: config.env, port: config.port,
   });
 
-  // 1. Migrations
+  // 1. Migrations + seed por defecto (si el usuario primario no tiene rutas).
   await runMigrations();
+  await seedIfEmpty().catch((err) => {
+    logger.error('seedIfEmpty failed (continuando)', /** @type {Error} */ (err));
+  });
 
   // 2. Health / debug HTTP
   const app = express();
