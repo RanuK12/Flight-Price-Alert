@@ -102,13 +102,14 @@ function welcome(userName) {
   return (
     `✈️ <b>Flight Deal Bot v4.0</b>\n\n` +
     `Hola${name} 👋 Soy tu asistente de ofertas de vuelos.\n\n` +
-    `🔎 <b>Buscar</b> — búsqueda en tiempo real con Amadeus\n` +
+    `🔎 <b>Buscar</b> — búsqueda en tiempo real (Amadeus + scraper)\n` +
     `📋 <b>Mis alertas</b> — rutas que estoy monitoreando\n` +
+    `🔔 <b>Últimas ofertas</b> — notificaciones recientes\n` +
     `➕ <b>Nueva alerta</b> — agregar ruta con precio objetivo\n` +
     `💡 <b>Inspirarme</b> — destinos baratos desde tu origen\n` +
-    `📄 <b>Informe PDF</b> — resumen diario\n` +
+    `📄 <b>Informe diario</b> — resumen + PDF\n` +
     `⚙️ <b>Configuración</b> — modo de búsqueda, alertas, moneda\n\n` +
-    `Usá los botones o los comandos: /buscar /nueva_alerta /mis_alertas`
+    `Comandos: /buscar /nueva_alerta /mis_alertas /ofertas /inspirar /informe`
   );
 }
 

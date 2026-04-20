@@ -117,6 +117,10 @@ async function handleMenuCallback(bot, cq) {
     const { renderMisAlertas } = require('./misAlertas');
     return renderMisAlertas(bot, chatId, userId, cq.message.message_id);
   }
+  if (action === 'ofertas') {
+    const { renderOfertas } = require('./ofertas');
+    return renderOfertas(bot, chatId, userId, cq.message.message_id);
+  }
   if (action === 'nueva_alerta') {
     const { startNuevaAlertaFlow } = require('./nuevaAlerta');
     return startNuevaAlertaFlow(bot, chatId, userId);

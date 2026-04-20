@@ -49,27 +49,40 @@ async function main() {
   if (config.scheduler.autoMonitor) {
     cron.schedule(config.scheduler.monitor, async () => {
       try {
-        logger.info('Monitor cron tick');
+        logger.info('Alert engine tick');
         // eslint-disable-next-line global-require
-        const { runFullSearch } = require('../server/services/flightMonitor');
-        await runFullSearch();
+        const { runOnce } = require('./services/alertEngine');
+        await runOnce();
       } catch (err) {
-        logger.error('Monitor cron failed', /** @type {Error} */ (err));
+        logger.error('Alert engine cron failed', /** @type {Error} */ (err));
       }
     }, { timezone: config.tz });
-    logger.info(`Monitor cron scheduled: ${config.scheduler.monitor}`);
+    logger.info(`Alert engine cron scheduled: ${config.scheduler.monitor}`);
 
     cron.schedule(config.scheduler.dailyReport, async () => {
       try {
         logger.info('Daily report cron tick');
         // eslint-disable-next-line global-require
-        const { generateAndSendDailyReport } = require('../server/services/dailyReport');
-        await generateAndSendDailyReport();
+        const { runDaily } = require('./services/dailyReport');
+        await runDaily();
       } catch (err) {
         logger.error('Daily report cron failed', /** @type {Error} */ (err));
       }
     }, { timezone: config.tz });
     logger.info(`Daily report cron scheduled: ${config.scheduler.dailyReport}`);
+
+    // Primera pasada del alert engine 30s después del boot (para notificar
+    // pronto si hay ofertones vigentes en el seed).
+    setTimeout(async () => {
+      try {
+        logger.info('Primera pasada del alert engine (post-boot)');
+        // eslint-disable-next-line global-require
+        const { runOnce } = require('./services/alertEngine');
+        await runOnce();
+      } catch (err) {
+        logger.warn('Primera pasada falló (continuando)', { err: /** @type {Error} */ (err).message });
+      }
+    }, 30 * 1000);
   }
 
   // Housekeeping (cada hora): cache expirado + sesiones expiradas.

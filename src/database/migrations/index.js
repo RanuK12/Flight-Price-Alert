@@ -27,6 +27,7 @@ const MIGRATIONS = [
   require('./001_initial_schema'),
   require('./002_multiuser_routes'),
   require('./003_user_prefs'),
+  require('./004_offer_notifications'),
 ];
 
 async function ensureRegistryTable() {
