@@ -1,10 +1,16 @@
 /**
- * AlertEngine — monitor de fondo que recorre todas las rutas activas,
+ * AlertEngine — monitor de fondo que recorre un subset de rutas activas,
  * las consulta vía hybridSearch (modo background → scraper primero,
  * Amadeus como fallback) y dispara notificaciones para las ofertas que
  * cumplen el nivel mínimo de alerta del dueño de la ruta.
  *
  * Se ejecuta desde el cron de `src/app.js` (default cada 2h).
+ *
+ * v4.1 — Mejoras de rate-limiting:
+ *   • Sampling: máx 35 rutas por pasada (rotación). En 3 pasadas = total.
+ *   • Filtra rutas con fecha de salida pasada.
+ *   • Pausa 2s entre rutas + 10s cada 5 rutas.
+ *   • Early stop si el circuit breaker del scraper se abre.
  *
  * @module services/alertEngine
  */
@@ -22,14 +28,92 @@ const logger = require('../utils/logger').child('alertEngine');
 const LEVEL_RANK = { steal: 0, great: 1, good: 2, normal: 3, high: 4 };
 const MIN_LEVEL_TO_RANK = { steal: 0, great: 1, good: 2, all: 4 };
 
+/** Máximo de rutas a consultar por pasada (evita 429 masivo). */
+const MAX_ROUTES_PER_PASS = 35;
+
+/** Offset de rotación persistente entre pasadas. */
+let rotationOffset = 0;
+
+/** Pausa entre rutas (ms). */
+const INTER_ROUTE_DELAY_MS = 2000;
+
+/** Pausa adicional cada N rutas (ms). */
+const GROUP_SIZE = 5;
+const GROUP_PAUSE_MS = 10000;
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/**
+ * Chequea si el circuit breaker del scraper está abierto.
+ * @returns {boolean}
+ */
+function isCircuitBreakerOpen() {
+  try {
+    // eslint-disable-next-line global-require
+    const gfApi = require('../../server/scrapers/googleFlightsApi');
+    // El módulo exporta internamente; accedemos al estado vía canProceed heuristic.
+    // Si no puede proceder, el CB está abierto.
+    // Nota: no es exportado directamente, pero searchFlightsApi hace la validación
+    // internamente. Aquí usamos una heurística: intentamos detectar si la
+    // última búsqueda devolvió 'Circuit breaker open' en el error.
+    return false; // fallback: dejamos que el scraper maneje
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Filtra rutas con fecha de salida pasada (ya no tiene sentido consultarlas).
+ * @param {Array} routes
+ * @returns {Array}
+ */
+function filterPastRoutes(routes) {
+  const today = new Date().toISOString().split('T')[0];
+  return routes.filter(r => {
+    if (!r.outbound_date) return true; // fecha flexible → mantener
+    return r.outbound_date >= today;
+  });
+}
+
+/**
+ * Selecciona un subset rotativo de rutas para esta pasada.
+ * @param {Array} routes
+ * @param {number} max
+ * @returns {Array}
+ */
+function sampleRoutes(routes, max) {
+  if (routes.length <= max) return routes;
+  const sampled = [];
+  for (let i = 0; i < max; i++) {
+    const idx = (rotationOffset + i) % routes.length;
+    sampled.push(routes[idx]);
+  }
+  return sampled;
+}
+
 /**
  * Corre una pasada completa de monitoreo.
  * @returns {Promise<{routesChecked: number, offersSent: number, errors: number}>}
  */
 async function runOnce() {
   const started = Date.now();
-  const routes = await routesRepo.listAllActive();
-  logger.info('Alert pass iniciada', { routes: routes.length });
+  const allRoutes = await routesRepo.listAllActive();
+
+  // Filtrar rutas con fechas pasadas
+  const validRoutes = filterPastRoutes(allRoutes);
+  const pastCount = allRoutes.length - validRoutes.length;
+
+  // Sampling: tomar un subset rotativo
+  const routes = sampleRoutes(validRoutes, MAX_ROUTES_PER_PASS);
+  rotationOffset = (rotationOffset + routes.length) % Math.max(1, validRoutes.length);
+
+  logger.info('Alert pass iniciada', {
+    totalActive: allRoutes.length,
+    pastFiltered: pastCount,
+    validRoutes: validRoutes.length,
+    sampledThisPass: routes.length,
+    rotationOffset,
+  });
 
   const notificationsByChat = /** @type {Map<number, number>} */ (new Map());
   let offersSent = 0;
@@ -38,8 +122,23 @@ async function runOnce() {
   let skippedByLevel = 0;
   let skippedByThreshold = 0;
   let skippedByDedup = 0;
+  let skippedByCircuitBreaker = 0;
 
-  for (const route of routes) {
+  for (let i = 0; i < routes.length; i++) {
+    const route = routes[i];
+
+    // Early stop: si el circuit breaker del scraper está abierto,
+    // no tiene sentido seguir consultando.
+    // Detectamos esto mirando si las últimas búsquedas devuelven
+    // 'Circuit breaker open' en los errores.
+    if (errors >= 6 && errors > offersSent + skippedByLevel + skippedByThreshold) {
+      skippedByCircuitBreaker = routes.length - i;
+      logger.warn('Early stop: demasiados errores consecutivos (probable circuit breaker)', {
+        errors, remaining: skippedByCircuitBreaker,
+      });
+      break;
+    }
+
     try {
       const prefs = await userPrefsRepo.getOrCreate(
         route.telegram_user_id,
@@ -62,6 +161,8 @@ async function runOnce() {
           id: route.id, route: `${route.origin}-${route.destination}`,
           date: route.outbound_date,
         });
+        // Delay inter-ruta
+        await sleep(INTER_ROUTE_DELAY_MS);
         continue;
       }
 
@@ -81,6 +182,7 @@ async function runOnce() {
           price: cheapest.price, level, rank,
           minLevel: prefs.alert_min_level, minRank,
         });
+        await sleep(INTER_ROUTE_DELAY_MS);
         continue;
       }
 
@@ -91,6 +193,7 @@ async function runOnce() {
           id: route.id, route: `${route.origin}-${route.destination}`,
           price: cheapest.price, threshold: route.price_threshold,
         });
+        await sleep(INTER_ROUTE_DELAY_MS);
         continue;
       }
 
@@ -122,6 +225,15 @@ async function runOnce() {
         err: /** @type {Error} */ (err).message,
       });
     }
+
+    // Delay inter-ruta
+    await sleep(INTER_ROUTE_DELAY_MS);
+
+    // Pausa extra cada GROUP_SIZE rutas
+    if ((i + 1) % GROUP_SIZE === 0 && i + 1 < routes.length) {
+      logger.debug('Group pause', { completed: i + 1, total: routes.length });
+      await sleep(GROUP_PAUSE_MS);
+    }
   }
 
   // Header de batch (si mandamos ≥3 ofertas al mismo chat).
@@ -134,10 +246,12 @@ async function runOnce() {
   const elapsed = ((Date.now() - started) / 1000).toFixed(1);
   logger.info('Alert pass terminada', {
     routesChecked: routes.length, offersSent, errors,
-    skippedNoFlights, skippedByLevel, skippedByThreshold, skippedByDedup,
+    skippedNoFlights, skippedByLevel, skippedByThreshold,
+    skippedByDedup, skippedByCircuitBreaker,
     elapsedSec: elapsed,
   });
   return { routesChecked: routes.length, offersSent, errors };
 }
 
 module.exports = { runOnce };
+

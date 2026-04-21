@@ -86,7 +86,9 @@ function startBot() {
   // polling_error recovery:
   //  - 409 Conflict = otro proceso está haciendo getUpdates con el mismo token.
   //    En Render suele ocurrir durante redeploys con overlap de contenedores.
-  //    Paramos polling, esperamos backoff y reintentamos. Evita spam de logs.
+  //    Paramos polling, esperamos backoff y reintentamos.
+  //    El backoff se reduce gradualmente (÷2) en vez de resetear a 0 para
+  //    evitar un loop infinito de reconexión/conflicto.
   let pollingBackoffMs = 0;
   let recovering = false;
   bot.on('polling_error', async (err) => {
@@ -103,9 +105,13 @@ function startBot() {
     try {
       await bot.stopPolling({ cancel: true }).catch(() => {});
       await new Promise((r) => setTimeout(r, pollingBackoffMs));
-      await bot.startPolling({ restart: true });
+      await bot.startPolling({ restart: true, polling: { params: { allowed_updates: [] } } });
+      // Cooldown: esperar 10s antes de considerar estable (evita colisión
+      // inmediata si la instancia vieja aún no murió).
+      await new Promise((r) => setTimeout(r, 10_000));
+      // Reducir backoff gradualmente en vez de a 0
+      pollingBackoffMs = Math.floor(pollingBackoffMs / 2);
       logger.info('polling reanudado OK');
-      pollingBackoffMs = 0;
     } catch (e) {
       logger.error('polling restart falló', /** @type {Error} */ (e));
     } finally {
