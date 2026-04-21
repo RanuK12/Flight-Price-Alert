@@ -34,6 +34,10 @@ async function runOnce() {
   const notificationsByChat = /** @type {Map<number, number>} */ (new Map());
   let offersSent = 0;
   let errors = 0;
+  let skippedNoFlights = 0;
+  let skippedByLevel = 0;
+  let skippedByThreshold = 0;
+  let skippedByDedup = 0;
 
   for (const route of routes) {
     try {
@@ -52,7 +56,14 @@ async function runOnce() {
         max: 5,
       }, { mode: 'background' });
 
-      if (!result.flights?.length) continue;
+      if (!result.flights?.length) {
+        skippedNoFlights += 1;
+        logger.debug('Ruta sin vuelos', {
+          id: route.id, route: `${route.origin}-${route.destination}`,
+          date: route.outbound_date,
+        });
+        continue;
+      }
 
       // Elegimos la oferta más barata por ruta/fecha para no spamear.
       const cheapest = result.flights.reduce((a, b) => (a.price <= b.price ? a : b));
@@ -63,10 +74,25 @@ async function runOnce() {
       const rank = LEVEL_RANK[level] ?? 99;
 
       // 1) Debe cumplir el nivel mínimo configurado por el usuario.
-      if (rank > minRank) continue;
+      if (rank > minRank) {
+        skippedByLevel += 1;
+        logger.debug('Ruta filtrada por nivel', {
+          id: route.id, route: `${route.origin}-${route.destination}`,
+          price: cheapest.price, level, rank,
+          minLevel: prefs.alert_min_level, minRank,
+        });
+        continue;
+      }
 
       // 2) Si la ruta tiene threshold explícito, también debe respetarlo.
-      if (route.price_threshold && cheapest.price > route.price_threshold) continue;
+      if (route.price_threshold && cheapest.price > route.price_threshold) {
+        skippedByThreshold += 1;
+        logger.debug('Ruta filtrada por threshold', {
+          id: route.id, route: `${route.origin}-${route.destination}`,
+          price: cheapest.price, threshold: route.price_threshold,
+        });
+        continue;
+      }
 
       const res = await notifyOffer(cheapest, {
         telegramUserId: route.telegram_user_id,
@@ -82,6 +108,12 @@ async function runOnce() {
           route.telegram_chat_id,
           (notificationsByChat.get(route.telegram_chat_id) || 0) + 1,
         );
+      } else if (res.reason === 'dedup') {
+        skippedByDedup += 1;
+        logger.debug('Ruta deduplicada', {
+          id: route.id, route: `${route.origin}-${route.destination}`,
+          price: cheapest.price,
+        });
       }
     } catch (err) {
       errors += 1;
@@ -101,7 +133,9 @@ async function runOnce() {
 
   const elapsed = ((Date.now() - started) / 1000).toFixed(1);
   logger.info('Alert pass terminada', {
-    routesChecked: routes.length, offersSent, errors, elapsedSec: elapsed,
+    routesChecked: routes.length, offersSent, errors,
+    skippedNoFlights, skippedByLevel, skippedByThreshold, skippedByDedup,
+    elapsedSec: elapsed,
   });
   return { routesChecked: routes.length, offersSent, errors };
 }

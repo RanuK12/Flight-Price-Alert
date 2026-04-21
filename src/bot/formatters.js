@@ -118,6 +118,7 @@ function welcome(userName) {
  * @param {import('../database/repositories/routesRepo').SavedRoute} r
  */
 function routeLine(r) {
+  if (!r) return '⚠️ Ruta no disponible';
   const stateIcon = r.paused ? '⏸️' : '🟢';
   const dateStr = r.return_date
     ? `${date(r.outbound_date)} → ${date(r.return_date)}`
