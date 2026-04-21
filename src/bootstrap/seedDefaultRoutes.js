@@ -134,7 +134,7 @@ function buildRoutes(userId) {
   // ── (B) EZE/COR → MAD/BCN/FCO/MXP one-way jun-jul 2026 ──
   const euroStart = new Date('2026-06-01');
   const euroEnd   = new Date('2026-07-31');
-  const euroDates = sampleDates(euroStart, euroEnd, 10);
+  const euroDates = sampleDates(euroStart, euroEnd, 6);  // era 10 → reducido para evitar 429
   const origins = ['EZE', 'COR'];
   const destinations = ['MAD', 'BCN', 'FCO', 'MXP'];
 

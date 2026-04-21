@@ -60,14 +60,15 @@ const REQUEST_HEADERS = {
 
 // Rate limiting
 let lastRequestTime = 0;
-const MIN_DELAY_MS = 2000; // Evitamos saturar con pausas base de 2 segs
+const MIN_DELAY_MS = 4000;  // 4s base entre llamadas (era 2s → 429 frecuentes)
+const JITTER_MAX_MS = 3000; // jitter aleatorio 0-3s adicional
 
-// Circuit breaker
+// Circuit breaker (tolerante a 429 aislados)
 const circuitBreaker = {
   failures: 0,
   lastFailure: null,
   isOpen: false,
-  threshold: 8,
+  threshold: 12,                // más tolerante (era 8)
   resetTimeout: 5 * 60 * 1000,
 
   recordFailure() {
@@ -77,6 +78,23 @@ const circuitBreaker = {
       this.isOpen = true;
       console.log(`  🔴 API circuit breaker OPEN (${this.failures} failures). Pause 5 min.`);
     }
+  },
+
+  /**
+   * 429-specific: no cuenta como failure normal, pero fuerza un backoff
+   * largo (15s) para dejar que Google se calme.
+   */
+  async backoff429() {
+    this.failures += 0.5; // medio-fallo: 429 es transitorio
+    this.lastFailure = Date.now();
+    if (this.failures >= this.threshold) {
+      this.isOpen = true;
+      console.log(`  🔴 API circuit breaker OPEN (${this.failures} failures). Pause 5 min.`);
+      return;
+    }
+    const pause = 15000 + Math.random() * 5000; // 15-20s
+    console.log(`  ⏳ 429 backoff: pausando ${(pause/1000).toFixed(0)}s`);
+    await new Promise(r => setTimeout(r, pause));
   },
 
   recordSuccess() {
@@ -472,7 +490,11 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
 
     if (response.status !== 200) {
       console.log(`  ⚠️ API HTTP ${response.status}`);
-      circuitBreaker.recordFailure();
+      if (response.status === 429) {
+        await circuitBreaker.backoff429();
+      } else {
+        circuitBreaker.recordFailure();
+      }
       return { success: false, flights: [], minPrice: null, error: `HTTP ${response.status}` };
     }
 
@@ -574,8 +596,10 @@ function generateNid() {
 async function rateLimit() {
   const now = Date.now();
   const elapsed = now - lastRequestTime;
-  if (elapsed < MIN_DELAY_MS) {
-    await new Promise(r => setTimeout(r, MIN_DELAY_MS - elapsed));
+  const jitter = Math.floor(Math.random() * JITTER_MAX_MS);
+  const totalDelay = MIN_DELAY_MS + jitter;
+  if (elapsed < totalDelay) {
+    await new Promise(r => setTimeout(r, totalDelay - elapsed));
   }
   lastRequestTime = Date.now();
 }
