@@ -10,6 +10,7 @@
 
 const kb = require('../keyboards');
 const fmt = require('../formatters');
+const cal = require('../calendar');
 const sessions = require('../sessions');
 const routesRepo = require('../../database/repositories/routesRepo');
 const userPrefsRepo = require('../../database/repositories/userPrefsRepo');
@@ -105,6 +106,69 @@ async function handleCallback(bot, cq) {
       await finalize(bot, chatId, session.userId, { ...session.data, name: null });
       return true;
     }
+  }
+
+  // ── Calendar callbacks ──
+  const calData = cal.parseCalendarCallback(data);
+  if (calData) {
+    if (calData.type === 'noop') {
+      await bot.answerCallbackQuery(cq.id).catch(() => {});
+      return true;
+    }
+
+    if (calData.type === 'nav') {
+      // Navegar a otro mes — re-render calendario
+      const [y, m] = calData.yearMonth.split('-').map(Number);
+      const field = calData.field;
+      const minDate = field === 'r' ? session.data.outboundDate : undefined;
+      const calendar = cal.buildCalendar(y, m, field, { minDate });
+      await bot.answerCallbackQuery(cq.id);
+      await bot.editMessageReplyMarkup(calendar, {
+        chat_id: chatId,
+        message_id: cq.message?.message_id,
+      }).catch(() => {});
+      return true;
+    }
+
+    if (calData.type === 'manual') {
+      // Cambiar a modo texto
+      await bot.answerCallbackQuery(cq.id, { text: 'Escribí la fecha' });
+      await bot.sendMessage(chatId,
+        `✍️ Escribí la fecha en formato <code>2026-06-15</code> o <code>15/06/2026</code>.`,
+        { parse_mode: 'HTML', reply_markup: kb.cancelOnly() },
+      );
+      return true;
+    }
+
+    if (calData.type === 'select') {
+      const iso = calData.date;
+      if (!iso || !wz.isFutureDate(iso)) {
+        await bot.answerCallbackQuery(cq.id, { text: '❌ Fecha inválida' });
+        return true;
+      }
+
+      if (calData.field === 'd' && session.state === STATE.DEPART) {
+        await bot.answerCallbackQuery(cq.id, { text: `Ida: ${iso}` });
+        await acceptDepart(bot, chatId, session, iso);
+        return true;
+      }
+
+      if (calData.field === 'r' && session.state === STATE.RETURN) {
+        if (iso <= session.data.outboundDate) {
+          await bot.answerCallbackQuery(cq.id, { text: '❌ Debe ser después de ida' });
+          return true;
+        }
+        await bot.answerCallbackQuery(cq.id, { text: `Vuelta: ${iso}` });
+        await sessions.setSession(chatId, {
+          userId: session.userId, state: STATE.THRESHOLD,
+          data: { ...session.data, returnDate: iso },
+        });
+        await askThreshold(bot, chatId);
+        return true;
+      }
+    }
+
+    return true;
   }
 
   return true;
@@ -242,9 +306,11 @@ async function acceptTripType(bot, cq, session, tripType) {
     data: { ...session.data, tripType },
   });
   await bot.answerCallbackQuery(cq.id, { text: tripType === 'oneway' ? 'Solo ida' : 'Ida y vuelta' });
+  const { year, month } = cal.initialCalendarMonth();
+  const calendar = cal.buildCalendar(year, month, 'd');
   await bot.sendMessage(chatId,
-    `<b>Paso 4/6 — Fecha de ida</b>\n\nFormato: <code>2026-06-15</code> o <code>15/06/2026</code>.\nPodés dejar sin fecha si querés monitoreo "rango abierto" — por ahora, indicá una fecha.`,
-    { parse_mode: 'HTML', reply_markup: kb.cancelOnly() },
+    `<b>Paso 4/6 — Fecha de ida</b>\n\nElegí un día del calendario o escribí la fecha.`,
+    { parse_mode: 'HTML', reply_markup: calendar },
   );
 }
 
@@ -261,9 +327,11 @@ async function acceptDepart(bot, chatId, session, iso) {
     userId: session.userId, state: STATE.RETURN,
     data: { ...session.data, outboundDate: iso },
   });
+  const { year, month } = cal.initialCalendarMonth(iso);
+  const calendar = cal.buildCalendar(year, month, 'r', { minDate: iso });
   await bot.sendMessage(chatId,
-    `✅ Ida: <b>${fmt.date(iso)}</b>\n\n<b>Fecha de vuelta</b>`,
-    { parse_mode: 'HTML', reply_markup: kb.cancelOnly() },
+    `✅ Ida: <b>${fmt.date(iso)}</b>\n\n<b>Fecha de vuelta</b>\n\nElegí un día o escribí la fecha.`,
+    { parse_mode: 'HTML', reply_markup: calendar },
   );
 }
 

@@ -74,10 +74,19 @@ async function createRoute(input) {
     ],
   );
 
-  const route = await get(
-    `SELECT * FROM saved_routes WHERE id = ?`,
-    [result.lastID],
-  );
+  // En upserts (ON CONFLICT DO UPDATE), SQLite retorna lastID=0.
+  // Fallback: buscar por clave natural.
+  let route;
+  if (result.lastID > 0) {
+    route = await get(`SELECT * FROM saved_routes WHERE id = ?`, [result.lastID]);
+  } else {
+    route = await get(
+      `SELECT * FROM saved_routes
+         WHERE telegram_user_id = ? AND origin = ? AND destination = ?
+           AND outbound_date IS ?`,
+      [input.telegramUserId, input.origin.toUpperCase(), input.destination.toUpperCase(), input.outboundDate || null],
+    );
+  }
   return /** @type {SavedRoute} */ (route);
 }
 
