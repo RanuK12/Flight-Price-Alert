@@ -26,11 +26,12 @@ async function connect() {
 
   await mongoose.connect(MONGODB_URI, {
     maxPoolSize: 10,
-    serverSelectionTimeoutMS: 5000,
+    serverSelectionTimeoutMS: 10000,
     socketTimeoutMS: 45000,
   });
 
-  logger.info('MongoDB connected');
+  const dbName = mongoose.connection.name || 'unknown';
+  logger.info('MongoDB connected', { db: dbName });
   return mongoose;
 }
 
