@@ -16,6 +16,7 @@ const fmt = require('../formatters');
 const sessions = require('../sessions');
 const userPrefsRepo = require('../../database/repositories/userPrefsRepo');
 const hybrid = require('../../services/hybridSearch');
+const scraperWorker = require('../../services/scraperWorker');
 const wz = require('./wizardUtils');
 const logger = require('../../utils/logger').child('bot:inspirar');
 
@@ -151,46 +152,92 @@ async function runInspire(bot, chatId, userId, origin, budget) {
     { parse_mode: 'HTML' },
   );
 
+  let results = [];
   try {
-    const results = await hybrid.inspire({
+    results = await hybrid.inspire({
       origin,
       maxPrice: budget || undefined,
     });
-
-    if (!results || results.length === 0) {
-      await bot.sendMessage(chatId, '🤷 Sin destinos para esos parámetros.', { reply_markup: kb.mainMenu() });
-      await sessions.clearSession(chatId);
-      return;
-    }
-
-    const sorted = [...results].sort((a, b) => a.price - b.price).slice(0, 10);
-    await bot.sendMessage(chatId,
-      `✅ <b>${sorted.length} destinos</b> (top baratos)`, { parse_mode: 'HTML' });
-
-    for (const d of sorted) {
-      const text =
-        `✈️ <b>${fmt.price(d.price, d.currency)}</b>\n` +
-        `${fmt.esc(d.origin)} → <b>${fmt.esc(d.destination)}</b>\n` +
-        `📅 ${fmt.date(d.departureDate)}${d.returnDate ? ` → ${fmt.date(d.returnDate)}` : ''}`;
-      const ikb = d.bookingUrl
-        ? { inline_keyboard: [[{ text: '🔗 Ver en Amadeus', url: d.bookingUrl }]] }
-        : undefined;
-      await bot.sendMessage(chatId, text, {
-        parse_mode: 'HTML',
-        reply_markup: ikb,
-        disable_web_page_preview: true,
-      });
-    }
-
-    await bot.sendMessage(chatId, '¿Qué querés hacer ahora?', { reply_markup: kb.mainMenu() });
   } catch (err) {
-    logger.error('Inspire failed', /** @type {Error} */ (err));
-    await bot.sendMessage(chatId,
-      `❌ Error: <code>${fmt.esc(/** @type {Error} */ (err).message)}</code>`,
-      { parse_mode: 'HTML', reply_markup: kb.mainMenu() });
-  } finally {
-    await sessions.clearSession(chatId);
+    const is404 = /** @type {Error} */ (err).message?.includes('404') || /** @type {Error} */ (err).message?.includes("doesn't exist");
+    if (is404) {
+      logger.warn('Amadeus inspiration unavailable (404), using scraper fallback');
+      results = await fallbackInspire(origin, budget);
+    } else {
+      throw err;
+    }
   }
+
+  if (!results || results.length === 0) {
+    await bot.sendMessage(chatId, '🤷 Sin destinos para esos parámetros.', { reply_markup: kb.mainMenu() });
+    await sessions.clearSession(chatId);
+    return;
+  }
+
+  const sorted = [...results].sort((a, b) => a.price - b.price).slice(0, 10);
+  await bot.sendMessage(chatId,
+    `✅ <b>${sorted.length} destinos</b> (top baratos)`, { parse_mode: 'HTML' });
+
+  for (const d of sorted) {
+    const text =
+      `✈️ <b>${fmt.price(d.price, d.currency)}</b>\n` +
+      `${fmt.esc(d.origin)} → <b>${fmt.esc(d.destination)}</b>\n` +
+      `📅 ${fmt.date(d.departureDate)}${d.returnDate ? ` → ${fmt.date(d.returnDate)}` : ''}`;
+    const ikb = d.bookingUrl
+      ? { inline_keyboard: [[{ text: '🔗 Ver en Amadeus', url: d.bookingUrl }]] }
+      : undefined;
+    await bot.sendMessage(chatId, text, {
+      parse_mode: 'HTML',
+      reply_markup: ikb,
+      disable_web_page_preview: true,
+    });
+  }
+
+  await bot.sendMessage(chatId, '¿Qué querés hacer ahora?', { reply_markup: kb.mainMenu() });
+  await sessions.clearSession(chatId);
+}
+
+/**
+ * Fallback de inspiración usando el scraper de Google Flights a destinos populares.
+ * @param {string} origin
+ * @param {number|null} budget
+ * @returns {Promise<Array>}
+ */
+async function fallbackInspire(origin, budget) {
+  const departureDate = new Date();
+  departureDate.setDate(departureDate.getDate() + 45);
+  const iso = departureDate.toISOString().split('T')[0];
+
+  const destinations = [
+    ...wz.COMMON_EU.slice(0, 3),
+    ...wz.COMMON_US.slice(0, 3),
+    ...wz.COMMON_AR.slice(0, 3),
+  ].filter((d) => d !== origin);
+
+  const results = [];
+  for (const dest of destinations) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const flights = await scraperWorker.search(origin, dest, iso);
+      if (flights?.length) {
+        const cheapest = flights.reduce((a, b) => (a.price <= b.price ? a : b));
+        if (!budget || cheapest.price <= budget) {
+          results.push({
+            origin,
+            destination: dest,
+            departureDate: iso,
+            returnDate: null,
+            price: cheapest.price,
+            currency: cheapest.currency || 'USD',
+          });
+        }
+      }
+    } catch (e) {
+      // ignore individual failures
+    }
+  }
+
+  return results.sort((a, b) => a.price - b.price);
 }
 
 module.exports = {
