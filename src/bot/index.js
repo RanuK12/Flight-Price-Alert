@@ -85,12 +85,15 @@ function startBot() {
 
   // polling_error recovery:
   //  - 409 Conflict = otro proceso está haciendo getUpdates con el mismo token.
-  //    En Render suele ocurrir durante redeploys con overlap de contenedores.
-  //    Paramos polling, esperamos backoff y reintentamos.
-  //    El backoff se reduce gradualmente (÷2) en vez de resetear a 0 para
-  //    evitar un loop infinito de reconexión/conflicto.
+  //    En Render suele ocurrir durante redeploys con overlap de contenedores
+  //    que puede durar 30-60s. Paramos polling, esperamos backoff largo y
+  //    reintentamos. Después de muchos intentos fallidos damos up para no
+  //    saturar logs ni CPU.
   let pollingBackoffMs = 0;
   let recovering = false;
+  let consecutive409s = 0;
+  const MAX_409_RETRIES = 10;
+
   bot.on('polling_error', async (err) => {
     const msg = /** @type {Error & {code?:string}} */ (err).message || '';
     const is409 = msg.includes('409') || msg.includes('terminated by other getUpdates');
@@ -99,18 +102,32 @@ function startBot() {
       return;
     }
     if (recovering) return;
+
+    consecutive409s += 1;
+    if (consecutive409s > MAX_409_RETRIES) {
+      // Damos up: la instancia vieja probablemente sigue viva.
+      // Logueamos solo cada 60s para no saturar.
+      if (consecutive409s % 12 === 0) {
+        logger.warn('polling 409 persistente — otro proceso tiene el token. Esperando...', {
+          consecutive409s,
+        });
+      }
+      return;
+    }
+
     recovering = true;
-    pollingBackoffMs = Math.min(60_000, Math.max(5_000, pollingBackoffMs * 2 || 5_000));
-    logger.warn('polling 409 — reiniciando polling', { backoffMs: pollingBackoffMs });
+    pollingBackoffMs = Math.min(120_000, Math.max(15_000, pollingBackoffMs * 2 || 15_000));
+    logger.warn('polling 409 — reiniciando polling', { backoffMs: pollingBackoffMs, consecutive409s });
     try {
       await bot.stopPolling({ cancel: true }).catch(() => {});
       await new Promise((r) => setTimeout(r, pollingBackoffMs));
       await bot.startPolling({ restart: true, polling: { params: { allowed_updates: [] } } });
-      // Cooldown: esperar 10s antes de considerar estable (evita colisión
+      // Cooldown: esperar 20s antes de considerar estable (evita colisión
       // inmediata si la instancia vieja aún no murió).
-      await new Promise((r) => setTimeout(r, 10_000));
-      // Reducir backoff gradualmente en vez de a 0
-      pollingBackoffMs = Math.floor(pollingBackoffMs / 2);
+      await new Promise((r) => setTimeout(r, 20_000));
+      // Resetear contador si sobrevivimos el cooldown sin nuevos 409.
+      consecutive409s = 0;
+      pollingBackoffMs = Math.max(15_000, Math.floor(pollingBackoffMs / 2));
       logger.info('polling reanudado OK');
     } catch (e) {
       logger.error('polling restart falló', /** @type {Error} */ (e));
