@@ -120,16 +120,23 @@ function welcome(userName) {
 function routeLine(r) {
   if (!r) return '⚠️ Ruta no disponible';
   const stateIcon = r.paused ? '⏸️' : '🟢';
-  const dateStr = r.return_date
-    ? `${date(r.outbound_date)} → ${date(r.return_date)}`
-    : date(r.outbound_date);
-  const threshold = r.price_threshold
-    ? ` · alerta ≤ ${price(r.price_threshold, r.currency)}`
+  // Compatibilidad MongoDB (camelCase) y SQLite legacy (snake_case)
+  const outboundDate = r.outboundDate || r.outbound_date;
+  const returnDate = r.returnDate || r.return_date;
+  const priceThreshold = r.priceThreshold ?? r.price_threshold;
+  const tripType = r.tripType || r.trip_type;
+  const currency = r.currency || 'EUR';
+
+  const dateStr = returnDate
+    ? `${date(outboundDate)} → ${date(returnDate)}`
+    : date(outboundDate);
+  const threshold = priceThreshold
+    ? ` · alerta ≤ ${price(priceThreshold, currency)}`
     : '';
   const name = r.name ? ` <i>${esc(r.name)}</i>` : '';
   return (
     `${stateIcon} <b>${esc(r.origin)} → ${esc(r.destination)}</b>${name}\n` +
-    `   ${esc(dateStr)} · ${esc(r.trip_type)}${threshold}`
+    `   ${esc(dateStr)} · ${esc(tripType)}${threshold}`
   );
 }
 

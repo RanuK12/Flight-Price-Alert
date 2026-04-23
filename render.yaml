@@ -1,4 +1,4 @@
-# Render Blueprint — Flight Deal Bot v4.0
+# Render Blueprint — Flight Deal Bot v5.0
 # Docs: https://render.com/docs/blueprint-spec
 services:
   - type: web
@@ -6,10 +6,8 @@ services:
     runtime: docker
     plan: free
     healthCheckPath: /health
-    # Free plan: sin disco persistente. SQLite vive en el FS efímero del
-    # contenedor y se resetea en cada deploy/reinicio. Las migraciones se
-    # corren al arrancar, así que el schema siempre queda listo, pero las
-    # rutas/alertas guardadas se pierden. Upgradear a Starter para disk.
+    # v5.0 usa MongoDB Atlas como persistencia principal.
+    # SQLite solo como fallback local si MONGODB_URI no está configurado.
     envVars:
       # --- Telegram (configurar valor en el dashboard de Render) ---
       - key: TELEGRAM_BOT_TOKEN
@@ -66,5 +64,11 @@ services:
         value: "3600000"
 
       # --- DB ---
+      - key: MONGODB_URI
+        sync: false
       - key: SQLITE_PATH
         value: /app/data/flights.db
+
+      # --- Scraper ---
+      - key: SCRAPER_TIMEOUT_MS
+        value: "30000"

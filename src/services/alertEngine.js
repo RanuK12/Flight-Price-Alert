@@ -19,6 +19,7 @@
 
 const routesRepo = require('../database/repositories/routesRepo');
 const userPrefsRepo = require('../database/repositories/userPrefsRepo');
+const Notification = require('../database/models/Notification');
 const hybrid = require('./hybridSearch');
 const { classifyPrice } = require('../config/priceThresholds');
 const { notifyOffer, notifyBatchHeader } = require('../bot/notifier');
@@ -70,8 +71,8 @@ function isCircuitBreakerOpen() {
 function filterPastRoutes(routes) {
   const today = new Date().toISOString().split('T')[0];
   return routes.filter(r => {
-    if (!r.outbound_date) return true; // fecha flexible → mantener
-    return r.outbound_date >= today;
+    if (!r.outboundDate) return true; // fecha flexible → mantener
+    return r.outboundDate >= today;
   });
 }
 
@@ -89,6 +90,34 @@ function sampleRoutes(routes, max) {
     sampled.push(routes[idx]);
   }
   return sampled;
+}
+
+/**
+ * Obtiene el precio de la última notificación enviada para una ruta.
+ * @param {string} routeId
+ * @returns {Promise<number|null>}
+ */
+async function getPreviousPrice(routeId) {
+  if (!routeId) return null;
+  const last = await Notification.findOne({ route: routeId })
+    .sort({ sentAt: -1 })
+    .lean();
+  return last ? last.price : null;
+}
+
+/**
+ * Decide si la notificación debe ser silenciosa.
+ * - NO silenciosa: si el precio cruzó el threshold hacia abajo (ahora <= threshold y antes > threshold).
+ * - Silenciosa: si bajó de precio pero sigue por encima del threshold o no hay threshold.
+ * @param {number} currentPrice
+ * @param {number|null} previousPrice
+ * @param {number|null} threshold
+ * @returns {boolean}
+ */
+function shouldBeSilent(currentPrice, previousPrice, threshold) {
+  if (!threshold) return true; // Sin threshold → siempre silent (solo alertas manuales importan)
+  const crossedDown = currentPrice <= threshold && (previousPrice === null || previousPrice > threshold);
+  return !crossedDown;
 }
 
 /**
@@ -141,16 +170,16 @@ async function runOnce() {
 
     try {
       const prefs = await userPrefsRepo.getOrCreate(
-        route.telegram_user_id,
-        route.telegram_chat_id,
+        route.telegramUserId,
+        route.telegramChatId,
       );
       const minRank = MIN_LEVEL_TO_RANK[prefs.alert_min_level] ?? 0;
 
       const result = await hybrid.search({
         origin: route.origin,
         destination: route.destination,
-        departureDate: route.outbound_date,
-        returnDate: route.return_date || undefined,
+        departureDate: route.outboundDate,
+        returnDate: route.returnDate || undefined,
         currency: route.currency || prefs.currency,
         max: 5,
       }, { mode: 'background' });
@@ -158,8 +187,8 @@ async function runOnce() {
       if (!result.flights?.length) {
         skippedNoFlights += 1;
         logger.debug('Ruta sin vuelos', {
-          id: route.id, route: `${route.origin}-${route.destination}`,
-          date: route.outbound_date,
+          id: route._id, route: `${route.origin}-${route.destination}`,
+          date: route.outboundDate,
         });
         // Delay inter-ruta
         await sleep(INTER_ROUTE_DELAY_MS);
@@ -178,7 +207,7 @@ async function runOnce() {
       if (rank > minRank) {
         skippedByLevel += 1;
         logger.debug('Ruta filtrada por nivel', {
-          id: route.id, route: `${route.origin}-${route.destination}`,
+          id: route._id, route: `${route.origin}-${route.destination}`,
           price: cheapest.price, level, rank,
           minLevel: prefs.alert_min_level, minRank,
         });
@@ -187,41 +216,46 @@ async function runOnce() {
       }
 
       // 2) Si la ruta tiene threshold explícito, también debe respetarlo.
-      if (route.price_threshold && cheapest.price > route.price_threshold) {
+      if (route.priceThreshold && cheapest.price > route.priceThreshold) {
         skippedByThreshold += 1;
         logger.debug('Ruta filtrada por threshold', {
-          id: route.id, route: `${route.origin}-${route.destination}`,
-          price: cheapest.price, threshold: route.price_threshold,
+          id: route._id, route: `${route.origin}-${route.destination}`,
+          price: cheapest.price, threshold: route.priceThreshold,
         });
         await sleep(INTER_ROUTE_DELAY_MS);
         continue;
       }
 
+      // 3) Determinar precio anterior y si es silent
+      const previousPrice = await getPreviousPrice(route._id.toString());
+      const silent = shouldBeSilent(cheapest.price, previousPrice, route.priceThreshold);
+
       const res = await notifyOffer(cheapest, {
-        telegramUserId: route.telegram_user_id,
-        telegramChatId: route.telegram_chat_id,
-        routeId: route.id,
+        telegramUserId: route.telegramUserId,
+        telegramChatId: route.telegramChatId,
+        routeId: route._id.toString(),
         dealLevel: level,
-        threshold: route.price_threshold,
+        threshold: route.priceThreshold,
         routeName: route.name || `${route.origin} → ${route.destination}`,
+        silent,
       });
       if (res.sent) {
         offersSent += 1;
         notificationsByChat.set(
-          route.telegram_chat_id,
-          (notificationsByChat.get(route.telegram_chat_id) || 0) + 1,
+          route.telegramChatId,
+          (notificationsByChat.get(route.telegramChatId) || 0) + 1,
         );
       } else if (res.reason === 'dedup') {
         skippedByDedup += 1;
         logger.debug('Ruta deduplicada', {
-          id: route.id, route: `${route.origin}-${route.destination}`,
+          id: route._id, route: `${route.origin}-${route.destination}`,
           price: cheapest.price,
         });
       }
     } catch (err) {
       errors += 1;
       logger.warn('Ruta falló', {
-        id: route.id, route: `${route.origin}-${route.destination}`,
+        id: route._id, route: `${route.origin}-${route.destination}`,
         err: /** @type {Error} */ (err).message,
       });
     }

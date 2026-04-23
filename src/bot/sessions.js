@@ -1,19 +1,20 @@
 /**
- * Wizard / conversation state persistido en SQLite.
+ * Wizard / conversation state persistido en MongoDB (BotSession model).
  *
  * Cada chat puede tener 1 sesión activa con:
- *   - state:  nombre del paso actual (ej. 'buscar:awaiting_origin')
+ *   - state:  nombre del paso actual
  *   - data:   objeto con lo que se fue recolectando
  *   - expires_at: TTL (default 20 min)
  *
- * Al persistir en DB, las sesiones sobreviven a redeploys de Render.
+ * Al persistir en MongoDB, las sesiones sobreviven a redeploys de Render
+ * y se limpian automáticamente vía TTL index.
  *
  * @module bot/sessions
  */
 
 'use strict';
 
-const { run, get, all } = require('../database/db');
+const BotSession = require('../database/models/BotSession');
 
 /** TTL default de una sesión activa (20 min). */
 const DEFAULT_TTL_MS = 20 * 60 * 1000;
@@ -34,29 +35,21 @@ const DEFAULT_TTL_MS = 20 * 60 * 1000;
  * @returns {Promise<Session|null>}
  */
 async function getSession(chatId) {
-  const row = /** @type {Record<string, any>|undefined} */ (
-    await get(`SELECT * FROM bot_sessions WHERE chat_id = ?`, [chatId])
-  );
-  if (!row) return null;
+  const doc = await BotSession.findOne({ chatId }).lean();
+  if (!doc) return null;
 
-  if (row.expires_at) {
-    const expires = new Date(row.expires_at);
-    if (expires <= new Date()) {
-      await clearSession(chatId).catch(() => {});
-      return null;
-    }
+  if (doc.expiresAt && new Date(doc.expiresAt) <= new Date()) {
+    await clearSession(chatId).catch(() => {});
+    return null;
   }
 
-  let data = {};
-  try { data = JSON.parse(row.data_json || '{}'); } catch { /* empty */ }
-
   return {
-    chatId: row.chat_id,
-    userId: row.user_id,
-    state: row.state,
-    data,
-    updatedAt: row.updated_at,
-    expiresAt: row.expires_at,
+    chatId: doc.chatId,
+    userId: doc.userId,
+    state: doc.state,
+    data: doc.data || {},
+    updatedAt: doc.updatedAt?.toISOString() || new Date().toISOString(),
+    expiresAt: doc.expiresAt?.toISOString() || null,
   };
 }
 
@@ -68,27 +61,28 @@ async function getSession(chatId) {
  */
 async function setSession(chatId, input) {
   const ttlMs = input.ttlMs ?? DEFAULT_TTL_MS;
-  const expiresAt = new Date(Date.now() + ttlMs).toISOString();
-  const dataJson = JSON.stringify(input.data || {});
-  await run(
-    `INSERT INTO bot_sessions (chat_id, user_id, state, data_json, updated_at, expires_at)
-     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-     ON CONFLICT(chat_id) DO UPDATE SET
-        user_id    = excluded.user_id,
-        state      = excluded.state,
-        data_json  = excluded.data_json,
-        updated_at = CURRENT_TIMESTAMP,
-        expires_at = excluded.expires_at`,
-    [chatId, input.userId ?? null, input.state, dataJson, expiresAt],
+  const expiresAt = new Date(Date.now() + ttlMs);
+  const data = input.data || {};
+
+  await BotSession.findOneAndUpdate(
+    { chatId },
+    {
+      userId: input.userId ?? null,
+      state: input.state,
+      data,
+      expiresAt,
+    },
+    { upsert: true }
   );
-  return /** @type {Session} */ ({
+
+  return {
     chatId,
     userId: input.userId ?? null,
     state: input.state,
-    data: input.data || {},
+    data,
     updatedAt: new Date().toISOString(),
-    expiresAt,
-  });
+    expiresAt: expiresAt.toISOString(),
+  };
 }
 
 /**
@@ -122,15 +116,13 @@ async function transition(chatId, nextState) {
 
 /** @param {number} chatId */
 async function clearSession(chatId) {
-  await run(`DELETE FROM bot_sessions WHERE chat_id = ?`, [chatId]);
+  await BotSession.deleteOne({ chatId });
 }
 
-/** Housekeeping — borrar sesiones vencidas. */
+/** Housekeeping — borrar sesiones vencidas (redundante con TTL, pero útil). */
 async function purgeExpired() {
-  const result = await run(
-    `DELETE FROM bot_sessions WHERE expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP`,
-  );
-  return result.changes;
+  const result = await BotSession.deleteMany({ expiresAt: { $lte: new Date() } });
+  return result.deletedCount || 0;
 }
 
 module.exports = {
@@ -142,6 +134,3 @@ module.exports = {
   clearSession,
   purgeExpired,
 };
-
-// silence unused
-void all;

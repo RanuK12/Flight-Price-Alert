@@ -109,14 +109,16 @@ function currencyMenu(current) {
 
 /**
  * Tarjeta de ruta con botones pause/delete/resume.
- * @param {{id:number, paused:0|1}} route
+ * @param {{id:number|string, paused:0|1|boolean}} route
  */
 function routeCard(route) {
-  const toggleBtn = route.paused
-    ? { text: '▶️ Reanudar', callback_data: `route:resume:${route.id}` }
-    : { text: '⏸️ Pausar', callback_data: `route:pause:${route.id}` };
+  const id = route.id;
+  const isPaused = route.paused === 1 || route.paused === true;
+  const toggleBtn = isPaused
+    ? { text: '▶️ Reanudar', callback_data: `route:resume:${id}` }
+    : { text: '⏸️ Pausar', callback_data: `route:pause:${id}` };
   return {
-    inline_keyboard: [[toggleBtn, { text: '❌ Eliminar', callback_data: `route:delete:${route.id}` }]],
+    inline_keyboard: [[toggleBtn, { text: '❌ Eliminar', callback_data: `route:delete:${id}` }]],
   };
 }
 

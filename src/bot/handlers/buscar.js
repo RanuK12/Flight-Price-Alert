@@ -5,8 +5,8 @@
  *   1. Origen (quick-pick o texto)
  *   2. Destino
  *   3. Tipo de viaje (ida / ida+vuelta)
- *   4. Fecha ida
- *   5. Fecha vuelta (si aplica)
+ *   4. Fecha ida (calendario inline)
+ *   5. Fecha vuelta (calendario inline, si aplica)
  *   6. Búsqueda híbrida (respetando prefs.search_mode)
  *   7. Resultados con deep-links
  *
@@ -23,6 +23,7 @@ const hybrid = require('../../services/hybridSearch');
 const { classifyPrice } = require('../../config/priceThresholds');
 const { buildLinksForFlight } = require('../deepLinks');
 const wz = require('./wizardUtils');
+const calendar = require('../calendar');
 const logger = require('../../utils/logger').child('bot:buscar');
 
 const STATE = {
@@ -69,7 +70,6 @@ async function startBuscarFlow(bot, chatId, userId) {
  */
 async function handleWizardCallback(bot, cq) {
   const data = cq.data || '';
-  if (!data.startsWith('wizard:')) return false;
   const chatId = cq.message?.chat.id;
   if (!chatId) return true;
 
@@ -86,42 +86,106 @@ async function handleWizardCallback(bot, cq) {
     return true;
   }
 
-  const [, kind, value] = data.split(':');
+  // ── Wizard callbacks ──
+  if (data.startsWith('wizard:')) {
+    const [, kind, value] = data.split(':');
 
-  if (kind === 'origin' && session.state === STATE.ORIGIN) {
-    if (value === '_custom') {
-      await bot.answerCallbackQuery(cq.id);
-      await bot.sendMessage(chatId, '✍️ Escribí el código IATA (3 letras, ej. <code>EZE</code>).', {
-        parse_mode: 'HTML', reply_markup: kb.cancelOnly(),
-      });
+    if (kind === 'origin' && session.state === STATE.ORIGIN) {
+      if (value === '_custom') {
+        await bot.answerCallbackQuery(cq.id);
+        await bot.sendMessage(chatId, '✍️ Escribí el código IATA (3 letras, ej. <code>EZE</code>).', {
+          parse_mode: 'HTML', reply_markup: kb.cancelOnly(),
+        });
+        return true;
+      }
+      await acceptOrigin(bot, cq, session, value);
       return true;
     }
-    await acceptOrigin(bot, cq, session, value);
-    return true;
-  }
 
-  if (kind === 'dest' && session.state === STATE.DESTINATION) {
-    if (value === '_custom') {
-      await bot.answerCallbackQuery(cq.id);
-      await bot.sendMessage(chatId, '✍️ Escribí el código IATA del destino.', {
-        parse_mode: 'HTML', reply_markup: kb.cancelOnly(),
-      });
+    if (kind === 'dest' && session.state === STATE.DESTINATION) {
+      if (value === '_custom') {
+        await bot.answerCallbackQuery(cq.id);
+        await bot.sendMessage(chatId, '✍️ Escribí el código IATA del destino.', {
+          parse_mode: 'HTML', reply_markup: kb.cancelOnly(),
+        });
+        return true;
+      }
+      await acceptDestination(bot, cq, session, value);
       return true;
     }
-    await acceptDestination(bot, cq, session, value);
+
+    if (kind === 'trip' && session.state === STATE.TRIP_TYPE) {
+      await acceptTripType(bot, cq, session, /** @type {'oneway'|'roundtrip'} */ (value));
+      return true;
+    }
+  }
+
+  // ── Calendar callbacks ──
+  const calData = calendar.parseCalendarCallback(data);
+  if (calData) {
+    if (calData.type === 'noop') {
+      await bot.answerCallbackQuery(cq.id).catch(() => {});
+      return true;
+    }
+
+    if (calData.type === 'nav') {
+      const [y, m] = calData.yearMonth.split('-').map(Number);
+      const field = calData.field;
+      const minDate = field === 'r' ? session.data.departureDate : undefined;
+      const calKeyboard = calendar.buildCalendar(y, m, field, { minDate });
+      await bot.answerCallbackQuery(cq.id);
+      await bot.editMessageReplyMarkup(calKeyboard, {
+        chat_id: chatId,
+        message_id: cq.message?.message_id,
+      }).catch(() => {});
+      return true;
+    }
+
+    if (calData.type === 'manual') {
+      await bot.answerCallbackQuery(cq.id, { text: 'Escribí la fecha' });
+      await bot.sendMessage(chatId,
+        `✍️ Escribí la fecha en formato <code>2026-06-15</code> o <code>15/06/2026</code>.`,
+        { parse_mode: 'HTML', reply_markup: kb.cancelOnly() },
+      );
+      return true;
+    }
+
+    if (calData.type === 'select') {
+      const iso = calData.date;
+      if (!iso || !wz.isFutureDate(iso)) {
+        await bot.answerCallbackQuery(cq.id, { text: '❌ Fecha inválida' });
+        return true;
+      }
+
+      if (calData.field === 'd' && session.state === STATE.DEPART) {
+        await bot.answerCallbackQuery(cq.id, { text: `Ida: ${iso}` });
+        await acceptDepart(bot, chatId, session, iso);
+        return true;
+      }
+
+      if (calData.field === 'r' && session.state === STATE.RETURN) {
+        if (iso <= session.data.departureDate) {
+          await bot.answerCallbackQuery(cq.id, { text: '❌ Debe ser después de ida' });
+          return true;
+        }
+        await bot.answerCallbackQuery(cq.id, { text: `Vuelta: ${iso}` });
+        await sessions.setSession(chatId, {
+          userId: session.userId, state: 'buscar:searching',
+          data: { ...session.data, returnDate: iso },
+        });
+        await runSearch(bot, chatId, session.userId, { ...session.data, returnDate: iso });
+        return true;
+      }
+    }
+
     return true;
   }
 
-  if (kind === 'trip' && session.state === STATE.TRIP_TYPE) {
-    await acceptTripType(bot, cq, session, /** @type {'oneway'|'roundtrip'} */ (value));
-    return true;
-  }
-
-  return true;
+  return false;
 }
 
 /**
- * Captura texto libre durante un step que espera input (IATA o fecha).
+ * Captura texto libre durante un step que espera input (IATA).
  * Devuelve true si consumió el mensaje.
  *
  * @param {import('node-telegram-bot-api')} bot
@@ -155,27 +219,7 @@ async function handleText(bot, msg) {
     return true;
   }
 
-  if (session.state === STATE.DEPART) {
-    const iso = wz.parseDate(msg.text || '');
-    if (!iso || !wz.isFutureDate(iso)) {
-      await bot.sendMessage(chatId, '❌ Fecha inválida o en el pasado. Formato: <code>YYYY-MM-DD</code> o <code>DD/MM</code>.', {
-        parse_mode: 'HTML', reply_markup: kb.cancelOnly(),
-      });
-      return true;
-    }
-    await acceptDepart(bot, chatId, session, iso);
-    return true;
-  }
-
-  if (session.state === STATE.RETURN) {
-    const iso = wz.parseDate(msg.text || '');
-    if (!iso || !wz.isFutureDate(iso)) {
-      await bot.sendMessage(chatId, '❌ Fecha de vuelta inválida.', { reply_markup: kb.cancelOnly() });
-      return true;
-    }
-    await acceptReturn(bot, chatId, session, iso);
-    return true;
-  }
+  // DEPART/RETURN ahora solo por calendario
 
   return false;
 }
@@ -221,9 +265,12 @@ async function acceptTripType(bot, cq, session, tripType) {
     data: { ...session.data, tripType },
   });
   await bot.answerCallbackQuery(cq.id, { text: tripType === 'oneway' ? 'Solo ida' : 'Ida y vuelta' });
+
+  const { year, month } = calendar.initialCalendarMonth();
+  const calKeyboard = calendar.buildCalendar(year, month, 'd');
   await bot.sendMessage(chatId,
-    `<b>Paso 4/4 — Fecha de ida</b>\n\nFormato: <code>2026-06-15</code> o <code>15/06/2026</code>`,
-    { parse_mode: 'HTML', reply_markup: kb.cancelOnly() },
+    '<b>Paso 4/4 — Fecha de ida</b>\n\nElegí un día del calendario o escribí la fecha.',
+    { parse_mode: 'HTML', reply_markup: calKeyboard },
   );
 }
 
@@ -240,23 +287,12 @@ async function acceptDepart(bot, chatId, session, iso) {
     userId: session.userId, state: STATE.RETURN,
     data: { ...session.data, departureDate: iso },
   });
+  const { year, month } = calendar.initialCalendarMonth(iso);
+  const calKeyboard = calendar.buildCalendar(year, month, 'r', { minDate: iso });
   await bot.sendMessage(chatId,
-    `✅ Ida: <b>${fmt.date(iso)}</b>\n\n<b>Fecha de vuelta</b>`,
-    { parse_mode: 'HTML', reply_markup: kb.cancelOnly() },
+    `✅ Ida: <b>${fmt.date(iso)}</b>\n\n<b>Fecha de vuelta</b>\n\nElegí un día o escribí la fecha.`,
+    { parse_mode: 'HTML', reply_markup: calKeyboard },
   );
-}
-
-async function acceptReturn(bot, chatId, session, iso) {
-  if (iso <= session.data.departureDate) {
-    await bot.sendMessage(chatId, '❌ La vuelta tiene que ser posterior a la ida.',
-      { reply_markup: kb.cancelOnly() });
-    return;
-  }
-  await sessions.setSession(chatId, {
-    userId: session.userId, state: 'buscar:searching',
-    data: { ...session.data, returnDate: iso },
-  });
-  await runSearch(bot, chatId, session.userId, { ...session.data, returnDate: iso });
 }
 
 /* ───────── Ejecución de la búsqueda ───────── */
