@@ -1,6 +1,8 @@
 /**
- * /mis_alertas — lista las rutas guardadas del usuario con controles
- * pause / resume / delete.
+ * /mis_alertas — dashboard paginado de rutas del usuario.
+ *
+ * Un único mensaje editable que muestra 1 alerta por página (card)
+ * con botones inline para pausar/reanudar, eliminar y navegar.
  *
  * @module bot/handlers/misAlertas
  */
@@ -10,7 +12,11 @@
 const kb = require('../keyboards');
 const fmt = require('../formatters');
 const routesRepo = require('../../database/repositories/routesRepo');
+const paginator = require('../paginator');
 const logger = require('../../utils/logger').child('bot:misAlertas');
+
+const NAMESPACE = 'alerts';
+const PER_PAGE = 1;
 
 /** @param {import('node-telegram-bot-api')} bot */
 function register(bot) {
@@ -20,11 +26,11 @@ function register(bot) {
 }
 
 /**
- * Envía (o edita) la lista de rutas del usuario.
+ * Envía (o edita) la lista de rutas del usuario como dashboard paginado.
  * @param {import('node-telegram-bot-api')} bot
  * @param {number} chatId
  * @param {number} userId
- * @param {number} [messageId] si se provee, se intenta editar
+ * @param {number} [messageId]
  */
 async function renderMisAlertas(bot, chatId, userId, messageId) {
   const routes = await routesRepo.listByUser(userId);
@@ -42,74 +48,68 @@ async function renderMisAlertas(bot, chatId, userId, messageId) {
     return true;
   }
 
-  const header = `📋 <b>Mis alertas</b> (${routes.length})\n`;
-  if (messageId) {
-    await bot.editMessageText(header, {
-      chat_id: chatId, message_id: messageId, parse_mode: 'HTML',
-    }).catch(() => {});
-  } else {
-    await bot.sendMessage(chatId, header, { parse_mode: 'HTML' });
-  }
+  await paginator.render(bot, chatId, {
+    namespace: NAMESPACE,
+    items: routes,
+    perPage: PER_PAGE,
+    formatItem: (r) => fmt.routeLine(r),
+    itemKeyboard: (r) => kb.routeCard({ id: r._id.toString(), paused: r.paused ? 1 : 0 }),
+    header: `📋 <b>Mis alertas</b> (${routes.length})`,
+    messageId,
+  });
 
-  for (const r of routes) {
-    await bot.sendMessage(chatId, fmt.routeLine(r), {
-      parse_mode: 'HTML',
-      reply_markup: kb.routeCard({ id: r.id, paused: r.paused }),
-    });
-  }
-
-  await bot.sendMessage(chatId, '⬇️', { reply_markup: kb.mainMenu() });
   return true;
 }
 
 /**
- * Callback handler para `route:pause|resume|delete:<id>`.
+ * Callback handler para acciones sobre rutas (`route:pause|resume|delete:<id>`)
+ * y navegación del paginador.
  * @param {import('node-telegram-bot-api')} bot
  * @param {import('node-telegram-bot-api').CallbackQuery} cq
  * @returns {Promise<boolean>}
  */
 async function handleRouteCallback(bot, cq) {
   const data = cq.data || '';
-  if (!data.startsWith('route:')) return false;
   const chatId = cq.message?.chat.id;
   const userId = cq.from.id;
   if (!chatId) return true;
 
+  // Navegación del paginador
+  const pagConsumed = await paginator.handleNavigation(bot, cq, {
+    namespace: NAMESPACE,
+    perPage: PER_PAGE,
+    fetchItems: () => routesRepo.listByUser(userId),
+    formatItem: (r) => fmt.routeLine(r),
+    itemKeyboard: (r) => kb.routeCard({ id: r._id.toString(), paused: r.paused ? 1 : 0 }),
+    header: `📋 <b>Mis alertas</b>`,
+  });
+  if (pagConsumed) return true;
+
+  // Acciones sobre rutas
+  if (!data.startsWith('route:')) return false;
+
   const [, action, idStr] = data.split(':');
-  const id = Number(idStr);
-  if (!Number.isFinite(id)) {
-    await bot.answerCallbackQuery(cq.id, { text: 'ID inválido' });
-    return true;
-  }
+  if (!idStr) return true;
 
   try {
     if (action === 'pause') {
-      const ok = await routesRepo.setPaused(id, userId, true);
+      const ok = await routesRepo.setPaused(idStr, userId, true);
       await bot.answerCallbackQuery(cq.id, { text: ok ? '⏸️ Pausada' : 'No encontrada' });
     } else if (action === 'resume') {
-      const ok = await routesRepo.setPaused(id, userId, false);
+      const ok = await routesRepo.setPaused(idStr, userId, false);
       await bot.answerCallbackQuery(cq.id, { text: ok ? '▶️ Reanudada' : 'No encontrada' });
     } else if (action === 'delete') {
-      const ok = await routesRepo.deleteRoute(id, userId);
+      const ok = await routesRepo.deleteRoute(idStr, userId);
       await bot.answerCallbackQuery(cq.id, { text: ok ? '🗑️ Eliminada' : 'No encontrada' });
-      if (ok) {
-        await bot.deleteMessage(chatId, cq.message.message_id).catch(() => {});
-        return true;
-      }
     } else {
       return true;
     }
 
-    const route = await routesRepo.findByIdForUser(id, userId);
-    if (route) {
-      await bot.editMessageText(fmt.routeLine(route), {
-        chat_id: chatId, message_id: cq.message.message_id,
-        parse_mode: 'HTML', reply_markup: kb.routeCard({ id: route.id, paused: route.paused }),
-      }).catch(() => {});
-    }
+    // Re-renderizar dashboard
+    await renderMisAlertas(bot, chatId, userId, cq.message.message_id);
   } catch (err) {
     logger.error('Route callback failed', /** @type {Error} */ (err));
-    await bot.answerCallbackQuery(cq.id, { text: 'Error' });
+    await bot.answerCallbackQuery(cq.id, { text: '❌ Error' });
   }
   return true;
 }

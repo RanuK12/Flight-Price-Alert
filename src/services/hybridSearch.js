@@ -135,25 +135,43 @@ async function search(params, opts = {}) {
       logger.warn('Amadeus failed, falling back to scraper', {
         error: /** @type {Error} */ (err).message,
       });
-      return runScraper(params, warnings);
+      try {
+        return await runScraper(params, warnings);
+      } catch (scraperErr) {
+        const msg = /** @type {Error} */(scraperErr).message || 'unknown';
+        if (msg.includes('scraper-timeout')) {
+          warnings.push('Scraper timeout (>30s) — intentá de nuevo más tarde');
+          logger.warn('Scraper timeout, no fallback available');
+          return emptyResult(warnings);
+        }
+        throw scraperErr;
+      }
     }
   }
 
   // Background: scraper primero (evitar gastar Amadeus en cron masivos).
-  return runScraper(params, warnings);
+  try {
+    return await runScraper(params, warnings);
+  } catch (scraperErr) {
+    const msg = /** @type {Error} */(scraperErr).message || 'unknown';
+    if (msg.includes('scraper-timeout')) {
+      warnings.push('Scraper timeout (>30s) — intentá de nuevo más tarde');
+      logger.warn('Scraper timeout en background');
+      return emptyResult(warnings);
+    }
+    throw scraperErr;
+  }
 }
 
 /**
- * Invoca al scraper legacy (`server/scrapers/googleFlightsApi.js`)
- * y lo normaliza a la shape `FlightSearchResult`.
+ * Invoca al scraper vía scraperWorker (con timeout) y lo normaliza
+ * a la shape `FlightSearchResult`.
  *
  * @param {FlightSearchParams} params
  * @param {string[]} warnings
  */
 async function runScraper(params, warnings) {
-  /** @type {(origin:string, destination:string, date:string, returnDate?:string|null) => Promise<any>} */
-  // eslint-disable-next-line global-require
-  const { searchFlightsApi } = require('../../server/scrapers/googleFlightsApi');
+  const scraperWorker = require('./scraperWorker');
 
   const cacheKey = [
     params.origin, params.destination, params.departureDate,
@@ -165,7 +183,7 @@ async function runScraper(params, warnings) {
     return { ...cached, cached: true, providerUsed: PROVIDER_NAMES.GOOGLE_FLIGHTS, warnings };
   }
 
-  const raw = await searchFlightsApi(
+  const raw = await scraperWorker.search(
     params.origin,
     params.destination,
     params.departureDate,
@@ -203,6 +221,23 @@ async function runScraper(params, warnings) {
   await usageRepo.increment(PROVIDER_NAMES.GOOGLE_FLIGHTS);
 
   return { ...result, providerUsed: PROVIDER_NAMES.GOOGLE_FLIGHTS, warnings };
+}
+
+/**
+ * Resultado vacío cuando el scraper timeout y no hay fallback.
+ * @param {string[]} warnings
+ * @returns {import('../providers/base').FlightSearchResult & {providerUsed: string, warnings: string[]}}
+ */
+function emptyResult(warnings) {
+  return {
+    flights: [],
+    source: PROVIDER_NAMES.GOOGLE_FLIGHTS,
+    cached: false,
+    fetchedAt: new Date().toISOString(),
+    meta: { count: 0 },
+    providerUsed: PROVIDER_NAMES.GOOGLE_FLIGHTS,
+    warnings,
+  };
 }
 
 /**

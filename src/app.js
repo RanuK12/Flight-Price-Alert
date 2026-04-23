@@ -19,23 +19,47 @@ const { seedIfEmpty } = require('./bootstrap/seedDefaultRoutes');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
 const sessions = require('./bot/sessions');
+const { connect: connectMongo } = require('./database/mongoose');
 
 async function main() {
-  logger.info('Booting Flight Deal Bot v4.0', {
+  logger.info('Booting Flight Deal Bot v5.0', {
     env: config.env, port: config.port,
   });
 
-  // 1. Migrations + seed por defecto (si el usuario primario no tiene rutas).
-  await runMigrations();
-  await seedIfEmpty().catch((err) => {
-    logger.error('seedIfEmpty failed (continuando)', /** @type {Error} */ (err));
-  });
+  // 0. MongoDB Atlas (persistencia principal en Render)
+  const useMongo = Boolean(config.mongodb.uri);
+  if (useMongo) {
+    try {
+      await connectMongo();
+      logger.info('MongoDB connected (primary storage)');
+    } catch (err) {
+      logger.error('MongoDB connection failed — falling back to SQLite', /** @type {Error} */(err));
+    }
+  }
+
+  // 1. Migrations + seed por defecto (solo si no usamos Mongo o como fallback).
+  if (!useMongo) {
+    await runMigrations();
+    await seedIfEmpty().catch((err) => {
+      logger.error('seedIfEmpty failed (continuando)', /** @type {Error} */ (err));
+    });
+  } else {
+    // seed si la colección de rutas está vacía
+    const Route = require('./database/models/Route');
+    const count = await Route.countDocuments();
+    if (count === 0) {
+      await seedIfEmpty().catch((err) => {
+        logger.error('seedIfEmpty failed (continuando)', /** @type {Error} */ (err));
+      });
+    }
+  }
 
   // 2. Health / debug HTTP
   const app = express();
   app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
   app.get('/debug', (_req, res) => res.json({
     env: config.env,
+    mongo: useMongo,
     telegram: { hasToken: !!config.telegram.botToken, polling: config.telegram.polling },
     amadeus: { budget: config.amadeus.monthlyBudget },
     uptime: Math.floor(process.uptime()),

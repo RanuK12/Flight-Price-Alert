@@ -21,10 +21,11 @@ const { getBot } = require('./index');
  * @typedef {Object} OfferContext
  * @property {number} telegramUserId
  * @property {number} telegramChatId
- * @property {number|null} [routeId]
+ * @property {string|null} [routeId]
  * @property {string} dealLevel
  * @property {number|null} [threshold]
  * @property {string} [routeName]
+ * @property {boolean} [silent]
  */
 
 /**
@@ -91,6 +92,7 @@ async function notifyOffer(flight, ctx) {
     await bot.sendMessage(ctx.telegramChatId, text, {
       parse_mode: 'HTML',
       disable_web_page_preview: true,
+      disable_notification: ctx.silent ?? false,
       reply_markup: { inline_keyboard: inlineRows },
     });
   } catch (err) {
@@ -99,6 +101,7 @@ async function notifyOffer(flight, ctx) {
   }
 
   const id = await notificationsRepo.insertNotification({
+    user_id: ctx.routeId ? null : null, // se resolverá en el repo si es necesario
     telegram_user_id: ctx.telegramUserId,
     telegram_chat_id: ctx.telegramChatId,
     route_id: ctx.routeId ?? null,
@@ -116,6 +119,7 @@ async function notifyOffer(flight, ctx) {
     provider: flight.source,
     booking_url: links.primary?.url || flight.bookingUrl || null,
     dedup_key: dedupKey,
+    silent: ctx.silent ?? false,
   });
 
   logger.info('Notified offer', {

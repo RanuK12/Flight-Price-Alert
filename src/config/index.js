@@ -152,6 +152,10 @@ const config = Object.freeze({
     gfTtlMs: parseInteger(optionalEnv('CACHE_TTL_GF_MS', '3600000'), 'CACHE_TTL_GF_MS'),
   }),
 
+  mongodb: Object.freeze({
+    uri: optionalEnv('MONGODB_URI', ''),
+  }),
+
   paths: Object.freeze({
     puppeteerExecutablePath: optionalEnv('PUPPETEER_EXECUTABLE_PATH', ''),
     sqlitePath: optionalEnv('SQLITE_PATH', './data/flights.db'),
@@ -184,6 +188,7 @@ function summary() {
     },
     scheduler: config.scheduler,
     cache: config.cache,
+    mongo: { hasUri: Boolean(config.mongodb.uri) },
   };
 }
 
