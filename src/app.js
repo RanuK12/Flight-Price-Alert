@@ -29,6 +29,8 @@ async function main() {
   // 0. MongoDB Atlas (persistencia principal en Render)
   let useMongo = Boolean(config.mongodb.uri);
   if (useMongo) {
+    const maskedUri = config.mongodb.uri.replace(/\/\/[^:]+:[^@]+@/, '/***@');
+    logger.info('MongoDB URI configured', { uri: maskedUri });
     try {
       await connectMongo();
       logger.info('MongoDB connected (primary storage)');
