@@ -27,7 +27,6 @@ const notificationSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-notificationSchema.index({ dedupKey: 1 });
 notificationSchema.index({ user: 1, sentAt: -1 });
 
 module.exports = mongoose.model('Notification', notificationSchema);
