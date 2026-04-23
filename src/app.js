@@ -34,6 +34,10 @@ async function main() {
     try {
       await connectMongo();
       logger.info('MongoDB connected (primary storage)');
+      // Verificar que las rutas estén accesibles
+      const Route = require('./database/models/Route');
+      const routeCount = await Route.countDocuments({ paused: false });
+      logger.info('MongoDB active routes', { count: routeCount });
     } catch (err) {
       logger.error('MongoDB connection failed — falling back to SQLite', /** @type {Error} */(err));
       useMongo = false;
