@@ -72,7 +72,8 @@ function filterPastRoutes(routes) {
   const today = new Date().toISOString().split('T')[0];
   return routes.filter(r => {
     if (!r.outboundDate) return true; // fecha flexible → mantener
-    return r.outboundDate >= today;
+    const iso = r.outboundDate.toISOString().split('T')[0];
+    return iso >= today;
   });
 }
 
