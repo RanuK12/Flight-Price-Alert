@@ -27,13 +27,14 @@ async function main() {
   });
 
   // 0. MongoDB Atlas (persistencia principal en Render)
-  const useMongo = Boolean(config.mongodb.uri);
+  let useMongo = Boolean(config.mongodb.uri);
   if (useMongo) {
     try {
       await connectMongo();
       logger.info('MongoDB connected (primary storage)');
     } catch (err) {
       logger.error('MongoDB connection failed — falling back to SQLite', /** @type {Error} */(err));
+      useMongo = false;
     }
   }
 
