@@ -54,7 +54,7 @@ async function createRoute(input) {
   );
 
   return route;
-
+}
 
 /** @param {number} telegramUserId @returns {Promise<import('mongoose').Document[]>} */
 async function listByUser(telegramUserId) {
