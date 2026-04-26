@@ -1,8 +1,9 @@
 /**
- * Google Flights API Scraper v1.0
+ * Google Flights API Scraper v1.1
  *
  * Calls Google Flights' internal API directly via HTTP POST.
  * Ported from the Python "fli" library (github.com/punitarani/fli).
+ * Updated 2026-04-26: Handle new Google response format
  *
  * Advantages over Puppeteer:
  *   - No browser needed (faster, less memory)
