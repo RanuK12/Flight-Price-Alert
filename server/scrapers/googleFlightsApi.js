@@ -227,9 +227,10 @@ function parseFlightsResponse(responseText) {
     return [];
   }
 
-  // Flight results in data[2] (best flights) and data[3] (other flights)
+  // Flight results - Google changed structure, try multiple indices
   const flights = [];
 
+  // Try data[2] and data[3]
   for (const idx of [2, 3]) {
     try {
       const section = data[idx];
@@ -249,58 +250,89 @@ function parseFlightsResponse(responseText) {
 
 /**
  * Parse a single flight result item from the API response
+ * Handles both old and new Google Flights API format
  */
 function parseFlightItem(item) {
   try {
+    // NEW FORMAT (2024+): item = [[airlineCode, [airlineName], [segments]], "EZE", date, ...]
+    // The actual flight data is in item[0]
+    const flightData = Array.isArray(item) && Array.isArray(item[0]) ? item[0] : item;
+
+    if (Array.isArray(flightData) && flightData.length >= 3) {
+      const airlineCode = typeof flightData[0] === 'string' ? flightData[0] : '';
+      const airlineName = Array.isArray(flightData[1]) ? flightData[1][0] : (flightData[1] || '');
+      const segments = Array.isArray(flightData[2]) ? flightData[2] : [];
+
+      if (segments.length > 0 && Array.isArray(segments[0])) {
+        const seg = segments[0];
+        // seg structure: [null,null,null,"EZE","Airport","BCN","Airport",...,duration,stops,price,...]
+        const price = seg[11];
+        if (typeof price !== 'number' || price <= 0) return null;
+
+        const origin = seg[3] || '';
+        const dest = seg[5] || '';
+        const stops = seg[10] || 0;
+        const duration = seg[9];
+        const depDateArr = seg[19];
+        const arrDateArr = seg[20];
+
+        return {
+          price: Math.round(price),
+          airline: airlineName || AIRLINE_CODES[airlineCode] || airlineCode,
+          airlineCode,
+          flightNumber: '',
+          stops: typeof stops === 'number' ? stops : 0,
+          totalDuration: duration ? (Array.isArray(duration) ? duration[0] : duration) : null,
+          departureAirport: origin,
+          arrivalAirport: dest,
+          departureTime: null,
+          arrivalTime: null,
+          departureDate: depDateArr ? formatDate(depDateArr) : null,
+          arrivalDate: arrDateArr ? formatDate(arrDateArr) : null,
+          airlines: [airlineName || airlineCode],
+          legs: [{ depAirport: origin, arrAirport: dest }],
+          source: 'Google Flights API (new format)',
+        };
+      }
+    }
+
+    // OLD FORMAT: item[0] = flightInfo, item[1] = price info
     const flightInfo = item[0];
     if (!flightInfo) return null;
 
-    // Price: item[1][0][last element]
     let price = null;
     try {
-      const priceArr = item[1][0];
-      price = priceArr[priceArr.length - 1];
+      const priceArr = item[1]?.[0];
+      price = priceArr?.[priceArr.length - 1];
       if (typeof price !== 'number' || price <= 0) return null;
     } catch (e) {
       return null;
     }
 
-    // Legs (segments of the flight)
     const legs = flightInfo[2];
     if (!Array.isArray(legs) || legs.length === 0) return null;
 
     const stops = legs.length - 1;
-
-    // Total duration: flightInfo[9]
     const totalDuration = flightInfo[9] || null;
-
-    // Parse first and last leg for departure/arrival info
     const firstLeg = legs[0];
     const lastLeg = legs[legs.length - 1];
 
-    // Departure info from first leg
     const depAirport = safeGet(firstLeg, 3, '');
     const depTime = formatTime(safeGet(firstLeg, 8));
     const depDate = formatDate(safeGet(firstLeg, 20));
-
-    // Arrival info from last leg
     const arrAirport = safeGet(lastLeg, 6, '');
     const arrTime = formatTime(safeGet(lastLeg, 10));
     const arrDate = formatDate(safeGet(lastLeg, 21));
-
-    // Airline from first leg: leg[22] = [code, number, null, name]
     const airlineCode = safeGet(firstLeg, 22, 0) || '';
     const airlineName = safeGet(firstLeg, 22, 3) || '';
     const flightNumber = safeGet(firstLeg, 22, 1) || '';
 
-    // Collect all airlines for multi-carrier flights
     const airlines = new Set();
     for (const leg of legs) {
       const name = safeGet(leg, 22, 3) || safeGet(leg, 22, 0);
       if (name) airlines.add(name);
     }
 
-    // Build leg details
     const legDetails = legs.map(leg => ({
       depAirport: safeGet(leg, 3) || '',
       depAirportName: safeGet(leg, 4) || '',
