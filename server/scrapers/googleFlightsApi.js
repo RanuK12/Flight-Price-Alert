@@ -285,11 +285,19 @@ if (innerData === null) {
   return [];
 }
 
-if (foundAtIndex) {
-  console.log(` 🔍 DEBUG: Found valid data at index ${foundAtIndex}`);  // En producció, sempre mostrem la estructura completa quan no hi ha vols
-  // per poder diagnosticar el problema
-  if (innerData && Array.isArray(innerData)) {
-    console.log(` 🔍 DEBUG: innerData length: ${innerData.length}`);    console.log(` 🔍 DEBUG: innerData content (first 3000 chars):`, JSON.stringify(innerData).slice(0, 3000));  }}
+if (foundAtIndex !== null) {
+  console.log(` 📍 DEBUG: Found data at index ${foundAtIndex}: ${JSON.stringify(innerData).slice(0, 100)}`);
+  // Mostrar múltiples índices para encontrar los vuelos
+  if (parsed[0] && Array.isArray(parsed[0])) {
+    console.log(` 🔍 DEBUG: parsed[0] tiene ${parsed[0].length} elementos`);
+    // Mostrar primer elemento de cada índice
+    for (let i = 0; i < Math.min(parsed[0].length, 15); i++) {
+      const val = parsed[0][i];
+      const type = val === null ? 'null' : (Array.isArray(val) ? `array[${val.length}]` : typeof val);
+      console.log(` 🔍 DEBUG: [0][${i}] = ${type}: ${JSON.stringify(val).slice(0, 150)}`);
+    }
+  }
+}
 
   // DEBUG: Log response structure if enabled
   if (DEBUG_RESPONSE) {
