@@ -30,6 +30,40 @@ const {
   UpstreamError,
 } = require('../utils/errors');
 
+// ═══════════════════════════════════════════════════════════════
+// HORARIOS CLAVE para búsquedas Amadeus (4 veces al día)
+// Evita gastar quota en horas de baja actividad
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Horarios clave para búsquedas Amadeus (hora Argentina, UTC-3)
+ * Solo se permiten búsquedas en estas horas
+ */
+const AMADEUS_HOURS = [6, 12, 18, 22]; // 6AM, 12PM, 6PM, 10PM
+
+/**
+ * Verifica si la hora actual está dentro de una ventana clave.
+ * Considera la hora de Argentina (UTC-3)
+ * @returns {{allowed: boolean, currentHour: number, keyHour?: number}}
+ */
+function isAmadeusHour() {
+  const now = new Date();
+  // Convertir a hora Argentina (UTC-3)
+  const options = { timeZone: 'America/Argentina/Buenos_Aires', hour: 'numeric', hour12: false };
+  const argTime = new Intl.DateTimeFormat('es-AR', options).format(now);
+  const currentHour = parseInt(argTime, 10);
+  
+  // Verificar si la hora actual está dentro de las horas clave (+/- 1 hora de tolerancia)
+  for (const keyHour of AMADEUS_HOURS) {
+    if (currentHour >= keyHour - 1 && currentHour <= keyHour + 1) {
+      return { allowed: true, currentHour, keyHour };
+    }
+  }
+  return { allowed: false, currentHour };
+}
+
+
+
 /**
  * @typedef {import('../providers/base').FlightSearchParams} FlightSearchParams
  * @typedef {import('../providers/base').FlightSearchResult} FlightSearchResult
@@ -174,11 +208,17 @@ async function search(params, opts = {}) {
     const result = await runScraper(params, warnings);
     // Fallback a Amadeus si Google no devuelve vuelos (problema detectado: Google retorna "wrb.fr")
     if (!result.flights || result.flights.length === 0) {
-      logger.warn('Google Flights sin resultados, fallback a Amadeus');
-      warnings.push('Google Flights sin datos, usando Amadeus');
-      try {
-        // Ya normalizado al inicio de search()
-      const amadeusResult = await amadeusProvider.search(params);
+// VERIFICAR si es horario clave para Amadeus (4 veces al día)
+const timeCheck = isAmadeusHour();
+if (!timeCheck.allowed) {
+logger.warn('Google sin resultados, pero NO es horario Amadeus', { currentHour: timeCheck.currentHour, allowedHours: AMADEUS_HOURS });
+warnings.push('Google sin datos. Amadeus solo en horarios clave (6, 12, 18, 22hs)');
+return emptyResult(warnings);
+}
+logger.warn('Google sin resultados + horario Amadeus OK', { hour: timeCheck.currentHour, keyHour: timeCheck.keyHour });
+try {
+// Ya normalizado al inicio de search()
+const amadeusResult = await amadeusProvider.search(params);
         if (!amadeusResult.cached) {
           const usageRepo = require('../database/repositories/usageRepo');
           await usageRepo.increment(PROVIDER_NAMES.AMADEUS);
