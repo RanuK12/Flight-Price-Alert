@@ -221,12 +221,8 @@ function mapOfferToFlight(offer, dictionaries, params) {
       duration: outbound.duration,
       segments: outSegments,
       returnSegments: inSegments,
-      bookingUrl: buildGoogleFlightsDeepLink(
-        firstSeg?.origin || params.origin,
-        lastSeg?.destination || params.destination,
-        departureDate,
-        returnDate,
-      ),
+      // NOTA: No usamos Google Flights porque los precios pueden diferir
+        bookingUrl: null, // Sin link - Amadeus no provee deep link universal
       offerId: offer.id,
       fetchedAt: new Date().toISOString(),
       // raw: offer, // activar para debug; desactivado en prod por tamaño
