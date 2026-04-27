@@ -226,27 +226,93 @@ function parseFlightsResponse(responseText) {
   // 2. Objeto directo: ["2025-06-15", ...] (ya es usable)
   // 3. Null/undefined: estructura cambiada
 
-  let innerData = null;
+  // Google Flights pot canviar l'índex on posa les dades. Provem múltiples índexs.
+// Índexes habituals: [2], [13], [1], [3]
+const INDICES_TO_TRY = [2, 13, 1, 3, 4, 5];
 
-  try {
-    innerData = parsed[0][2];
-  } catch (e) {
-    console.log(' ⚠️ API: Cannot access parsed[0][2] -', e.message);
-    if (DEBUG_RESPONSE && parsed[0]) {
-      console.log(' 🔍 DEBUG: parsed[0] length:', Array.isArray(parsed[0]) ? parsed[0].length : 'not array');
-      console.log(' 🔍 DEBUG: parsed[0]:', JSON.stringify(parsed[0]).slice(0, 300));
+let innerData = null;
+let foundAtIndex = null;
+
+// Primer: intentar accedir directament
+try {
+  if (!parsed[0] || !Array.isArray(parsed[0])) {
+    console.log(' ⚠️ API: parsed[0] is not an array');
+    if (DEBUG_RESPONSE) {
+      console.log(' 🔍 DEBUG: parsed type:', typeof parsed, Array.isArray(parsed) ? 'isArray:true' : 'isArray:false');
+      console.log(' 🔍 DEBUG: parsed (first 500):', String(parsed).slice(0, 500));
     }
     return [];
   }
+  
+  for (const idx of INDICES_TO_TRY) {
+    if (parsed[0][idx] !== undefined && parsed[0][idx] !== null) {
+      innerData = parsed[0][idx];
+      foundAtIndex = idx;
+      break;
+    }
+  }
+  
+  // Si no es troba cap index válido, intentar amb l'últim element
+  if (innerData === null && parsed[0].length > 0) {
+    for (let i = parsed[0].length - 1; i >= 0; i--) {
+      if (parsed[0][i] !== undefined && parsed[0][i] !== null) {
+        innerData = parsed[0][i];
+        foundAtIndex = i;
+        break;
+      }
+    }
+  }
+} catch (e) {
+  console.log(' ⚠️ API: Cannot access parsed[0] -', e.message);
+  if (DEBUG_RESPONSE) {
+    console.log(' 🔍 DEBUG: parsed[0] raw (first 500):', String(parsed[0]).slice(0, 500));
+  }
+  return [];
+}
+
+// Cap index va funcionar
+if (innerData === null) {
+  console.log(` ⚠️ API: No valid data found at indices ${INDVICES_TO_TRY.join(', ')}`);
+  if (DEBUG_RESPONSE) {
+    console.log(' 🔍 DEBUG: Full parsed[0] structure:');
+    if (Array.isArray(parsed[0])) {
+      for (let i = 0; i < parsed[0].length; i++) {
+        console.log(` 🔍 DEBUG: parsed[0][${i}] = ${String(parsed[0][i]).slice(0, 200)}`);
+      }
+    }
+    console.log(' 🔍 DEBUG: Full parsed (first 2000 chars):', JSON.stringify(parsed).slice(0, 2000));
+  }
+  return [];
+}
+
+if (DEBUG_RESPONSE && foundAtIndex) {
+  console.log(` 🔍 DEBUG: Found valid data at index ${foundAtIndex}`);
+}
 
   // DEBUG: Log response structure if enabled
   if (DEBUG_RESPONSE) {
     console.log(' 🔍 DEBUG: innerData type:', typeof innerData, Array.isArray(innerData) ? '(array)' : '');
-    if (typeof innerData === 'string') {
+    const innerType = typeof innerData;
+    const isArray = Array.isArray(innerData);
+    console.log(' 🔍 DEBUG: innerData type:', innerType, isArray ? '(array)' : '', '- value:', String(innerData).slice(0, 200));
+    
+    // Si és null o objecte buit, mostrem tot el parsed[0] per debugging
+    if (innerData === null || (innerType === 'object' && innerData !== null && !isArray && Object.keys(innerData).length === 0)) {
+      console.log(' 🔍 DEBUG: innerData és NULL o buit. Estructura parsed[0]:');
+      if (parsed[0] && Array.isArray(parsed[0])) {
+        console.log(' 🔍 DEBUG: parsed[0] length:', parsed[0].length);
+        for (let i = 0; i < Math.min(parsed[0].length, 10); i++) {
+          console.log(` 🔍 DEBUG: parsed[0][${i}] type:`, typeof parsed[0][i], Array.isArray(parsed[0][i]) ? '(array)' : '', '- value:', String(parsed[0][i]).slice(0, 150));
+        }
+      }
+      console.log(' 🔍 DEBUG: FULL parsed (first 2000 chars):', JSON.stringify(parsed).slice(0, 2000));
+    }
+    
+    if (innerType === 'string') {
       console.log(' 🔍 DEBUG: innerData (string):', innerData.slice(0, 300));
-    } else if (Array.isArray(innerData)) {
+    } else if (isArray) {
       console.log(' 🔍 DEBUG: innerData (array):', JSON.stringify(innerData).slice(0, 300));
-    } else if (typeof innerData === 'object') {
+    } else if (innerType === 'object' && innerData !== null) {
       console.log(' 🔍 DEBUG: innerData (object):', JSON.stringify(innerData).slice(0, 300));
     }
   }
