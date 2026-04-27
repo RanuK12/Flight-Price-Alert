@@ -78,9 +78,29 @@ async function checkAmadeusBudget() {
  * @param {{mode?: 'interactive'|'background'|'validation', forceProvider?: 'amadeus'|'google_flights'}} [opts]
  * @returns {Promise<FlightSearchResult & {providerUsed: string, warnings?: string[]}>}
  */
+/**
+ * Formatea una fecha a YYYY-MM-DD
+ * @param {any} date - Date, ISO string, o string legacy
+ */
+function normalizeDate(date) {
+  if (!date) return null;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return String(date).split('T')[0]; // fallback
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 async function search(params, opts = {}) {
   const mode = opts.mode || MODE.INTERACTIVE;
   const warnings = [];
+
+  // Normalizar fechas una vez al principio
+  params.departureDate = normalizeDate(params.departureDate);
+  if (params.returnDate) {
+    params.returnDate = normalizeDate(params.returnDate);
+  }
 
   // forceProvider override: salta la lógica híbrida y usa el provider pedido.
   if (opts.forceProvider === PROVIDER_NAMES.GOOGLE_FLIGHTS) {
@@ -157,13 +177,8 @@ async function search(params, opts = {}) {
       logger.warn('Google Flights sin resultados, fallback a Amadeus');
       warnings.push('Google Flights sin datos, usando Amadeus');
       try {
-        // Normalizar fechas a formato YYYY-MM-DD para Amadeus
-      const amadeusParams = {
-        ...params,
-        departureDate: String(params.departureDate).split('T')[0],
-        returnDate: params.returnDate ? String(params.returnDate).split('T')[0] : undefined,
-      };
-      const amadeusResult = await amadeusProvider.search(amadeusParams);
+        // Ya normalizado al inicio de search()
+      const amadeusResult = await amadeusProvider.search(params);
         if (!amadeusResult.cached) {
           const usageRepo = require('../database/repositories/usageRepo');
           await usageRepo.increment(PROVIDER_NAMES.AMADEUS);
