@@ -285,9 +285,11 @@ if (innerData === null) {
   return [];
 }
 
-if (DEBUG_RESPONSE && foundAtIndex) {
-  console.log(` 🔍 DEBUG: Found valid data at index ${foundAtIndex}`);
-}
+if (foundAtIndex) {
+  console.log(` 🔍 DEBUG: Found valid data at index ${foundAtIndex}`);  // En producció, sempre mostrem la estructura completa quan no hi ha vols
+  // per poder diagnosticar el problema
+  if (innerData && Array.isArray(innerData)) {
+    console.log(` 🔍 DEBUG: innerData length: ${innerData.length}`);    console.log(` 🔍 DEBUG: innerData content (first 3000 chars):`, JSON.stringify(innerData).slice(0, 3000));  }}
 
   // DEBUG: Log response structure if enabled
   if (DEBUG_RESPONSE) {
