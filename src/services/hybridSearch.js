@@ -157,7 +157,13 @@ async function search(params, opts = {}) {
       logger.warn('Google Flights sin resultados, fallback a Amadeus');
       warnings.push('Google Flights sin datos, usando Amadeus');
       try {
-        const amadeusResult = await amadeusProvider.search(params);
+        // Normalizar fechas a formato YYYY-MM-DD para Amadeus
+      const amadeusParams = {
+        ...params,
+        departureDate: String(params.departureDate).split('T')[0],
+        returnDate: params.returnDate ? String(params.returnDate).split('T')[0] : undefined,
+      };
+      const amadeusResult = await amadeusProvider.search(amadeusParams);
         if (!amadeusResult.cached) {
           const usageRepo = require('../database/repositories/usageRepo');
           await usageRepo.increment(PROVIDER_NAMES.AMADEUS);
