@@ -18,232 +18,121 @@
 const axios = require('axios');
 
 // ═══════════════════════════════════════════════════════════════
-// CONSTANTS
-// ═══════════════════════════════════════════════════════════════
-
-const SEARCH_URL =
-  'https://www.google.com/_/FlightsFrontendUi/data/travel.frontend.flights.FlightsFrontendService/GetShoppingResults';
-
-const CALENDAR_URL =
-  'https://www.google.com/_/FlightsFrontendUi/data/travel.frontend.flights.FlightsFrontendService/GetCalendarGraph';
-
-const TRIP_TYPE = { ROUND_TRIP: 1, ONE_WAY: 2 };
-const SEAT_TYPE = { ECONOMY: 1, PREMIUM_ECONOMY: 2, BUSINESS: 3, FIRST: 4 };
-const MAX_STOPS = { ANY: 0, NON_STOP: 1, ONE_STOP: 2, TWO_STOPS: 3 };
-const SORT_BY = { NONE: 0, TOP: 1, CHEAPEST: 2, DEPARTURE: 3, ARRIVAL: 4, DURATION: 5 };
-
-const USER_AGENTS = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:123.0) Gecko/20100101 Firefox/123.0',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.15'
-];
-
-function getRandomUserAgent() {
-  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
-}
-
-const REQUEST_HEADERS = {
-  'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-  'Accept': '*/*',
-  'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
-  'Accept-Encoding': 'gzip, deflate, br',
-  'Origin': 'https://www.google.com',
-  'Referer': 'https://www.google.com/travel/flights',
-  'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-  'Sec-Ch-Ua-Mobile': '?0',
-  'Sec-Ch-Ua-Platform': '"Windows"',
-  'Sec-Fetch-Dest': 'empty',
-  'Sec-Fetch-Mode': 'cors',
-  'Sec-Fetch-Site': 'same-origin',
-};
-
-// Rate limiting
-let lastRequestTime = 0;
-const MIN_DELAY_MS = 4000;  // 4s base entre llamadas (era 2s → 429 frecuentes)
-const JITTER_MAX_MS = 3000; // jitter aleatorio 0-3s adicional
-
-// Circuit breaker (tolerante a 429 aislados)
-const circuitBreaker = {
-  failures: 0,
-  lastFailure: null,
-  isOpen: false,
-  threshold: 12,                // más tolerante (era 8)
-  resetTimeout: 5 * 60 * 1000,
-
-  recordFailure() {
-    this.failures++;
-    this.lastFailure = Date.now();
-    if (this.failures >= this.threshold) {
-      this.isOpen = true;
-      console.log(`  🔴 API circuit breaker OPEN (${this.failures} failures). Pause 5 min.`);
-    }
-  },
-
-  /**
-   * 429-specific: no cuenta como failure normal, pero fuerza un backoff
-   * largo (15s) para dejar que Google se calme.
-   */
-  async backoff429() {
-    this.failures += 0.5; // medio-fallo: 429 es transitorio
-    this.lastFailure = Date.now();
-    if (this.failures >= this.threshold) {
-      this.isOpen = true;
-      console.log(`  🔴 API circuit breaker OPEN (${this.failures} failures). Pause 5 min.`);
-      return;
-    }
-    const pause = 15000 + Math.random() * 5000; // 15-20s
-    console.log(`  ⏳ 429 backoff: pausando ${(pause/1000).toFixed(0)}s`);
-    await new Promise(r => setTimeout(r, pause));
-  },
-
-  recordSuccess() {
-    this.failures = Math.max(0, this.failures - 1);
-    if (this.failures === 0) this.isOpen = false;
-  },
-
-  canProceed() {
-    if (!this.isOpen) return true;
-    if (Date.now() - this.lastFailure > this.resetTimeout) {
-      this.isOpen = false;
-      this.failures = 0;
-      return true;
-    }
-    return false;
-  },
-};
-
-// ═══════════════════════════════════════════════════════════════
-// PAYLOAD ENCODING (port of fli's FlightSearchFilters.encode)
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * Build the nested filter array for Google Flights API
- */
-function buildFiltersArray({
-  segments,
-  tripType = TRIP_TYPE.ONE_WAY,
-  seatType = SEAT_TYPE.ECONOMY,
-  adults = 1,
-  children = 0,
-  infantsOnLap = 0,
-  infantsInSeat = 0,
-  maxStops = MAX_STOPS.ANY,
-  sortBy = SORT_BY.CHEAPEST,
-  maxPrice = null,
-  currency = 'EUR',
-}) {
-  const formattedSegments = segments.map(seg => [
-    [[[seg.origin, 0]]],       // departure airports
-    [[[seg.destination, 0]]],  // arrival airports
-    null,                       // time restrictions
-    maxStops,                   // stops filter
-    null,                       // airlines filter
-    null,                       // placeholder
-    seg.date,                   // travel date "YYYY-MM-DD"
-    null,                       // max duration
-    null,                       // selected flights (round-trip)
-    null,                       // layover airports
-    null,
-    null,
-    null,                       // layover max duration
-    null,                       // emissions
-    3,                          // constant
-  ]);
-
-  const filters = [
-    [],
-    [
-      null,
-      null,
-      tripType,
-      null,
-      [],
-      seatType,
-      [adults, children, infantsOnLap, infantsInSeat],
-      maxPrice ? [null, maxPrice] : null,
-      null, null, null, null, null,
-      formattedSegments,
-      null,
-      [currency],           // index 15: currency
-      null,
-      1,
-    ],
-    sortBy,
-    0,
-    0,
-    2,
-  ];
-
-  return filters;
-}
-
-/**
- * Encode filters into the f.req POST body format
- */
-function encodePayload(filters) {
-  const filtersJson = JSON.stringify(filters);
-  const wrapped = JSON.stringify([null, filtersJson]);
-  return `f.req=${encodeURIComponent(wrapped)}`;
-}
-
-// ═══════════════════════════════════════════════════════════════
 // RESPONSE PARSING (port of fli's response parser)
 // ═══════════════════════════════════════════════════════════════
 
 /**
+ * Feature flag para debuggear responses en producción.
+ * Setear a true para loggear estructura completa de responses.
+ * WARNING: Genera logs voluminosos. Usar solo en debugging.
+ */
+const DEBUG_RESPONSE = process.env.GOOGLE_FLIGHTS_DEBUG === 'true';
+
+/**
  * Parse raw Google Flights API response into flight results
+ * Maneja tanto string como objeto directo en parsed[0][2].
  */
 function parseFlightsResponse(responseText) {
-  // Strip XSSI prefix ")]}" and parse
+  // Strip XSSI prefix and parse
   const cleaned = responseText.replace(/^\)\]\}'[\s\n]*/, '');
 
   let parsed;
   try {
     parsed = JSON.parse(cleaned);
   } catch (e) {
-    console.log('  ⚠️ API: Failed to parse outer JSON');
+    console.log(' ⚠️ API: Failed to parse outer JSON -', e.message);
+    if (DEBUG_RESPONSE) {
+      console.log(' 🔍 DEBUG: Raw response (first 500 chars):', responseText.slice(0, 500));
+    }
     return [];
   }
 
-  // Navigate to inner JSON string: parsed[0][2]
-  let innerJsonStr;
+  // === DIAGNÓSTICO DEL PROBLEMA ===
+  // Google Flights puede devolver inner data como:
+  // 1. String: "\"2025-06-15\"" (necesita JSON.parse)
+  // 2. Objeto directo: ["2025-06-15", ...] (ya es usable)
+  // 3. Null/undefined: estructura cambiada
+
+  let innerData = null;
+
   try {
-    innerJsonStr = parsed[0][2];
-    if (typeof innerJsonStr !== 'string') {
-      console.log('  ⚠️ API: Inner data is not a string');
+    innerData = parsed[0][2];
+  } catch (e) {
+    console.log(' ⚠️ API: Cannot access parsed[0][2] -', e.message);
+    if (DEBUG_RESPONSE && parsed[0]) {
+      console.log(' 🔍 DEBUG: parsed[0] length:', Array.isArray(parsed[0]) ? parsed[0].length : 'not array');
+      console.log(' 🔍 DEBUG: parsed[0]:', JSON.stringify(parsed[0]).slice(0, 300));
+    }
+    return [];
+  }
+
+  // DEBUG: Log response structure if enabled
+  if (DEBUG_RESPONSE) {
+    console.log(' 🔍 DEBUG: innerData type:', typeof innerData, Array.isArray(innerData) ? '(array)' : '');
+    if (typeof innerData === 'string') {
+      console.log(' 🔍 DEBUG: innerData (string):', innerData.slice(0, 300));
+    } else if (Array.isArray(innerData)) {
+      console.log(' 🔍 DEBUG: innerData (array):', JSON.stringify(innerData).slice(0, 300));
+    } else if (typeof innerData === 'object') {
+      console.log(' 🔍 DEBUG: innerData (object):', JSON.stringify(innerData).slice(0, 300));
+    }
+  }
+
+  // === PARSEO SEGURO: string u objeto ===
+  let data;
+  if (typeof innerData === 'string') {
+    // Caso 1: innerData es string → necesita JSON.parse
+    try {
+      data = JSON.parse(innerData);
+    } catch (e) {
+      console.log(' ⚠️ API: Failed to parse inner JSON -', e.message);
+      if (DEBUG_RESPONSE) {
+        console.log(' 🔍 DEBUG: innerData string:', innerData.slice(0, 500));
+      }
       return [];
     }
-  } catch (e) {
-    console.log('  ⚠️ API: Cannot access parsed[0][2]');
+  } else if (Array.isArray(innerData) || (typeof innerData === 'object' && innerData !== null)) {
+    // Caso 2: innerData ya es objeto/array → usar directamente
+    data = innerData;
+  } else {
+    // Caso 3: tipo inesperado (null, number, boolean)
+    console.log(' ⚠️ API: Inner data has unexpected type:', typeof innerData, '- value:', innerData);
     return [];
   }
 
-  let data;
-  try {
-    data = JSON.parse(innerJsonStr);
-  } catch (e) {
-    console.log('  ⚠️ API: Failed to parse inner JSON');
-    return [];
-  }
-
-  // Flight results - Google changed structure, try multiple indices
+  // Flight results - probar múltiples índices
   const flights = [];
 
-  // Try data[2] and data[3]
-  for (const idx of [2, 3]) {
+  // data puede ser:
+  // - Array con sub-secciones en índices [2], [3], etc.
+  // - Objeto con keys numéricas
+  const indicesToCheck = Array.isArray(data) ? [2, 3, 0] : [];
+
+  for (const idx of indicesToCheck) {
     try {
       const section = data[idx];
-      if (!Array.isArray(section) || !Array.isArray(section[0])) continue;
+      if (!Array.isArray(section)) continue;
 
-      for (const item of section[0]) {
+      // Sección puede ser array de arrays (múltiples flights)
+      // o array con estructura específica
+      const flightArray = Array.isArray(section[0]) ? section[0] : section;
+
+      if (!Array.isArray(flightArray)) continue;
+
+      for (const item of flightArray) {
         const flight = parseFlightItem(item);
         if (flight) flights.push(flight);
       }
     } catch (e) {
-      // Section not available
+      if (DEBUG_RESPONSE) {
+        console.log(' 🔍 DEBUG: Error parsing section', idx, '-', e.message);
+      }
     }
+  }
+
+  // Fallback: si no hay flights, intentar parsear como estructura plana
+  if (flights.length === 0 && DEBUG_RESPONSE) {
+    console.log(' 🔍 DEBUG: No flights parsed. Full data structure:', JSON.stringify(data).slice(0, 500));
   }
 
   return flights;
@@ -531,10 +420,15 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
       return { success: false, flights: [], minPrice: null, error: `HTTP ${response.status}` };
     }
 
-    const flights = parseFlightsResponse(response.data);
+    const rawFlights = parseFlightsResponse(response.data);
+
+  // DEBUG: Log raw response structure
+  if (DEBUG_RESPONSE) {
+    console.log(' 🔍 DEBUG: Raw flights from parser:', rawFlights.length);
+  }
 
     // Filter valid prices and sort
-    const validFlights = flights
+    const validFlights = rawFlights
       .filter(f => f.price >= 10 && f.price <= 15000)
       .sort((a, b) => a.price - b.price);
 
@@ -712,4 +606,5 @@ module.exports = {
   MAX_STOPS,
   SORT_BY,
   AIRLINE_CODES,
+  DEBUG_RESPONSE, // Exportado para tests
 };
