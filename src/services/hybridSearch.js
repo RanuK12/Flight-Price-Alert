@@ -151,7 +151,25 @@ async function search(params, opts = {}) {
 
   // Background: scraper primero (evitar gastar Amadeus en cron masivos).
   try {
-    return await runScraper(params, warnings);
+    const result = await runScraper(params, warnings);
+    // Fallback a Amadeus si Google no devuelve vuelos (problema detectado: Google retorna "wrb.fr")
+    if (!result.flights || result.flights.length === 0) {
+      logger.warn('Google Flights sin resultados, fallback a Amadeus');
+      warnings.push('Google Flights sin datos, usando Amadeus');
+      try {
+        const amadeusResult = await amadeusProvider.search(params);
+        if (!amadeusResult.cached) {
+          const usageRepo = require('../database/repositories/usageRepo');
+          await usageRepo.increment(PROVIDER_NAMES.AMADEUS);
+        }
+        return { ...amadeusResult, providerUsed: PROVIDER_NAMES.AMADEUS, warnings };
+      } catch (amadeusErr) {
+        logger.warn('Fallback Amadeus falló', { error: amadeusErr.message });
+        // Retornar resultat buit si Amadeus també falla
+        return emptyResult(warnings);
+      }
+    }
+    return result;
   } catch (scraperErr) {
     const msg = /** @type {Error} */(scraperErr).message || 'unknown';
     if (msg.includes('scraper-timeout')) {
