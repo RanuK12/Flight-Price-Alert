@@ -67,12 +67,14 @@ async function notifyOffer(flight, ctx) {
 
   const card = fmt.flightCard(flight, { level: ctx.dealLevel, badge: emoji.split(' ')[0] });
 
+// NOTA: El precio en Google puede diferir (cambia en tiempo real)
+
   const text =
     `${emoji}${routeTitle}\n` +
     `━━━━━━━━━━━━━━━━━━━\n` +
     `${card}\n` +
     thresholdLine +
-    `<i>Detectado ${fmt.date(new Date().toISOString())}</i>`;
+    `<i>Detectado ${fmt.date(new Date().toISOString())} ${flight.source === 'amadeus' ? '⚠️ <i>Amadeus: precio puede diferir en Google</i>' : ''}</i>`;
 
   // Deep-links (primary + hasta 2 alternativas).
   const links = buildLinksForFlight(flight);
