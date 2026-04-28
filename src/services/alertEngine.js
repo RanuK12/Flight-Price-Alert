@@ -246,7 +246,7 @@ async function runOnce() {
       const previousPrice = await getPreviousPrice(route._id.toString());
       const silent = shouldBeSilent(cheapest.price, previousPrice, route.priceThreshold);
 
-      const res = await notifyOffer(cheapest, {
+      const res = await notifyOffer(flightToNotify, {
         telegramUserId: route.telegramUserId,
         telegramChatId: route.telegramChatId,
         routeId: route._id.toString(),
