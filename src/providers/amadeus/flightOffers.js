@@ -222,7 +222,9 @@ function mapOfferToFlight(offer, dictionaries, params) {
       segments: outSegments,
       returnSegments: inSegments,
       // NOTA: No usamos Google Flights porque los precios pueden diferir
-        bookingUrl: null, // Sin link - Amadeus no provee deep link universal
+        // Link genérico de búsqueda en Amadeus para esta ruta
+        // Amadeus no provee deep link directo al offer, pero podemos armar búsqueda
+        bookingUrl: `https://www.amadeus.com/flight-search?origin=${firstSeg?.origin || params.origin}&destination=${lastSeg?.destination || params.destination}&date=${departureDate}&returnDate=${returnDate || ''}`, // Búsqueda en Amadeus
       offerId: offer.id,
       fetchedAt: new Date().toISOString(),
       // raw: offer, // activar para debug; desactivado en prod por tamaño
