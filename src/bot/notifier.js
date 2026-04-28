@@ -11,6 +11,32 @@
 
 'use strict';
 
+/**
+ * Valida si el precio de Amadeus es coerente con Google.
+ * Si difiere >50%, asume que Amadeus tiene pricing errado.
+ */
+function validatePrice(source, amadeusPrice, googlePrice) {
+  if (source !== 'amadeus') return { valid: true, price: amadeusPrice };
+  if (!googlePrice || googlePrice <= 0) return { valid: true, price: amadeusPrice };
+  
+  const diff = Math.abs(googlePrice - amadeusPrice) / googlePrice;
+  
+  // Si difiere >50%, el precio de Amadeus es probablemente erróneo
+  if (diff > 0.5) {
+    return { valid: false, price: googlePrice, reason: 'Amadeus price differs >50% from Google' };
+  }
+  
+  // Si difiere entre 20-50%, usamos el de Google (más conservador)
+  if (diff > 0.2) {
+    return { valid: true, price: googlePrice, reason: 'Using Google price (conservative)' };
+  }
+  
+  // Difiere <20%, usamos Amadeus
+  return { valid: true, price: amadeusPrice };
+}
+
+module.exports = { validatePrice };
+
 const fmt = require('./formatters');
 const { buildLinksForFlight } = require('./deepLinks');
 const notificationsRepo = require('../database/repositories/notificationsRepo');
