@@ -198,7 +198,22 @@ async function runOnce() {
 
       // Elegimos la oferta más barata por ruta/fecha para no spamear.
       const cheapest = result.flights.reduce((a, b) => (a.price <= b.price ? a : b));
-      const { level } = classifyPrice(
+
+    
+    // VALIDAR: Si viene de Amadeus, verificar que el precio sea razonable
+    // Si el precio es extremadamente bajo (<$200 para vuelos largos), probablemente sea erróneo
+    const MIN_PRICE_THRESHOLD = 200; // USD/EUR mínimo razonable
+    if (cheapest.source === 'amadeus' && cheapest.price < MIN_PRICE_THRESHOLD) {
+      logger.warn('Precio Amadeus sospechoso (< threshold), skip', { 
+        route: cheapest.origin + '-' + cheapest.destination, 
+        price: cheapest.price, 
+        source: cheapest.source 
+      });
+      skippedNoFlights += 1;
+      await sleep(INTER_ROUTE_DELAY_MS);
+      continue;
+    }
+          const { level } = classifyPrice(
         cheapest.origin, cheapest.destination,
         cheapest.price, cheapest.tripType,
       );
