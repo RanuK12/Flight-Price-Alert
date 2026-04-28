@@ -163,16 +163,23 @@ function buildLinksForFlight(flight) {
   const alternatives = [];
   let primary = null;
 
-  if (mainCarrier && CARRIER_BUILDERS[mainCarrier]) {
-    const url = CARRIER_BUILDERS[mainCarrier]({ ...common, flightNumber });
-    if (url) primary = { label: `Reservar en ${mainCarrier}`, url };
+  // Si la oferta tiene bookingUrl (ej: Amadeus), usar como primary
+  if (flight.bookingUrl) {
+    primary = { label: 'Reservar en Amadeus', url: flight.bookingUrl };
+    // Agregar Google Flights como alternativa
+    const gf = googleFlightsUrl({ ...common, currency: flight.currency, carrier: mainCarrier });
+    alternatives.push({ label: 'Ver en Google Flights (comparar)', url: gf });
+  } else {
+    // Sin bookingUrl: usar Google como primary
+    const gf = googleFlightsUrl({ ...common, currency: flight.currency, carrier: mainCarrier });
+    if (mainCarrier && CARRIER_BUILDERS[mainCarrier]) {
+      const url = CARRIER_BUILDERS[mainCarrier]({ ...common, flightNumber });
+      if (url) primary = { label: `Reservar en ${mainCarrier}`, url };
+    }
+    if (!primary) primary = { label: 'Ver en Google Flights', url: gf };
+    else alternatives.push({ label: 'Google Flights', url: gf });
   }
-
-  const gf = googleFlightsUrl({ ...common, currency: flight.currency, carrier: mainCarrier });
-  const sky = skyscannerUrl(common);
-  if (!primary) primary = { label: 'Ver en Google Flights', url: gf };
-  else alternatives.push({ label: 'Google Flights', url: gf });
-  alternatives.push({ label: 'Skyscanner', url: sky });
+  alternatives.push({ label: 'Skyscanner', url: skyscannerUrl(common) });
 
   return { primary, alternatives };
 }
