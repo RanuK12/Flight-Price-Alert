@@ -220,7 +220,21 @@ async function runOnce() {
       const rank = LEVEL_RANK[level] ?? 99;
 
       // 1) Debe cumplir el nivel mínimo configurado por el usuario.
-      if (rank > minRank) {
+      let flightToNotify = cheapest;
+    // CONFIRMAR con Amadeus Pricing API - link exacto del booking
+    if (cheapest.source === 'amadeus' && cheapest.raw) {
+      try {
+        const amadeus = require('../providers/amadeus');
+        const pricing = await amadeus.pricing.confirmOffer(cheapest.raw);
+        if (pricing.confirmed && pricing.confirmedPrice) {
+          flightToNotify = { ...cheapest, price: pricing.confirmedPrice };
+          logger.info('Amadeus pricing confirmo', { route: cheapest.origin + '-' + cheapest.destination, original: cheapest.price, confirmed: pricing.confirmedPrice });
+        }
+      } catch (err) {
+        logger.warn('Error pricing confirm', { error: err.message });
+      }
+    }
+    if (rank > minRank) {
         skippedByLevel += 1;
         logger.debug('Ruta filtrada por nivel', {
           id: route._id, route: `${route.origin}-${route.destination}`,
