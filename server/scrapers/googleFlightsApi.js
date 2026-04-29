@@ -404,9 +404,20 @@ function parseFlightItem(item) {
 
       if (segments.length > 0 && Array.isArray(segments[0])) {
         const seg = segments[0];
-        // seg structure: [null,null,null,"EZE","Airport","BCN","Airport",...,duration,stops,price,...]
-        const price = seg[11];
-        if (typeof price !== 'number' || price <= 0) return null;
+        // seg structure: [null,null,null,"EZE","Airport","BCN","Airport",...,duration_min,stops,...]
+        // BUG-FIX: seg[11] NO es precio (es duración en minutos del segment).
+        // Precio total del itinerario vive en item[1] (mismo lugar que OLD FORMAT).
+        // Si no podemos extraerlo de item[1], descartamos el item para evitar
+        // precios falsos sub-€200 (caso Turkish $155 EZE→BCN).
+        let price = null;
+        try {
+          const priceArr = item[1]?.[0];
+          if (Array.isArray(priceArr) && priceArr.length > 0) {
+            const candidate = priceArr[priceArr.length - 1];
+            if (typeof candidate === 'number' && candidate > 0) price = candidate;
+          }
+        } catch (e) { /* fallthrough */ }
+        if (price === null) return null;
 
         const origin = seg[3] || '';
         const dest = seg[5] || '';

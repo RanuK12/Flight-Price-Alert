@@ -199,19 +199,55 @@ async function runOnce() {
       // Elegimos la oferta más barata por ruta/fecha para no spamear.
       const cheapest = result.flights.reduce((a, b) => (a.price <= b.price ? a : b));
 
-    
-    // VALIDAR: Si viene de Amadeus, verificar que el precio sea razonable
-    // Si el precio es extremadamente bajo (<$200 para vuelos largos), probablemente sea erróneo
-    const MIN_PRICE_THRESHOLD = 200; // USD/EUR mínimo razonable
-    if (cheapest.source === 'amadeus' && cheapest.price < MIN_PRICE_THRESHOLD) {
-      logger.warn('Precio Amadeus sospechoso (< threshold), skip', { 
-        route: cheapest.origin + '-' + cheapest.destination, 
-        price: cheapest.price, 
-        source: cheapest.source 
+
+    // SANITY FLOOR universal (cualquier provider). Filtra precios obviamente
+    // falsos del scraper (bug parser Google Flights NEW FORMAT que retornaba
+    // duración como precio: $155 EZE→BCN Turkish "directo").
+    // Floors basados en mínimo histórico realista por distancia.
+    const isLongHaul = ['MAD','BCN','FCO','MXP','CDG','LHR','FRA','AMS']
+      .includes(cheapest.destination) ||
+      ['MAD','BCN','FCO','MXP','CDG','LHR','FRA','AMS']
+      .includes(cheapest.origin);
+    const minFloor = isLongHaul
+      ? (cheapest.tripType === 'roundtrip' ? 500 : 350)  // EUR/USD
+      : 30;  // doméstico/regional
+    if (cheapest.price < minFloor) {
+      logger.warn('Precio sospechoso bajo floor, skip', {
+        route: cheapest.origin + '-' + cheapest.destination,
+        price: cheapest.price, source: cheapest.source,
+        floor: minFloor, tripType: cheapest.tripType,
       });
       skippedNoFlights += 1;
       await sleep(INTER_ROUTE_DELAY_MS);
       continue;
+    }
+
+    // CROSS-VALIDATE steals scraper con Amadeus pricing.
+    // Si scraper dice "ofertón" pero Amadeus oficial difiere mucho, usar Amadeus.
+    if (cheapest.source !== 'amadeus' && cheapest.price < (isLongHaul ? 450 : 80)) {
+      try {
+        const amadeus = require('../providers/amadeus');
+        const amadeusResult = await amadeus.offers.searchFlights({
+          origin: cheapest.origin,
+          destination: cheapest.destination,
+          departureDate: cheapest.departureDate,
+          returnDate: cheapest.returnDate || undefined,
+          currency: cheapest.currency || 'EUR',
+          max: 1,
+        });
+        const amaPrice = amadeusResult?.flights?.[0]?.price;
+        if (amaPrice && Math.abs(amaPrice - cheapest.price) / amaPrice > 0.4) {
+          logger.warn('Steal scraper rechazado: Amadeus difiere >40%', {
+            route: cheapest.origin + '-' + cheapest.destination,
+            scraper: cheapest.price, amadeus: amaPrice,
+          });
+          skippedNoFlights += 1;
+          await sleep(INTER_ROUTE_DELAY_MS);
+          continue;
+        }
+      } catch (err) {
+        logger.warn('Cross-validate Amadeus falló (continuando)', { err: err.message });
+      }
     }
           const { level } = classifyPrice(
         cheapest.origin, cheapest.destination,
@@ -266,6 +302,7 @@ async function runOnce() {
         routeId: route._id.toString(),
         dealLevel: level,
         threshold: route.priceThreshold,
+        thresholdCurrency: route.currency || prefs.currency || 'EUR',
         routeName: route.name || `${route.origin} → ${route.destination}`,
         silent,
       });

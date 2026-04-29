@@ -87,8 +87,11 @@ async function notifyOffer(flight, ctx) {
   }[ctx.dealLevel]) || '✈️ Precio';
 
   const routeTitle = ctx.routeName ? ` — <i>${fmt.esc(ctx.routeName)}</i>` : '';
+  // Threshold currency: usar la pasada por contexto (route.currency) si existe,
+  // si no, fallback al currency del vuelo. Evita mostrar "US$155 vs €420".
+  const thresholdCurrency = ctx.thresholdCurrency || flight.currency || 'EUR';
   const thresholdLine = ctx.threshold
-    ? `🎯 Umbral: <b>${fmt.price(ctx.threshold, flight.currency)}</b>\n`
+    ? `🎯 Umbral: <b>${fmt.price(ctx.threshold, thresholdCurrency)}</b>\n`
     : '';
 
   const card = fmt.flightCard(flight, { level: ctx.dealLevel, badge: emoji.split(' ')[0] });
