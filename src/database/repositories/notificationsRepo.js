@@ -52,23 +52,32 @@ async function insertNotification(input) {
     if (user) userId = user._id;
   }
 
-  const notif = await Notification.create({
-    user: userId,
-    route: input.route_id ?? null,
-    origin: input.origin,
-    destination: input.destination,
-    departureDate: input.departure_date ? new Date(input.departure_date) : null,
-    returnDate: input.return_date ? new Date(input.return_date) : null,
-    price: input.price,
-    currency: input.currency,
-    dealLevel: input.deal_level,
-    threshold: input.threshold ?? null,
-    provider: input.provider ?? '',
-    dedupKey: input.dedup_key,
-    sentAt: new Date(),
-    silent: input.silent ?? false,
-  });
-  return notif._id.toString();
+  try {
+    const notif = await Notification.create({
+      user: userId,
+      route: input.route_id ?? null,
+      origin: input.origin,
+      destination: input.destination,
+      departureDate: input.departure_date ? new Date(input.departure_date) : null,
+      returnDate: input.return_date ? new Date(input.return_date) : null,
+      price: input.price,
+      currency: input.currency,
+      dealLevel: input.deal_level,
+      threshold: input.threshold ?? null,
+      provider: input.provider ?? '',
+      dedupKey: input.dedup_key,
+      sentAt: new Date(),
+      silent: input.silent ?? false,
+    });
+    return notif._id.toString();
+  } catch (err) {
+    // E11000 = índice único dedupKey colisionó. Ya existe una notif igual,
+    // no es un fallo real: la notif ya fue enviada antes. Tragamos silenciosamente.
+    if (err && (err.code === 11000 || /E11000/.test(err.message))) {
+      return null;
+    }
+    throw err;
+  }
 }
 
 /**
