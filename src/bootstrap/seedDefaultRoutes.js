@@ -109,12 +109,12 @@ function buildRoutes(userId) {
   const chatId = userId;
   const routes = [];
 
-  // ── (A) COR↔MDQ roundtrip 7d, próximas 2 semanas ──
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const startA = new Date(today); startA.setDate(startA.getDate() + 1);
-  const endA = new Date(today);   endA.setDate(endA.getDate() + 14);
-  const pairs = roundtripPairs(startA, endA, 7);
+  // ── (A) COR↔MDQ roundtrip 7d, ventana fija 2026-05-06 → 2026-05-20 ──
+  // (15 días, hasta 9 pares ida/vuelta de 7d. Cubre el rango pedido por
+  //  el usuario para encontrar el más barato dentro de esas fechas.)
+  const startA = new Date('2026-05-06');
+  const endA   = new Date('2026-05-20');
+  const pairs  = roundtripPairs(startA, endA, 7);
   const rtTh = getThreshold('COR', 'MDQ', 'roundtrip');
 
   for (const { outbound, ret } of pairs) {
