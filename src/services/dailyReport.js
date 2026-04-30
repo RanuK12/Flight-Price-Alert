@@ -118,18 +118,26 @@ async function sendSummaryForUser(bot, userId, chatId) {
   await bot.sendMessage(chatId, `🏆 <b>Top ${latest.length} ofertas</b>`, { parse_mode: 'HTML' });
 
   for (const n of latest) {
+    // Schema Mongo usa camelCase. Convertir Date → ISO YYYY-MM-DD.
+    const toIso = (v) => {
+      if (!v) return null;
+      const d = v instanceof Date ? v : new Date(v);
+      return Number.isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
+    };
+    const depDate = toIso(n.departureDate);
+    const retDate = toIso(n.returnDate);
     const fakeFlight = /** @type {import('../providers/base').Flight} */ ({
       source: n.provider || 'unknown',
       origin: n.origin, destination: n.destination,
       price: n.price, currency: n.currency,
-      tripType: /** @type {any} */ (n.trip_type),
-      departureDate: n.departure_date, returnDate: n.return_date,
+      tripType: retDate ? 'roundtrip' : 'oneway',
+      departureDate: depDate, returnDate: retDate,
       airline: n.airline || 'Unknown',
       carrierCodes: [], stops: n.stops ?? 0,
-      bookingUrl: n.booking_url || undefined,
+      bookingUrl: n.bookingUrl || undefined,
     });
-    const badge = ({ steal: '🚨', great: '🔥', good: '✅' }[n.deal_level]) || '✈️';
-    const card = fmt.flightCard(fakeFlight, { level: n.deal_level, badge });
+    const badge = ({ steal: '🚨', great: '🔥', good: '✅' }[n.dealLevel]) || '✈️';
+    const card = fmt.flightCard(fakeFlight, { level: n.dealLevel, badge });
     const links = buildLinksForFlight(fakeFlight);
     const rows = [];
     if (links.primary) rows.push([{ text: `🛒 ${links.primary.label}`, url: links.primary.url }]);

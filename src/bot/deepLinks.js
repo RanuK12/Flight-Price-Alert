@@ -121,7 +121,11 @@ function klmAf({ origin, destination, departureDate, returnDate }) {
  * @param {{origin:string,destination:string,departureDate:string,returnDate?:string|null,currency?:string,carrier?:string}} args
  */
 function googleFlightsUrl(args) {
-  const parts = [`Flights from ${args.origin} to ${args.destination} on ${args.departureDate}`];
+  if (!args || !args.origin || !args.destination) {
+    return 'https://www.google.com/travel/flights?hl=es';
+  }
+  const parts = [`Flights from ${args.origin} to ${args.destination}`];
+  if (args.departureDate) parts[0] += ` on ${args.departureDate}`;
   if (args.returnDate) parts.push(`returning ${args.returnDate}`);
   if (args.carrier) parts.push(`with ${args.carrier}`);
   const q = encodeURIComponent(parts.join(' '));
@@ -134,9 +138,14 @@ function googleFlightsUrl(args) {
  * @param {{origin:string,destination:string,departureDate:string,returnDate?:string|null}} args
  */
 function skyscannerUrl({ origin, destination, departureDate, returnDate }) {
-  const d = departureDate.replaceAll('-', '').slice(2); // YYMMDD
-  const r = returnDate ? returnDate.replaceAll('-', '').slice(2) : '';
-  const base = `https://www.skyscanner.es/transport/vuelos/${origin.toLowerCase()}/${destination.toLowerCase()}/${d}`;
+  // Guard: notificaciones históricas sin departureDate completo no deben crashear.
+  // Si falta origin/destination/date, devolvemos un fallback genérico.
+  if (!origin || !destination || !departureDate) {
+    return 'https://www.skyscanner.es/';
+  }
+  const d = String(departureDate).replaceAll('-', '').slice(2); // YYMMDD
+  const r = returnDate ? String(returnDate).replaceAll('-', '').slice(2) : '';
+  const base = `https://www.skyscanner.es/transport/vuelos/${String(origin).toLowerCase()}/${String(destination).toLowerCase()}/${d}`;
   return returnDate ? `${base}/${r}/` : `${base}/`;
 }
 

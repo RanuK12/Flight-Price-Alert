@@ -66,23 +66,27 @@ async function renderOfertas(bot, chatId, userId, messageId) {
   }
 
   for (const n of list) {
+    // Schema Mongo usa camelCase. Antes leíamos snake_case → todo undefined →
+    // skyscannerUrl crasheaba con 'Cannot read replaceAll of undefined'.
+    const depDate = isoDate(n.departureDate);
+    const retDate = isoDate(n.returnDate);
     const fakeFlight = /** @type {import('../../providers/base').Flight} */ ({
       source: n.provider || 'unknown',
       origin: n.origin,
       destination: n.destination,
       price: n.price,
       currency: n.currency,
-      tripType: /** @type {any} */ (n.trip_type),
-      departureDate: n.departure_date,
-      returnDate: n.return_date,
+      tripType: retDate ? 'roundtrip' : 'oneway',
+      departureDate: depDate,
+      returnDate: retDate,
       airline: n.airline || 'Unknown',
       carrierCodes: [],
       stops: n.stops ?? 0,
-      bookingUrl: n.booking_url || undefined,
+      bookingUrl: n.bookingUrl || undefined,
     });
-    const badge = ({ steal: '🚨', great: '🔥', good: '✅' }[n.deal_level]) || '✈️';
-    const card = fmt.flightCard(fakeFlight, { level: n.deal_level, badge });
-    const sentAgo = timeAgo(n.sent_at);
+    const badge = ({ steal: '🚨', great: '🔥', good: '✅' }[n.dealLevel]) || '✈️';
+    const card = fmt.flightCard(fakeFlight, { level: n.dealLevel, badge });
+    const sentAgo = timeAgo(n.sentAt);
     const text = `${card}\n<i>🕒 ${sentAgo}</i>`;
 
     const links = buildLinksForFlight(fakeFlight);
@@ -101,6 +105,16 @@ async function renderOfertas(bot, chatId, userId, messageId) {
 
   await bot.sendMessage(chatId, '⬇️', { reply_markup: kb.mainMenu() });
   return true;
+}
+
+/** Convierte Date|string|null → "YYYY-MM-DD" o null. */
+function isoDate(v) {
+  if (!v) return null;
+  try {
+    const d = v instanceof Date ? v : new Date(v);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString().split('T')[0];
+  } catch { return null; }
 }
 
 /** "hace 12 min", "hace 3 h", "hace 2 días". */
