@@ -42,16 +42,17 @@ const PRICE_THRESHOLDS = {
   'BCN-ORD': { typical: 530, deal: 410, steal: 330 },
 
   // ── Buenos Aires → Europa (jun-jul) ──────────────────
-  'EZE-MAD': { typical: 600, deal: 500, steal: 420 },
-  'EZE-BCN': { typical: 600, deal: 500, steal: 420 },
-  'EZE-FCO': { typical: 700, deal: 580, steal: 500 },
-  'EZE-MXP': { typical: 700, deal: 580, steal: 500 },
+  // Steal unificado a €470 (pedido del usuario: avisar todo ≤ €470).
+  'EZE-MAD': { typical: 600, deal: 500, steal: 470 },
+  'EZE-BCN': { typical: 600, deal: 500, steal: 470 },
+  'EZE-FCO': { typical: 700, deal: 580, steal: 470 },
+  'EZE-MXP': { typical: 700, deal: 580, steal: 470 },
 
   // ── Córdoba → Europa ─────────────────────────────────
   'COR-MAD': { typical: 650, deal: 550, steal: 470 },
   'COR-BCN': { typical: 650, deal: 550, steal: 470 },
-  'COR-FCO': { typical: 750, deal: 620, steal: 540 },
-  'COR-MXP': { typical: 750, deal: 620, steal: 540 },
+  'COR-FCO': { typical: 750, deal: 620, steal: 470 },
+  'COR-MXP': { typical: 750, deal: 620, steal: 470 },
 
   // ── Italia → Tokio (sep/oct) ─────────────────────────
   'FCO-TYO': { typical: 1200, deal: 970, steal: 840 },

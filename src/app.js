@@ -16,6 +16,7 @@ const { config } = require('./config');
 const logger = require('./utils/logger').child('app');
 const { runMigrations } = require('./database/migrations');
 const { seedIfEmpty } = require('./bootstrap/seedDefaultRoutes');
+const { runMigration: runRoutesMigrationV2 } = require('./bootstrap/migrateRoutesV2');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
 const sessions = require('./bot/sessions');
@@ -59,6 +60,10 @@ async function main() {
         logger.error('seedIfEmpty failed (continuando)', /** @type {Error} */ (err));
       });
     }
+    // Migración idempotente v2: thresholds Europa €470 + ventana COR↔MDQ 6/5-20/5.
+    await runRoutesMigrationV2().catch((err) => {
+      logger.error('migrateRoutesV2 failed (continuando)', /** @type {Error} */ (err));
+    });
   }
 
   // 2. Health / debug HTTP
