@@ -1,11 +1,21 @@
 /**
  * Thresholds por ruta — valores en EUR (moneda de referencia del bot).
  *
- * Fuente: datos de mercado reales abr-2026 reportados por el usuario
- * + cross-check con tarifas Iberia/Air Europa/AR/LATAM en jun-jul 2026.
+ * Fuente: datos de mercado reales abr-may 2026 reportados por el usuario,
+ * + cross-check con tarifas Iberia/Air Europa/AR/LATAM/ITA en jun-jul 2026,
+ * + observaciones del scraper (logs may-2026: EZE→FCO min $752-755 USD
+ *   en ITA/Iberia directo ≈ €680-685 EUR).
  *
- * "steal" = ofertón (error de tarifa / promo loca, el único nivel que
- * dispara alerta cuando el usuario pide "solo ofertones").
+ * Niveles (EUR):
+ *   • "high"   — sobre lo típico (no alerta nunca)
+ *   • "normal" — típico de temporada (sin alerta por defecto)
+ *   • "good"   — por debajo del promedio (-15%); alerta si user = good+
+ *   • "great"  — oferta real del mercado (-20/25%); alerta si user = great+
+ *   • "steal"  — ofertón (-30% o error-fare); alerta siempre
+ *
+ * IMPORTANTE: en el pipeline (alertEngine) los precios del scraper suelen
+ * venir en USD. Se convierten a EUR antes de classifyPrice vía
+ * utils/currency.toEur. Mantener los valores acá SIEMPRE en EUR.
  *
  * @module config/priceThresholds
  */
@@ -42,17 +52,21 @@ const PRICE_THRESHOLDS = {
   'BCN-ORD': { typical: 530, deal: 410, steal: 330 },
 
   // ── Buenos Aires → Europa (jun-jul) ──────────────────
-  // Steal unificado a €470 (pedido del usuario: avisar todo ≤ €470).
-  'EZE-MAD': { typical: 600, deal: 500, steal: 470 },
-  'EZE-BCN': { typical: 600, deal: 500, steal: 470 },
-  'EZE-FCO': { typical: 700, deal: 580, steal: 470 },
-  'EZE-MXP': { typical: 700, deal: 580, steal: 470 },
+  // Recalibrado may-2026 tras observar piso de mercado real en logs:
+  // EZE→FCO/MXP directos ITA/Iberia: $752-755 USD ≈ €690.
+  // Umbrales en EUR. Usamos 'deal' (great) ≈ piso real del mercado,
+  // para que alertMinLevel='good' dispare cuando aparece ese piso.
+  'EZE-MAD': { typical: 780, deal: 640, steal: 520 },
+  'EZE-BCN': { typical: 780, deal: 640, steal: 520 },
+  'EZE-FCO': { typical: 850, deal: 720, steal: 600 },
+  'EZE-MXP': { typical: 850, deal: 720, steal: 600 },
 
   // ── Córdoba → Europa ─────────────────────────────────
-  'COR-MAD': { typical: 650, deal: 550, steal: 470 },
-  'COR-BCN': { typical: 650, deal: 550, steal: 470 },
-  'COR-FCO': { typical: 750, deal: 620, steal: 470 },
-  'COR-MXP': { typical: 750, deal: 620, steal: 470 },
+  // COR tiene menos competencia directa, piso típicamente €50-80 más alto.
+  'COR-MAD': { typical: 860, deal: 700, steal: 580 },
+  'COR-BCN': { typical: 860, deal: 700, steal: 580 },
+  'COR-FCO': { typical: 920, deal: 780, steal: 640 },
+  'COR-MXP': { typical: 920, deal: 780, steal: 640 },
 
   // ── Italia → Tokio (sep/oct) ─────────────────────────
   'FCO-TYO': { typical: 1200, deal: 970, steal: 840 },

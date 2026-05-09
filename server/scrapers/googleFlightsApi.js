@@ -272,7 +272,7 @@ try {
 
 // Cap index va funcionar
 if (innerData === null) {
-  console.log(` ⚠️ API: No valid data found at indices ${INDVICES_TO_TRY.join(', ')}`);
+  console.log(` ⚠️ API: No valid data found at indices ${INDICES_TO_TRY.join(', ')}`);
   if (DEBUG_RESPONSE) {
     console.log(' 🔍 DEBUG: Full parsed[0] structure:');
     if (Array.isArray(parsed[0])) {
