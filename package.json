@@ -16,7 +16,9 @@
     "test": "jest --detectOpenHandles",
     "test:scraper": "jest server/scrapers --testTimeout=30000",
     "test:api": "jest server/routes --testTimeout=10000",
-    "test:db": "jest server/database --testTimeout=10000"
+    "test:db": "jest server/database --testTimeout=10000",
+    "backfill:alert-level": "node scripts/backfill-alert-level.js",
+    "add:italy-june-alerts": "node scripts/add-italy-june-alerts.js"
   },
   "keywords": [
     "flights",
