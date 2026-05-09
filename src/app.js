@@ -17,6 +17,7 @@ const logger = require('./utils/logger').child('app');
 const { runMigrations } = require('./database/migrations');
 const { seedIfEmpty } = require('./bootstrap/seedDefaultRoutes');
 const { runMigration: runRoutesMigrationV2 } = require('./bootstrap/migrateRoutesV2');
+const { runMigration: runRoutesMigrationV3 } = require('./bootstrap/migrateRoutesV3');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
 const sessions = require('./bot/sessions');
@@ -63,6 +64,13 @@ async function main() {
     // Migración idempotente v2: thresholds Europa €470 + ventana COR↔MDQ 6/5-20/5.
     await runRoutesMigrationV2().catch((err) => {
       logger.error('migrateRoutesV2 failed (continuando)', /** @type {Error} */ (err));
+    });
+    // Migración idempotente v3:
+    //   · upgrade alertMinLevel='steal' -> 'good' (default histórico)
+    //   · seed de alertas Argentina -> Italia (cualquier aeropuerto),
+    //     one-way, 7-10 jun 2026, <= €500.
+    await runRoutesMigrationV3().catch((err) => {
+      logger.error('migrateRoutesV3 failed (continuando)', /** @type {Error} */ (err));
     });
   }
 
