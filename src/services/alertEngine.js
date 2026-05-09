@@ -22,6 +22,7 @@ const userPrefsRepo = require('../database/repositories/userPrefsRepo');
 const Notification = require('../database/models/Notification');
 const hybrid = require('./hybridSearch');
 const { classifyPrice } = require('../config/priceThresholds');
+const { toEur } = require('../utils/currency');
 const { notifyOffer, notifyBatchHeader } = require('../bot/notifier');
 const logger = require('../utils/logger').child('alertEngine');
 
@@ -249,9 +250,16 @@ async function runOnce() {
         logger.warn('Cross-validate Amadeus falló (continuando)', { err: err.message });
       }
     }
-          const { level } = classifyPrice(
+          // Convertir precio del scraper a EUR antes de clasificar.
+      // Google Flights suele devolver USD aunque pidamos EUR, y los
+      // thresholds están SIEMPRE en EUR (ver priceThresholds.js).
+      // Sin esta conversión, un vuelo EZE→FCO a $755 USD (≈€695) se
+      // comparaba contra threshold.typical=700 EUR y era clasificado
+      // como "high", bloqueando toda notificación (skippedByLevel).
+      const priceEur = toEur(cheapest.price, cheapest.currency || 'EUR');
+      const { level } = classifyPrice(
         cheapest.origin, cheapest.destination,
-        cheapest.price, cheapest.tripType,
+        priceEur, cheapest.tripType,
       );
       const rank = LEVEL_RANK[level] ?? 99;
 
@@ -272,9 +280,11 @@ async function runOnce() {
     }
     if (rank > minRank) {
         skippedByLevel += 1;
-        logger.debug('Ruta filtrada por nivel', {
+        logger.info('Ruta filtrada por nivel (precio por encima del mínimo configurado)', {
           id: route._id, route: `${route.origin}-${route.destination}`,
-          price: cheapest.price, level, rank,
+          date: route.outboundDate,
+          priceRaw: cheapest.price, currency: cheapest.currency || 'EUR',
+          priceEur, level, rank,
           minLevel: prefs.alert_min_level, minRank,
         });
         await sleep(INTER_ROUTE_DELAY_MS);

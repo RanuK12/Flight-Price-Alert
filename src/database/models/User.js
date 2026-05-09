@@ -13,7 +13,7 @@ const userSchema = new mongoose.Schema({
   telegramChatId: { type: Number, required: true },
   currency: { type: String, default: 'EUR' },
   searchMode: { type: String, enum: ['hybrid', 'amadeus', 'scraper'], default: 'hybrid' },
-  alertMinLevel: { type: String, enum: ['steal', 'great', 'good', 'all'], default: 'steal' },
+  alertMinLevel: { type: String, enum: ['steal', 'great', 'good', 'all'], default: 'good' },
   routesMigrationVersion: { type: Number, default: 0 },
 }, {
   timestamps: true,

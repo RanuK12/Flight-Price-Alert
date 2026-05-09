@@ -50,7 +50,7 @@ async function migrateUsers() {
       {
         telegramChatId: r.telegram_chat_id,
         searchMode: r.search_mode || 'hybrid',
-        alertMinLevel: r.alert_min_level || 'steal',
+        alertMinLevel: r.alert_min_level || 'good',
         currency: r.currency || 'EUR',
       },
       { upsert: true }
