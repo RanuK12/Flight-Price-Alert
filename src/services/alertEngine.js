@@ -257,10 +257,22 @@ async function runOnce() {
       // comparaba contra threshold.typical=700 EUR y era clasificado
       // como "high", bloqueando toda notificación (skippedByLevel).
       const priceEur = toEur(cheapest.price, cheapest.currency || 'EUR');
-      const { level } = classifyPrice(
+      let { level } = classifyPrice(
         cheapest.origin, cheapest.destination,
         priceEur, cheapest.tripType,
       );
+
+      // Si la ruta tiene priceThreshold explícito (seteado por el usuario
+      // en /nueva_alerta o en scripts de seed), el threshold manda. Esto
+      // cubre rutas que NO están en priceThresholds.js (ej. EZE→VCE,
+      // EZE→NAP, destinos ad-hoc): sin esta lógica, level queda en
+      // 'normal' por defecto y con alert_min_level='good' se filtra,
+      // ignorando el threshold que el usuario pidió explícitamente.
+      if (route.priceThreshold && cheapest.price <= route.priceThreshold) {
+        // Precio cumple threshold → promovemos a 'great' para que pase
+        // cualquier filtro >= good. Si ya era steal lo respetamos.
+        if (LEVEL_RANK[level] > LEVEL_RANK.great) level = 'great';
+      }
       const rank = LEVEL_RANK[level] ?? 99;
 
       // 1) Debe cumplir el nivel mínimo configurado por el usuario.
