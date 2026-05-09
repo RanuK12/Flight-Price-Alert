@@ -11,7 +11,7 @@ const User = require('../models/User');
 /** @type {Object} */
 const DEFAULTS = Object.freeze({
   searchMode: 'hybrid',
-  alertMinLevel: 'steal',
+  alertMinLevel: 'good',
   currency: 'EUR',
 });
 

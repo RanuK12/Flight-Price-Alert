@@ -3,7 +3,7 @@
  *
  * `user_prefs` guarda configuración elegida desde el bot:
  *   - search_mode     'hybrid' | 'amadeus' | 'scraper'
- *   - alert_min_level 'steal' | 'great' | 'good' | 'all'
+ *   - alert_min_level 'steal' | 'great' | 'good' | 'all' (default 'good')
  *   - currency        'EUR' | 'USD'
  *   - default_origin  IATA favorito para /buscar (opcional)
  *
@@ -25,7 +25,7 @@ async function up() {
       telegram_user_id   INTEGER PRIMARY KEY,
       telegram_chat_id   INTEGER,
       search_mode        TEXT DEFAULT 'hybrid',
-      alert_min_level    TEXT DEFAULT 'steal',
+      alert_min_level    TEXT DEFAULT 'good',
       currency           TEXT DEFAULT 'EUR',
       default_origin     TEXT,
       created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
