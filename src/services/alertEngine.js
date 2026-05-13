@@ -268,7 +268,19 @@ async function runOnce() {
       // EZE→NAP, destinos ad-hoc): sin esta lógica, level queda en
       // 'normal' por defecto y con alert_min_level='good' se filtra,
       // ignorando el threshold que el usuario pidió explícitamente.
-      if (route.priceThreshold && cheapest.price <= route.priceThreshold) {
+      // IMPORTANTE: route.priceThreshold está en la moneda de la ruta
+      // (route.currency, default 'EUR'). cheapest.price viene del scraper
+      // (Google Flights suele responder USD aun pidiendo EUR). Comparar
+      // crudo provocaba falsos "por encima del threshold":
+      // un vuelo a $540 USD (≈€497) contra threshold €500 da "540 > 500"
+      // y se filtraba aunque en EUR sí cumplía. Bug silencioso desde el
+      // seed de alertas Italia jun 7-10 (€500). Convertimos a la moneda
+      // del threshold antes de comparar.
+      const routeCurrency = (route.currency || 'EUR').toUpperCase();
+      const priceInThresholdCcy = routeCurrency === 'EUR'
+        ? priceEur
+        : toEur(cheapest.price, cheapest.currency || 'EUR'); // fallback: EUR como pivot
+      if (route.priceThreshold && priceInThresholdCcy <= route.priceThreshold) {
         // Precio cumple threshold → promovemos a 'great' para que pase
         // cualquier filtro >= good. Si ya era steal lo respetamos.
         if (LEVEL_RANK[level] > LEVEL_RANK.great) level = 'great';
@@ -304,11 +316,16 @@ async function runOnce() {
       }
 
       // 2) Si la ruta tiene threshold explícito, también debe respetarlo.
-      if (route.priceThreshold && cheapest.price > route.priceThreshold) {
+      // Comparamos en la moneda del threshold (ver nota de conversión
+      // más arriba). Sin esta conversión, un vuelo a $540 USD (≈€497)
+      // contra threshold €500 se filtraba por "540 > 500".
+      if (route.priceThreshold && priceInThresholdCcy > route.priceThreshold) {
         skippedByThreshold += 1;
         logger.debug('Ruta filtrada por threshold', {
           id: route._id, route: `${route.origin}-${route.destination}`,
-          price: cheapest.price, threshold: route.priceThreshold,
+          priceRaw: cheapest.price, currency: cheapest.currency || 'EUR',
+          priceInThresholdCcy, threshold: route.priceThreshold,
+          thresholdCcy: routeCurrency,
         });
         await sleep(INTER_ROUTE_DELAY_MS);
         continue;
