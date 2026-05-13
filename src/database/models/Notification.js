@@ -23,6 +23,15 @@ const notificationSchema = new mongoose.Schema({
   dedupKey: { type: String, required: true, unique: true },
   sentAt: { type: Date, default: Date.now },
   silent: { type: Boolean, default: false },
+  // Campos enriquecidos (antes se descartaban por strict:true del schema,
+  // causando "Unknown · directo" en el dailyReport).
+  airline: { type: String, default: 'Unknown' },
+  stops: { type: Number, default: 0 },
+  bookingUrl: { type: String, default: null },
+  // Sanity-check: si el sanityCheck middleware decide cuarentenar,
+  // la notif se persiste con verificationRequired=true y NO se envia.
+  // Sirve para auditoria post-mortem.
+  verificationRequired: { type: Boolean, default: false },
 }, {
   timestamps: true,
 });
