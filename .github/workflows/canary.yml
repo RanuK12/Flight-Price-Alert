@@ -1,0 +1,44 @@
+name: Parser Canary
+
+# Health-check diario del parser de Google Flights.
+#
+# Corre scripts/canary-google-flights.js, que hace una búsqueda real
+# EZE->MAD y EZE->MIA y valida invariantes (min_price dentro de rango,
+# al menos 3 vuelos, airline no vacío, stops numéricos).
+#
+# Exit codes:
+#   0 - canary OK
+#   1 - regresión del parser (el script ya avisa por Telegram)
+#   2 - Google bloqueando / error de red (NO alerta, se tolera)
+#
+# Schedule: 12:00 UTC = 09:00 AR (hora de arranque operativo).
+
+on:
+  schedule:
+    - cron: '0 12 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  canary:
+    name: Google Flights parser canary
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run canary
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/canary-google-flights.js
