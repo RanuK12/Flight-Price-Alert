@@ -68,6 +68,12 @@ async function insertNotification(input) {
       dedupKey: input.dedup_key,
       sentAt: new Date(),
       silent: input.silent ?? false,
+      // Campos enriquecidos: ahora declarados en el schema. Antes se
+      // perdian silenciosamente por strict:true (bug "Unknown · directo").
+      airline: input.airline || 'Unknown',
+      stops: typeof input.stops === 'number' ? input.stops : 0,
+      bookingUrl: input.booking_url || null,
+      verificationRequired: input.verification_required ?? false,
     });
     return notif._id.toString();
   } catch (err) {

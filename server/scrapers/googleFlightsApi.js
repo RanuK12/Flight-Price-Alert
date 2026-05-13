@@ -390,6 +390,16 @@ if (foundAtIndex !== null) {
 /**
  * Parse a single flight result item from the API response
  * Handles both old and new Google Flights API format
+ *
+ * PRICE EXTRACTION (defensiva, post-bug-fix may-2026):
+ *   item[1] = info de precio. item[1][0] = array de candidatos numericos
+ *   donde el ULTIMO valor numerico plausible es el precio total con taxes.
+ *   - Filtramos por rango plausible [30, 15000] para descartar:
+ *     · sub-componentes (taxes solos, fees) → tipicamente < 30
+ *     · ids/timestamps → tipicamente > 15000
+ *     · DURACIONES en minutos (caso bug Turkish $155 EZE→BCN: era 155 min).
+ *   - Si NO hay candidatos plausibles → retornamos null (descartamos item).
+ *     Es preferible perder un vuelo a inventarle un precio falso.
  */
 function parseFlightItem(item) {
   try {
@@ -404,31 +414,33 @@ function parseFlightItem(item) {
 
       if (segments.length > 0 && Array.isArray(segments[0])) {
         const seg = segments[0];
-        // seg structure: [null,null,null,"EZE","Airport","BCN","Airport",...,duration_min,stops,...]
-        // BUG-FIX: seg[11] NO es precio (es duración en minutos del segment).
-        // Precio total del itinerario vive en item[1] (mismo lugar que OLD FORMAT).
-        // Si no podemos extraerlo de item[1], descartamos el item para evitar
-        // precios falsos sub-€200 (caso Turkish $155 EZE→BCN).
-        let price = null;
-        try {
-          const priceArr = item[1]?.[0];
-          if (Array.isArray(priceArr) && priceArr.length > 0) {
-            const candidate = priceArr[priceArr.length - 1];
-            if (typeof candidate === 'number' && candidate > 0) price = candidate;
+
+        // === PRICE: candidatos plausibles, elegir ULTIMO numerico en rango ===
+        const price = extractPlausiblePrice(item[1]?.[0]);
+        if (price === null) return null; // hard-guard: no inventamos precio
+
+        // === AIRLINE: 3 niveles de fallback (anti-Unknown) ===
+        let resolvedAirline = airlineName;
+        if (!resolvedAirline) {
+          for (const s of segments) {
+            const candName = Array.isArray(s?.[22]) ? (s[22][3] || s[22][0]) : null;
+            if (candName) { resolvedAirline = candName; break; }
           }
-        } catch (e) { /* fallthrough */ }
-        if (price === null) return null;
+        }
+        if (!resolvedAirline && airlineCode) {
+          resolvedAirline = AIRLINE_CODES[airlineCode] || airlineCode;
+        }
 
         const origin = seg[3] || '';
         const dest = seg[5] || '';
-        const stops = seg[10] || 0;
+        const stops = typeof seg[10] === 'number' ? seg[10] : Math.max(0, segments.length - 1);
         const duration = seg[9];
         const depDateArr = seg[19];
         const arrDateArr = seg[20];
 
         return {
           price: Math.round(price),
-          airline: airlineName || AIRLINE_CODES[airlineCode] || airlineCode,
+          airline: resolvedAirline || 'Unknown',
           airlineCode,
           flightNumber: '',
           stops: typeof stops === 'number' ? stops : 0,
@@ -439,7 +451,7 @@ function parseFlightItem(item) {
           arrivalTime: null,
           departureDate: depDateArr ? formatDate(depDateArr) : null,
           arrivalDate: arrDateArr ? formatDate(arrDateArr) : null,
-          airlines: [airlineName || airlineCode],
+          airlines: [resolvedAirline || airlineCode].filter(Boolean),
           legs: [{ depAirport: origin, arrAirport: dest }],
           source: 'Google Flights API (new format)',
         };
@@ -450,14 +462,8 @@ function parseFlightItem(item) {
     const flightInfo = item[0];
     if (!flightInfo) return null;
 
-    let price = null;
-    try {
-      const priceArr = item[1]?.[0];
-      price = priceArr?.[priceArr.length - 1];
-      if (typeof price !== 'number' || price <= 0) return null;
-    } catch (e) {
-      return null;
-    }
+    const price = extractPlausiblePrice(item[1]?.[0]);
+    if (price === null) return null;
 
     const legs = flightInfo[2];
     if (!Array.isArray(legs) || legs.length === 0) return null;
@@ -499,7 +505,7 @@ function parseFlightItem(item) {
 
     return {
       price,
-      airline: airlineName || AIRLINE_CODES[airlineCode] || airlineCode,
+      airline: airlineName || AIRLINE_CODES[airlineCode] || airlineCode || 'Unknown',
       airlineCode,
       flightNumber: `${airlineCode}${flightNumber}`,
       stops,
@@ -517,6 +523,37 @@ function parseFlightItem(item) {
   } catch (e) {
     return null;
   }
+}
+
+/**
+ * Extrae el precio total con taxes desde un array de candidatos.
+ *
+ * Google Flights coloca el precio total en una posicion variable de
+ * `item[1][0]` segun el formato (varia entre fechas/rutas/idiomas). En
+ * lugar de hardcodear el indice, escaneamos el array y nos quedamos con
+ * el ULTIMO numero que cae en rango plausible.
+ *
+ * Rango: [30, 15000] (USD/EUR).
+ *   - <30: sub-componentes (taxes solas, fees pequeños).
+ *   - >15000: probablemente un timestamp/id.
+ *   - 100-300 con NO otros candidatos: SOSPECHOSO si ademas hay
+ *     numeros en rango "duracion" (60-1200) → posible bug parser.
+ *     Esto se detecta a posteriori en el sanityCheck (long-haul floor).
+ *
+ * @param {unknown} priceArr - candidato a item[1][0]
+ * @returns {number|null} precio total con taxes, o null si no hay candidatos
+ */
+function extractPlausiblePrice(priceArr) {
+  if (!Array.isArray(priceArr)) return null;
+  const candidates = [];
+  for (const v of priceArr) {
+    if (typeof v === 'number' && v >= 30 && v <= 15000) {
+      candidates.push(v);
+    }
+  }
+  if (candidates.length === 0) return null;
+  // Convencion Google: ultimo numerico plausible = total con taxes.
+  return candidates[candidates.length - 1];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -867,4 +904,8 @@ module.exports = {
   SORT_BY,
   AIRLINE_CODES,
   DEBUG_RESPONSE, // Exportado para tests
+  // Exportados para tests de regresion (ver tests/parser.regression.test.js)
+  parseFlightsResponse,
+  parseFlightItem,
+  extractPlausiblePrice,
 };

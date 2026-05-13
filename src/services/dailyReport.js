@@ -21,6 +21,7 @@ const { getBot } = require('../bot');
 const notificationsRepo = require('../database/repositories/notificationsRepo');
 const routesRepo = require('../database/repositories/routesRepo');
 const hybrid = require('./hybridSearch');
+const sanity = require('./sanityCheck');
 const logger = require('../utils/logger').child('dailyReport');
 
 /**
@@ -64,12 +65,46 @@ async function runDaily() {
  * @param {number} chatId
  */
 async function sendSummaryForUser(bot, userId, chatId) {
-  const [routes, stats, latest, budget] = await Promise.all([
+  const [routes, stats, latestRaw, budget] = await Promise.all([
     routesRepo.listByUser(userId),
     notificationsRepo.statsLast24h(userId),
-    notificationsRepo.listLatestForUser(userId, 5),
+    notificationsRepo.listLatestForUser(userId, 10),
     hybrid.checkAmadeusBudget(),
   ]);
+
+  // ─── SANITY FILTER (anti-fosil) ────────────────────────────────
+  // El historico de Mongo puede contener notifs envenenadas de versiones
+  // previas del parser (caso US$155 EZE→MAD del bug seg[11]→price).
+  // Filtramos antes de pintar para no resucitar precios falsos en el
+  // informe diario. skipHistorical=true: no auto-validamos contra el
+  // mismo conjunto que estamos limpiando (evita self-poisoning del p25).
+  const filtered = [];
+  let droppedByFilter = 0;
+  for (const n of latestRaw) {
+    // Si la notif fue marcada como verificationRequired, ya no se debe mostrar.
+    if (n.verificationRequired) { droppedByFilter++; continue; }
+    const verdict = await sanity.check({
+      origin: n.origin,
+      destination: n.destination,
+      price: n.price,
+      currency: n.currency,
+      tripType: n.returnDate ? 'roundtrip' : 'oneway',
+    }, { skipHistorical: true }).catch(() => ({ ok: true }));
+    if (verdict.ok) {
+      filtered.push(n);
+    } else {
+      droppedByFilter++;
+      logger.warn('DailyReport: drop fosil', {
+        route: `${n.origin}-${n.destination}`,
+        price: n.price, currency: n.currency,
+        reason: verdict.reason,
+      });
+    }
+  }
+  const latest = filtered.slice(0, 5);
+  if (droppedByFilter > 0) {
+    logger.info('DailyReport: filtered out poisoned notifs', { droppedByFilter });
+  }
 
   const activeRoutes = routes.filter((r) => !r.paused).length;
   const today = new Date().toLocaleDateString('es-AR', {
