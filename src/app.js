@@ -18,6 +18,7 @@ const { runMigrations } = require('./database/migrations');
 const { seedIfEmpty } = require('./bootstrap/seedDefaultRoutes');
 const { runMigration: runRoutesMigrationV2 } = require('./bootstrap/migrateRoutesV2');
 const { runMigration: runRoutesMigrationV3 } = require('./bootstrap/migrateRoutesV3');
+const { runMigration: runRoutesMigrationV4 } = require('./bootstrap/migrateRoutesV4');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
 const sessions = require('./bot/sessions');
@@ -71,6 +72,12 @@ async function main() {
     //     one-way, 7-10 jun 2026, <= €500.
     await runRoutesMigrationV3().catch((err) => {
       logger.error('migrateRoutesV3 failed (continuando)', /** @type {Error} */ (err));
+    });
+    // Migración idempotente v4:
+    //   · seed de alertas Argentina -> España (MAD, BCN),
+    //     one-way, 7-10 jun 2026, <= €550.
+    await runRoutesMigrationV4().catch((err) => {
+      logger.error('migrateRoutesV4 failed (continuando)', /** @type {Error} */ (err));
     });
   }
 
