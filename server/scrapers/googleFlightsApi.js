@@ -285,7 +285,7 @@ if (innerData === null) {
   return [];
 }
 
-if (foundAtIndex !== null) {
+if (foundAtIndex !== null && DEBUG_RESPONSE) {
   console.log(` 📍 DEBUG: Found data at index ${foundAtIndex}: ${JSON.stringify(innerData).slice(0, 100)}`);
   // Mostrar múltiples índices para encontrar los vuelos
   if (parsed[0] && Array.isArray(parsed[0])) {
