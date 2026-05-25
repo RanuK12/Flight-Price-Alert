@@ -12,6 +12,7 @@ const PROVIDER_NAMES = Object.freeze({
   AMADEUS: 'amadeus',
   GOOGLE_FLIGHTS: 'google_flights',
   PUPPETEER: 'puppeteer',
+  TURISMOCITY: 'turismocity',
 });
 
 /** @readonly */
@@ -62,6 +63,7 @@ const CACHE_PREFIXES = Object.freeze({
   AMADEUS_PRICING: 'amadeus:pricing',
   AMADEUS_INSPIRATION: 'amadeus:inspiration',
   GF_API: 'gf:api',
+  TURISMOCITY: 'turismocity:search',
 });
 
 /** Códigos de error Amadeus que NO deben reintentarse. */

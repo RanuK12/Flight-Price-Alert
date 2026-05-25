@@ -20,8 +20,11 @@
     "test:regression": "jest tests/ --testTimeout=10000",
     "backfill:alert-level": "node scripts/backfill-alert-level.js",
     "add:italy-june-alerts": "node scripts/add-italy-june-alerts.js",
+    "add:europe-argentina-octnov": "node scripts/add-europe-argentina-octnov-alerts.js",
+    "add:argentina-europe-juloct": "node scripts/add-argentina-europe-juloct-alerts.js",
     "cleanup:poisoned-notifs": "node scripts/cleanup-poisoned-notifs.js",
-    "canary:google-flights": "node scripts/canary-google-flights.js"
+    "canary:google-flights": "node scripts/canary-google-flights.js",
+    "test:turismocity": "node scripts/test-turismocity.js"
   },
   "keywords": [
     "flights",
