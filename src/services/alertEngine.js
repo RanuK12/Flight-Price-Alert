@@ -253,56 +253,100 @@ async function runOnce() {
           // Convertir precio del scraper a EUR antes de clasificar.
       // Google Flights suele devolver USD aunque pidamos EUR, y los
       // thresholds están SIEMPRE en EUR (ver priceThresholds.js).
-      // Sin esta conversión, un vuelo EZE→FCO a $755 USD (≈€695) se
-      // comparaba contra threshold.typical=700 EUR y era clasificado
-      // como "high", bloqueando toda notificación (skippedByLevel).
       const priceEur = toEur(cheapest.price, cheapest.currency || 'EUR');
-      let { level } = classifyPrice(
-        cheapest.origin, cheapest.destination,
-        priceEur, cheapest.tripType,
-      );
 
-      // Si la ruta tiene priceThreshold explícito (seteado por el usuario
-      // en /nueva_alerta o en scripts de seed), el threshold manda. Esto
-      // cubre rutas que NO están en priceThresholds.js (ej. EZE→VCE,
-      // EZE→NAP, destinos ad-hoc): sin esta lógica, level queda en
-      // 'normal' por defecto y con alert_min_level='good' se filtra,
-      // ignorando el threshold que el usuario pidió explícitamente.
-      // IMPORTANTE: route.priceThreshold está en la moneda de la ruta
-      // (route.currency, default 'EUR'). cheapest.price viene del scraper
-      // (Google Flights suele responder USD aun pidiendo EUR). Comparar
-      // crudo provocaba falsos "por encima del threshold":
-      // un vuelo a $540 USD (≈€497) contra threshold €500 da "540 > 500"
-      // y se filtraba aunque en EUR sí cumplía. Bug silencioso desde el
-      // seed de alertas Italia jun 7-10 (€500). Convertimos a la moneda
-      // del threshold antes de comparar.
+      // Precio en la moneda del threshold (default EUR). Si la ruta
+      // usa otra moneda en el campo currency lo convertimos a EUR
+      // como pivot.
       const routeCurrency = (route.currency || 'EUR').toUpperCase();
       const priceInThresholdCcy = routeCurrency === 'EUR'
         ? priceEur
-        : toEur(cheapest.price, cheapest.currency || 'EUR'); // fallback: EUR como pivot
-      if (route.priceThreshold && priceInThresholdCcy <= route.priceThreshold) {
-        // Precio cumple threshold → promovemos a 'great' para que pase
-        // cualquier filtro >= good. Si ya era steal lo respetamos.
-        if (LEVEL_RANK[level] > LEVEL_RANK.great) level = 'great';
+        : toEur(cheapest.price, cheapest.currency || 'EUR');
+
+      // ─── DECISIÓN DE NIVEL ─────────────────────────────────────
+      //
+      // Reglas de prioridad (corregidas — antes el threshold sólo
+      // "promovía" a great pero no podía descartar, así que rutas
+      // sin entrada en priceThresholds.js quedaban en 'normal' y
+      // se filtraban por alert_min_level=good aunque tuvieran
+      // priceThreshold explícito):
+      //
+      //   A. Si la ruta tiene priceThreshold explícito (seed o wizard):
+      //      • price <= threshold → great    (notificar, prioridad)
+      //      • price > threshold  → high     (descartar inmediato,
+      //                                       sin pasar por classifyPrice)
+      //      El threshold del usuario MANDA sobre la tabla genérica.
+      //
+      //   B. Si NO hay threshold explícito → classifyPrice contra la
+      //      tabla genérica (priceThresholds.js).
+      let level;
+      if (Number.isFinite(route.priceThreshold) && route.priceThreshold > 0) {
+        if (priceInThresholdCcy <= route.priceThreshold) {
+          // Cumple el threshold → great. Si la tabla genérica dice
+          // steal (precio aún más bajo que el típico), respetamos
+          // steal para mostrar el badge de ofertón.
+          const generic = classifyPrice(
+            cheapest.origin, cheapest.destination,
+            priceEur, cheapest.tripType,
+          );
+          level = generic.level === 'steal' ? 'steal' : 'great';
+        } else {
+          level = 'high';
+        }
+      } else {
+        ({ level } = classifyPrice(
+          cheapest.origin, cheapest.destination,
+          priceEur, cheapest.tripType,
+        ));
       }
       const rank = LEVEL_RANK[level] ?? 99;
 
-      // 1) Debe cumplir el nivel mínimo configurado por el usuario.
-      let flightToNotify = cheapest;
-    // CONFIRMAR con Amadeus Pricing API - link exacto del booking
-    if (cheapest.source === 'amadeus' && cheapest.raw) {
-      try {
-        const amadeus = require('../providers/amadeus');
-        const pricing = await amadeus.pricing.confirmOffer(cheapest.raw);
-        if (pricing.confirmed && pricing.confirmedPrice) {
-          flightToNotify = { ...cheapest, price: pricing.confirmedPrice };
-          logger.info('Amadeus pricing confirmo', { route: cheapest.origin + '-' + cheapest.destination, original: cheapest.price, confirmed: pricing.confirmedPrice });
-        }
-      } catch (err) {
-        logger.warn('Error pricing confirm', { error: err.message });
+      // 1) Descarte temprano por threshold: NO bypaseable por
+      //    alert_min_level. Aunque el usuario tenga "todas las
+      //    ofertas" como mínimo, no le notificamos vuelos por encima
+      //    de su threshold explícito. Antes este check estaba después
+      //    del level-filter genérico, lo que provocaba que rutas con
+      //    threshold no enumeradas en priceThresholds.js se filtraran
+      //    por nivel en vez de por threshold.
+      if (Number.isFinite(route.priceThreshold) && route.priceThreshold > 0
+          && priceInThresholdCcy > route.priceThreshold) {
+        skippedByThreshold += 1;
+        logger.info('Ruta descartada por threshold', {
+          id: route._id, route: `${route.origin}-${route.destination}`,
+          date: route.outboundDate,
+          priceRaw: cheapest.price, currency: cheapest.currency || 'EUR',
+          priceInThresholdCcy: Math.round(priceInThresholdCcy),
+          threshold: route.priceThreshold,
+          thresholdCcy: routeCurrency,
+        });
+        await sleep(INTER_ROUTE_DELAY_MS);
+        continue;
       }
-    }
-    if (rank > minRank) {
+
+      // 2) Confirmar con Amadeus Pricing API si la oferta vino de
+      //    Amadeus (link exacto del booking + precio actualizado).
+      let flightToNotify = cheapest;
+      if (cheapest.source === 'amadeus' && cheapest.raw) {
+        try {
+          const amadeus = require('../providers/amadeus');
+          const pricing = await amadeus.pricing.confirmOffer(cheapest.raw);
+          if (pricing.confirmed && pricing.confirmedPrice) {
+            flightToNotify = { ...cheapest, price: pricing.confirmedPrice };
+            logger.info('Amadeus pricing confirmo', {
+              route: cheapest.origin + '-' + cheapest.destination,
+              original: cheapest.price,
+              confirmed: pricing.confirmedPrice,
+            });
+          }
+        } catch (err) {
+          logger.warn('Error pricing confirm', { error: err.message });
+        }
+      }
+
+      // 3) Filtro de nivel mínimo (tabla genérica). Sólo aplica si
+      //    NO hay threshold explícito; las rutas con threshold ya
+      //    pasaron el corte estricto en (1).
+      if (rank > minRank) {
         skippedByLevel += 1;
         logger.info('Ruta filtrada por nivel (precio por encima del mínimo configurado)', {
           id: route._id, route: `${route.origin}-${route.destination}`,
@@ -310,22 +354,6 @@ async function runOnce() {
           priceRaw: cheapest.price, currency: cheapest.currency || 'EUR',
           priceEur, level, rank,
           minLevel: prefs.alert_min_level, minRank,
-        });
-        await sleep(INTER_ROUTE_DELAY_MS);
-        continue;
-      }
-
-      // 2) Si la ruta tiene threshold explícito, también debe respetarlo.
-      // Comparamos en la moneda del threshold (ver nota de conversión
-      // más arriba). Sin esta conversión, un vuelo a $540 USD (≈€497)
-      // contra threshold €500 se filtraba por "540 > 500".
-      if (route.priceThreshold && priceInThresholdCcy > route.priceThreshold) {
-        skippedByThreshold += 1;
-        logger.debug('Ruta filtrada por threshold', {
-          id: route._id, route: `${route.origin}-${route.destination}`,
-          priceRaw: cheapest.price, currency: cheapest.currency || 'EUR',
-          priceInThresholdCcy, threshold: route.priceThreshold,
-          thresholdCcy: routeCurrency,
         });
         await sleep(INTER_ROUTE_DELAY_MS);
         continue;

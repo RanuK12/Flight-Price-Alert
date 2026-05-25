@@ -56,9 +56,14 @@ function duration(iso) {
   return `${h}${min}`.trim();
 }
 
-/** Escalas: 0 → "directo". */
+/** Escalas: 0 → "directo". null/undefined → "—" (dato faltante). */
 function stopsLabel(stops) {
-  if (!stops) return 'directo';
+  // Distinguir "directo" (stops === 0, dato real) de "no sabemos" (null
+  // o undefined, dato faltante en notifs históricas pre-schema-fix).
+  // Antes ambos casos colapsaban a "directo", lo que era incorrecto:
+  // notifs viejas con 1 escala se renderizaban como "directo".
+  if (stops === null || stops === undefined) return '—';
+  if (stops === 0) return 'directo';
   if (stops === 1) return '1 escala';
   return `${stops} escalas`;
 }
@@ -74,10 +79,15 @@ function flightCard(f, opts = {}) {
   const dateStr = f.returnDate ? `${date(f.departureDate)} → ${date(f.returnDate)}` : date(f.departureDate);
   const dur = duration(f.duration);
   const stops = stopsLabel(f.stops);
+  // Aerolínea: si es vacía o "Unknown" (placeholder de notifs viejas
+  // sin enrichment), la omitimos en lugar de imprimir "Unknown · ...".
+  const airlineRaw = (f.airline || '').trim();
+  const airline = (!airlineRaw || /^unknown$/i.test(airlineRaw)) ? '' : airlineRaw;
+  const tail = airline ? `${esc(airline)} · ${stops}` : stops;
   const pieces = [
     `${badge ? badge + ' ' : ''}<b>${price(f.price, f.currency)}</b>${level}`,
     `${esc(f.origin)} → ${esc(f.destination)} · ${esc(dateStr)}`,
-    `${esc(f.airline)} · ${stops}${dur ? ` · ${esc(dur)}` : ''}`,
+    `${tail}${dur ? ` · ${esc(dur)}` : ''}`,
   ];
   return pieces.join('\n');
 }

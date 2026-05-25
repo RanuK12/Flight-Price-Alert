@@ -87,16 +87,41 @@ async function insertNotification(input) {
 }
 
 /**
- * Últimas N notificaciones del usuario.
- * @param {number} telegramUserId @param {number} [limit=10]
+ * Últimas N notificaciones del usuario, dentro de una ventana temporal
+ * y excluyendo las marcadas para verificación (precios sospechosos).
+ *
+ * @param {number} telegramUserId
+ * @param {number} [limit=10] máximo de notifs a devolver
+ * @param {{ withinMs?: number, includeVerificationRequired?: boolean }} [opts]
+ *   withinMs: ventana hacia atrás. Default 7 días — antes era infinita,
+ *     lo que provocaba que el `/ofertas` mostrara notifs de hace 28 días
+ *     incluso con precios fantasma (bug parser histórico).
+ *   includeVerificationRequired: por default false (filtramos las
+ *     cuarentenadas por sanity-check).
  * @returns {Promise<Object[]>}
  */
-async function listLatestForUser(telegramUserId, limit = 10) {
-  // Necesitamos hacer lookup por user. Primero encontrar el userId de Mongo
+async function listLatestForUser(telegramUserId, limit = 10, opts = {}) {
+  const withinMs = Number.isFinite(opts.withinMs)
+    ? opts.withinMs
+    : 7 * 24 * 60 * 60 * 1000; // 7 días default
+  const includeVerificationRequired = opts.includeVerificationRequired === true;
+
   const User = require('../models/User');
   const user = await User.findOne({ telegramUserId }).lean();
   if (!user) return [];
-  return Notification.find({ user: user._id })
+
+  /** @type {Record<string, any>} */
+  const query = { user: user._id };
+  if (withinMs > 0) {
+    query.sentAt = { $gte: new Date(Date.now() - withinMs) };
+  }
+  if (!includeVerificationRequired) {
+    // Aceptamos null/undefined además de false para notifs viejas
+    // creadas antes de que el campo existiera en el schema.
+    query.verificationRequired = { $ne: true };
+  }
+
+  return Notification.find(query)
     .sort({ sentAt: -1 })
     .limit(limit)
     .lean();
