@@ -102,6 +102,20 @@ async function main() {
     await runRoutesMigrationV7().catch((err) => {
       logger.error('migrateRoutesV7 failed (continuando)', /** @type {Error} */ (err));
     });
+
+    // Auto-limpieza de notifs envenenadas (precios imposibles del
+    // bug histórico del parser de Google Flights). Sólo corre cada
+    // 24h gracias al cooldown interno; en reinicios frecuentes no
+    // hace nada. Sólo borra precios bajo el HARD FLOOR (long-haul
+    // OW < 250 / RT < 350) — esos son físicamente imposibles. Las
+    // notifs sospechosas (no imposibles) las marca verificationRequired
+    // para que ni dailyReport ni /ofertas las muestren.
+    const cleanupPoisoned = require('./bootstrap/cleanupPoisonedNotifs');
+    cleanupPoisoned.run().catch((err) => {
+      logger.warn('cleanupPoisonedNotifs falló (continuando)', {
+        err: /** @type {Error} */ (err).message,
+      });
+    });
   }
 
   // 2. Health / debug HTTP
