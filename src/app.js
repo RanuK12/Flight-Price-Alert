@@ -20,6 +20,8 @@ const { runMigration: runRoutesMigrationV2 } = require('./bootstrap/migrateRoute
 const { runMigration: runRoutesMigrationV3 } = require('./bootstrap/migrateRoutesV3');
 const { runMigration: runRoutesMigrationV4 } = require('./bootstrap/migrateRoutesV4');
 const { runMigration: runRoutesMigrationV5 } = require('./bootstrap/migrateRoutesV5');
+const { runMigration: runRoutesMigrationV6 } = require('./bootstrap/migrateRoutesV6');
+const { runMigration: runRoutesMigrationV7 } = require('./bootstrap/migrateRoutesV7');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
 const sessions = require('./bot/sessions');
@@ -87,6 +89,18 @@ async function main() {
     //     alcanzó por tener ya version >= 3.
     await runRoutesMigrationV5().catch((err) => {
       logger.error('migrateRoutesV5 failed (continuando)', /** @type {Error} */ (err));
+    });
+    // Migración idempotente v6:
+    //   · seed de alertas Europa -> Argentina, oct-nov 2026, oneway,
+    //     <= €350 (9 orígenes EU × 3 destinos AR × 7 fechas = 189 rutas).
+    await runRoutesMigrationV6().catch((err) => {
+      logger.error('migrateRoutesV6 failed (continuando)', /** @type {Error} */ (err));
+    });
+    // Migración idempotente v7:
+    //   · seed de alertas Argentina <-> Europa, jul-oct 2026, roundtrip
+    //     con estadía 15 días, <= €850 (2 × 7 × 8 = 112 rutas).
+    await runRoutesMigrationV7().catch((err) => {
+      logger.error('migrateRoutesV7 failed (continuando)', /** @type {Error} */ (err));
     });
   }
 

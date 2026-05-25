@@ -246,6 +246,11 @@ const amadeusResult = await amadeusProvider.search(params);
  * Invoca al scraper vía scraperWorker (con timeout) y lo normaliza
  * a la shape `FlightSearchResult`.
  *
+ * Si Google Flights no devuelve resultados, intenta TurismoCity como
+ * segundo scraper (metabuscador AR-céntrico, fuerte en rutas
+ * Argentina↔Europa). TurismoCity se degrada limpio si Puppeteer no
+ * está disponible (Render free, sandbox sin Chrome).
+ *
  * @param {FlightSearchParams} params
  * @param {string[]} warnings
  */
@@ -296,10 +301,99 @@ async function runScraper(params, warnings) {
 
   if (flights.length > 0) {
     await cacheRepo.setCache(CACHE_PREFIXES.GF_API, cacheKey, result, config.cache.gfTtlMs);
+    await usageRepo.increment(PROVIDER_NAMES.GOOGLE_FLIGHTS);
+    return { ...result, providerUsed: PROVIDER_NAMES.GOOGLE_FLIGHTS, warnings };
   }
+
+  // Google Flights vacío → intentar TurismoCity como 2do scraper.
+  // TurismoCity es un metabuscador AR que cubre OTAs (Iberia, Air Europa,
+  // ITA, Plus Ultra, Wamos Air, etc.) que Google a veces ignora en rutas
+  // Argentina↔Europa. Si Puppeteer no está disponible (Render free,
+  // sandbox sin Chrome), devuelve vacío sin error y caemos limpio.
   await usageRepo.increment(PROVIDER_NAMES.GOOGLE_FLIGHTS);
+  try {
+    const tcResult = await runTurismoCity(params, warnings);
+    if (tcResult && tcResult.flights && tcResult.flights.length > 0) {
+      return tcResult;
+    }
+  } catch (tcErr) {
+    logger.warn('TurismoCity fallback falló (continuando)', {
+      err: /** @type {Error} */ (tcErr).message,
+    });
+  }
 
   return { ...result, providerUsed: PROVIDER_NAMES.GOOGLE_FLIGHTS, warnings };
+}
+
+/**
+ * Lazy-runs TurismoCity como segundo scraper. Aislado en función para
+ * que el require lazy no se evalúe si nunca se llega acá.
+ *
+ * @param {FlightSearchParams} params
+ * @param {string[]} warnings
+ * @returns {Promise<(FlightSearchResult & {providerUsed:string, warnings:string[]})|null>}
+ */
+async function runTurismoCity(params, warnings) {
+  // eslint-disable-next-line global-require
+  const turismocity = require('../providers/turismocity');
+
+  // Cache TurismoCity (TTL = mismo que GF — datos cambian rápido)
+  const ck = [params.origin, params.destination, params.departureDate,
+    params.returnDate || 'ow', params.adults || 1].join('|');
+
+  const cached = await cacheRepo.getCache(CACHE_PREFIXES.TURISMOCITY, ck);
+  if (cached && cached.flights?.length > 0) {
+    // Mismo warning que en la rama live, así el usuario / log analysis
+    // sabe que estos resultados vienen de TurismoCity (no de GF) sea
+    // cache o live.
+    warnings.push('Resultados desde TurismoCity (Google Flights vacío)');
+    return {
+      ...cached,
+      cached: true,
+      providerUsed: PROVIDER_NAMES.TURISMOCITY,
+      warnings,
+    };
+  }
+
+  // Hard timeout para que TurismoCity nunca cuelgue el alertEngine.
+  const TIMEOUT_MS = Number(process.env.TURISMOCITY_TIMEOUT_MS) || 45_000;
+  let result;
+  try {
+    result = await Promise.race([
+      turismocity.search(params),
+      new Promise((_, reject) => setTimeout(
+        () => reject(new Error('turismocity-timeout')), TIMEOUT_MS,
+      )),
+    ]);
+  } catch (err) {
+    const msg = /** @type {Error} */ (err).message || '';
+    if (msg.includes('turismocity-timeout')) {
+      warnings.push('TurismoCity timeout — saltando');
+      logger.warn('TurismoCity timeout');
+      return null;
+    }
+    throw err;
+  }
+
+  if (!result || result.flights.length === 0) {
+    if (result?.meta?.unavailable) {
+      logger.debug('TurismoCity unavailable (degraded)', {
+        reason: result.meta.reason,
+      });
+    }
+    return null;
+  }
+
+  // Cache solo cuando hubo resultados reales.
+  await cacheRepo.setCache(CACHE_PREFIXES.TURISMOCITY, ck, result, config.cache.gfTtlMs);
+  await usageRepo.increment(PROVIDER_NAMES.TURISMOCITY);
+
+  warnings.push('Resultados desde TurismoCity (Google Flights vacío)');
+  return {
+    ...result,
+    providerUsed: PROVIDER_NAMES.TURISMOCITY,
+    warnings,
+  };
 }
 
 /**
