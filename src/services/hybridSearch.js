@@ -39,7 +39,7 @@ const {
  * Horarios clave para búsquedas Amadeus (hora Argentina, UTC-3)
  * Solo se permiten búsquedas en estas horas
  */
-const AMADEUS_HOURS = [6, 12, 18, 22]; // 6AM, 12PM, 6PM, 10PM
+const AMADEUS_HOURS = [6, 12, 14, 18, 22]; // 6AM, 12PM, 2PM, 6PM, 10PM
 
 /**
  * Verifica si la hora actual está dentro de una ventana clave.
@@ -212,7 +212,7 @@ async function search(params, opts = {}) {
 const timeCheck = isAmadeusHour();
 if (!timeCheck.allowed) {
 logger.warn('Google sin resultados, pero NO es horario Amadeus', { currentHour: timeCheck.currentHour, allowedHours: AMADEUS_HOURS });
-warnings.push('Google sin datos. Amadeus solo en horarios clave (6, 12, 18, 22hs)');
+warnings.push('Google sin datos. Amadeus solo en horarios clave (6, 12, 14, 18, 22hs)');
 return emptyResult(warnings);
 }
 logger.warn('Google sin resultados + horario Amadeus OK', { hour: timeCheck.currentHour, keyHour: timeCheck.keyHour });
