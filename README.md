@@ -125,4 +125,4 @@ SCRAPER_TIMEOUT_MS=30000
 
 ## License
 
-MIT
+MIT — © 2026 Ranuk IT Solutions | ranuk.dev
