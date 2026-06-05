@@ -10,8 +10,8 @@
 const IATA_REGEX = /^[A-Z]{3}$/;
 
 /** Orígenes/destinos frecuentes para quick-picks. */
-const COMMON_AR = ['EZE', 'COR', 'MDQ', 'AEP', 'ROS'];
-const COMMON_EU = ['MAD', 'BCN', 'FCO', 'MXP', 'CDG', 'LHR'];
+const COMMON_AR = ['EZE', 'COR', 'MDQ', 'ROS', 'AEP'];
+const COMMON_EU = ['MAD', 'BCN', 'FCO', 'MXP', 'CDG', 'LHR', 'AMS', 'LIS', 'BER', 'VIE'];
 const COMMON_US = ['MIA', 'JFK', 'ORD', 'LAX', 'MCO'];
 
 /** @param {string} s */

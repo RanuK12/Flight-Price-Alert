@@ -33,7 +33,7 @@ const LEVEL_RANK = { steal: 0, great: 1, good: 2, normal: 3, high: 4 };
 const MIN_LEVEL_TO_RANK = { steal: 0, great: 1, good: 2, all: 4 };
 
 /** Máximo de rutas a consultar por pasada (evita 429 masivo). */
-const MAX_ROUTES_PER_PASS = 35;
+const MAX_ROUTES_PER_PASS = 50;
 
 /** Offset de rotación persistente entre pasadas. */
 let rotationOffset = 0;

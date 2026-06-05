@@ -20,6 +20,7 @@ const { runMigration: runRoutesMigrationV2 } = require('./bootstrap/migrateRoute
 const { runMigration: runRoutesMigrationV3 } = require('./bootstrap/migrateRoutesV3');
 const { runMigration: runRoutesMigrationV4 } = require('./bootstrap/migrateRoutesV4');
 const { runMigration: runRoutesMigrationV5 } = require('./bootstrap/migrateRoutesV5');
+const { runMigration: runRoutesMigrationV6 } = require('./bootstrap/migrateRoutesV6');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
 const sessions = require('./bot/sessions');
@@ -87,6 +88,14 @@ async function main() {
     //     alcanzó por tener ya version >= 3.
     await runRoutesMigrationV5().catch((err) => {
       logger.error('migrateRoutesV5 failed (continuando)', /** @type {Error} */ (err));
+    });
+    // Migración idempotente v6:
+    //   · Estrategia global AR ↔ EU, todo el año (Jun 2026 → Jun 2027).
+    //   · ~2800 rutas: one-way AR→EU (≤€500), EU→AR (≤€400), roundtrip (≤€800).
+    //   · 4 orígenes AR × 10 destinos EU × 2 fechas/mes × 12 meses.
+    //   · Purga rutas viejas, pausa las existentes, crea las nuevas.
+    await runRoutesMigrationV6().catch((err) => {
+      logger.error('migrateRoutesV6 failed (continuando)', /** @type {Error} */ (err));
     });
   }
 
