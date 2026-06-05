@@ -25,10 +25,23 @@ const userPrefsRepo = require('../database/repositories/userPrefsRepo');
 const User = require('../database/models/User');
 const logger = require('../utils/logger').child('migrateV4');
 
-// --- Alertas Argentina → España, jun 7-10, ≤ €550 -----------------------
+// --- Alertas Argentina → España, fechas dinámicas, ≤ €550 -----------------------
 const SPAIN_ORIGINS = ['EZE', 'COR'];
 const SPAIN_DESTS = ['MAD', 'BCN'];
-const SPAIN_DATES = ['2026-06-07', '2026-06-08', '2026-06-09', '2026-06-10'];
+/** Fechas dinámicas: hoy + 7 a hoy + 14 días (siempre futuro) */
+function generateSpainDates() {
+  const start = new Date();
+  start.setDate(start.getDate() + 7);
+  const end = new Date();
+  end.setDate(end.getDate() + 14);
+  const dates = [];
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    dates.push(cursor.toISOString().split('T')[0]);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+}
 const SPAIN_THRESHOLD_EUR = 550;
 
 /**
@@ -53,7 +66,7 @@ async function runMigration() {
 
     for (const origin of SPAIN_ORIGINS) {
       for (const dest of SPAIN_DESTS) {
-        for (const date of SPAIN_DATES) {
+        for (const date of generateSpainDates()) {
           try {
             await routesRepo.createRoute({
               telegramUserId: userId,
@@ -80,11 +93,10 @@ async function runMigration() {
     }
   }
 
-  logger.info('migrateV4 complete (Argentina → España jun 7-10 ≤ €550)', {
+  logger.info('migrateV4 complete (Argentina → España fechas dinámicas ≤ €550)', {
     users: users.length,
     routesProcessed: totalCreated,
     errors: totalErrors,
-    expected: users.length * SPAIN_ORIGINS.length * SPAIN_DESTS.length * SPAIN_DATES.length,
   });
 }
 

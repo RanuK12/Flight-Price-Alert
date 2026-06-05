@@ -19,7 +19,22 @@ function register(bot) {
     const userId = msg.from?.id || chatId;
     await userPrefsRepo.getOrCreate(userId, chatId);
     await sessions.clearSession(chatId);
-    await bot.sendMessage(chatId, fmt.welcome(msg.from?.first_name), {
+
+    // Fetch quick stats para el welcome
+    let stats = {};
+    try {
+      const Route = require('../../database/models/Route');
+      const notificationsRepo = require('../../database/repositories/notificationsRepo');
+      const activeRoutes = await Route.countDocuments({ paused: false });
+      const latest = await notificationsRepo.listLatestForUser(userId, 1);
+      const lastCheck = latest.length
+        ? new Date(latest[0].sentAt).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+        : null;
+      const statsData = await notificationsRepo.statsLast24h(userId);
+      stats = { activeRoutes, lastCheck, totalDeals: statsData.count || 0 };
+    } catch (e) { /* stats opcionales */ }
+
+    await bot.sendMessage(chatId, fmt.welcome(msg.from?.first_name, stats), {
       parse_mode: 'HTML',
       reply_markup: kb.mainMenu(),
     });

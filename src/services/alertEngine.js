@@ -6,9 +6,11 @@
  *
  * Se ejecuta desde el cron de `src/app.js` (default cada 2h).
  *
- * v4.1 — Mejoras de rate-limiting:
- *   • Sampling: máx 35 rutas por pasada (rotación). En 3 pasadas = total.
- *   • Filtra rutas con fecha de salida pasada.
+ * v4.2 — Auto-cleanup + dedup mejorado:
+ *   • Auto-pause de rutas con outboundDate pasado (limpieza en cada pasada).
+ *   • Elimina rutas vencidas de MongoDB periódicamente.
+ *   • Dedup window: 7 días para one-way (evita repetir ofertas viejas).
+ *   • Sampling: máx 35 rutas por pasada (rotación).
  *   • Pausa 2s entre rutas + 10s cada 5 rutas.
  *   • Early stop si el circuit breaker del scraper se abre.
  *
@@ -62,6 +64,43 @@ function isCircuitBreakerOpen() {
   } catch {
     return false;
   }
+}
+
+/**
+ * Pausa y elimina rutas cuyo outboundDate ya pasó (auto-cleanup).
+ * Se ejecuta al inicio de cada pasada del alertEngine.
+ * @returns {Promise<{paused: number, deleted: number}>}
+ */
+async function autoCleanupPastRoutes() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const Route = require('../database/models/Route');
+
+  // 1. Pausar rutas con fecha de hoy o pasada que estén activas
+  const pauseResult = await Route.updateMany(
+    { outboundDate: { $lte: today }, paused: false },
+    { paused: true },
+  );
+
+  // 2. Eliminar rutas con fecha pasada hace >3 días (ya no sirven para nada)
+  const graceDate = new Date(today);
+  graceDate.setDate(graceDate.getDate() - 3);
+  const deleteResult = await Route.deleteMany({
+    outboundDate: { $ne: null, $lt: graceDate },
+  });
+
+  if (pauseResult.modifiedCount > 0 || deleteResult.deletedCount > 0) {
+    logger.info('Auto-cleanup rutas pasadas', {
+      paused: pauseResult.modifiedCount,
+      deleted: deleteResult.deletedCount,
+    });
+  }
+
+  return {
+    paused: pauseResult.modifiedCount,
+    deleted: deleteResult.deletedCount,
+  };
 }
 
 /**
@@ -128,6 +167,13 @@ function shouldBeSilent(currentPrice, previousPrice, threshold) {
  */
 async function runOnce() {
   const started = Date.now();
+
+  // Auto-limpieza: pausar/eliminar rutas vencidas antes de buscar
+  const cleanup = await autoCleanupPastRoutes().catch(err => {
+    logger.warn('auto-cleanup falló (continuando)', { err: err.message });
+    return { paused: 0, deleted: 0 };
+  });
+
   const allRoutes = await routesRepo.listAllActive();
 
   // Filtrar rutas con fechas pasadas
@@ -388,6 +434,8 @@ async function runOnce() {
     routesChecked: routes.length, offersSent, errors,
     skippedNoFlights, skippedByLevel, skippedByThreshold,
     skippedByDedup, skippedByCircuitBreaker,
+    cleanupPaused: cleanup.paused,
+    cleanupDeleted: cleanup.deleted,
     elapsedSec: elapsed,
   });
   return { routesChecked: routes.length, offersSent, errors };

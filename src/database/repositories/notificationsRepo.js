@@ -26,10 +26,11 @@ function buildDedupKey(f) {
 
 /**
  * ¿Ya se notificó esta oferta hace menos de `withinMs`?
- * @param {string} dedupKey @param {number} [withinMs=12*60*60*1000]
+ * Default: 7 días (evita repetir la misma oferta semana a semana).
+ * @param {string} dedupKey @param {number} [withinMs=7*24*60*60*1000]
  * @returns {Promise<boolean>}
  */
-async function wasNotifiedRecently(dedupKey, withinMs = 12 * 60 * 60 * 1000) {
+async function wasNotifiedRecently(dedupKey, withinMs = 7 * 24 * 60 * 60 * 1000) {
   const notif = await Notification.findOne({ dedupKey })
     .sort({ sentAt: -1 })
     .lean();

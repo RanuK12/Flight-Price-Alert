@@ -28,13 +28,13 @@ const User = require('../database/models/User');
 const Route = require('../database/models/Route');
 const logger = require('../utils/logger').child('migrateV3');
 
-const TARGET_VERSION = 3;
+const TARGET_VERSION = 6;
 
 // --- (1) Alert level upgrade --------------------------------------------
 const OLD_DEFAULT_LEVEL = 'steal';
 const NEW_DEFAULT_LEVEL = 'good';
 
-// --- (2) Alertas Argentina → Italia, jun 7-10, ≤ €500 -------------------
+// --- (2) Alertas Argentina → Italia, fechas dinámicas, ≤ €500 -------------------
 const ITALY_ORIGINS = ['EZE', 'COR'];
 /**
  * Aeropuertos italianos con tráfico internacional / conexiones intercont.
@@ -44,17 +44,25 @@ const ITALY_ORIGINS = ['EZE', 'COR'];
 const ITALY_DESTS = [
   'FCO', // Roma Fiumicino
   'MXP', // Milán Malpensa
-  'LIN', // Milán Linate
   'BGY', // Milán Bergamo (Ryanair hub)
   'VCE', // Venecia
   'BLQ', // Bolonia
   'NAP', // Nápoles
-  'CTA', // Catania
-  'PMO', // Palermo
-  'FLR', // Florencia
-  'TRN', // Turín
 ];
-const ITALY_DATES = ['2026-06-07', '2026-06-08', '2026-06-09', '2026-06-10'];
+/** Fechas dinámicas: hoy + 7 a hoy + 14 días (siempre futuro) */
+function generateItalyDates() {
+  const start = new Date();
+  start.setDate(start.getDate() + 7);
+  const end = new Date();
+  end.setDate(end.getDate() + 14);
+  const dates = [];
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    dates.push(cursor.toISOString().split('T')[0]);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+}
 const ITALY_THRESHOLD_EUR = 500;
 
 async function runMigration() {
@@ -105,12 +113,13 @@ async function migrateOneUser(user) {
     });
   }
 
-  // (2) Alertas Argentina → Italia, one-way, jun 7-10, ≤ €500.
+  // (2) Alertas Argentina → Italia, fechas dinámicas, ≤ €500.
   // Upsert por (telegramUserId, origin, destination, outboundDate).
+  const italyDates = generateItalyDates();
   const ops = [];
   for (const origin of ITALY_ORIGINS) {
     for (const destination of ITALY_DESTS) {
-      for (const dateIso of ITALY_DATES) {
+      for (const dateIso of italyDates) {
         ops.push({
           updateOne: {
             filter: {

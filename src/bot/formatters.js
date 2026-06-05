@@ -96,12 +96,21 @@ function levelLabel(level) {
 /**
  * Mensaje de bienvenida.
  * @param {string} [userName]
+ * @param {Object} [stats] - {activeRoutes, lastCheck, totalDeals}
  */
-function welcome(userName) {
+function welcome(userName, stats) {
   const name = userName ? `, <b>${esc(userName)}</b>` : '';
+  let statusLine = '';
+  if (stats) {
+    const parts = [];
+    if (stats.activeRoutes != null) parts.push(`📋 ${stats.activeRoutes} rutas activas`);
+    if (stats.lastCheck) parts.push(`🕐 Última búsqueda: ${stats.lastCheck}`);
+    if (stats.totalDeals != null) parts.push(`🔔 ${stats.totalDeals} ofertas enviadas`);
+    if (parts.length) statusLine = '\n' + parts.join(' · ');
+  }
   return (
-    `✈️ <b>Flight Deal Bot v4.0</b>\n\n` +
-    `Hola${name} 👋 Soy tu asistente de ofertas de vuelos.\n\n` +
+    `✈️ <b>Flight Deal Bot v5.0</b>${statusLine}\n\n` +
+    `Hola${name} 👋 Monitoreo de precios de vuelos en tiempo real.\n\n` +
     `🔎 <b>Buscar</b> — búsqueda en tiempo real (Amadeus + scraper)\n` +
     `📋 <b>Mis alertas</b> — rutas que estoy monitoreando\n` +
     `🔔 <b>Últimas ofertas</b> — notificaciones recientes\n` +
