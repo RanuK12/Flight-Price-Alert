@@ -89,6 +89,8 @@ npm run test:db               # tests de base de datos
 
 ### Render (recomendado)
 
+✅ **Estrategia global AR↔EU v6.0 activa** (Jun 2026 → Jun 2027). Los umbrales están configurados en `src/config/priceThresholds.js` y las rutas se generan automáticamente en `src/bootstrap/migrateRoutesV6.js`.
+
 1. Conectar repo a Render
 2. Setear variables de entorno en dashboard:
    - `TELEGRAM_POLLING=true`
