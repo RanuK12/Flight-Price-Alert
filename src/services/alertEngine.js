@@ -32,8 +32,8 @@ const logger = require('../utils/logger').child('alertEngine');
 const LEVEL_RANK = { steal: 0, great: 1, good: 2, normal: 3, high: 4 };
 const MIN_LEVEL_TO_RANK = { steal: 0, great: 1, good: 2, all: 4 };
 
-/** Máximo de rutas a consultar por pasada (evita 429 masivo). */
-const MAX_ROUTES_PER_PASS = 50;
+/** Máximo de rutas a consultar por pasada (expandido para v7 ~18K rutas). */
+const MAX_ROUTES_PER_PASS = 60;
 
 /** Offset de rotación persistente entre pasadas. */
 let rotationOffset = 0;
@@ -251,10 +251,11 @@ async function runOnce() {
     // falsos del scraper (bug parser Google Flights NEW FORMAT que retornaba
     // duración como precio: $155 EZE→BCN Turkish "directo").
     // Floors basados en mínimo histórico realista por distancia.
-    const isLongHaul = ['MAD','BCN','FCO','MXP','CDG','LHR','FRA','AMS']
+    const isLongHaul = ['MAD','BCN','SVQ','VLC','BIO','FCO','MXP','NAP','VCE','BGY',
+      'CDG','ORY','NCE','LYS','LHR','LGW','STN','DUB','AMS','BRU',
+      'FRA','MUC','BER','DUS','HAM','LIS','OPO','VIE','ZRH','ATH','IST']
       .includes(cheapest.destination) ||
-      ['MAD','BCN','FCO','MXP','CDG','LHR','FRA','AMS']
-      .includes(cheapest.origin);
+      ['EZE','COR','MDQ','ROS','BUE'].includes(cheapest.origin);
     const minFloor = isLongHaul
       ? (cheapest.tripType === 'roundtrip' ? 500 : 350)  // EUR/USD
       : 30;  // doméstico/regional

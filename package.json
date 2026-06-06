@@ -1,7 +1,7 @@
 {
   "name": "flight-deal-finder",
-  "version": "5.0.0",
-  "description": "Bot Telegram de ofertas de vuelos (Amadeus + Google Flights híbrido) con alertas y PDF diario.",
+  "version": "7.0.0",
+  "description": "Bot Telegram de ofertas de vuelos AR↔EU (Amadeus + Google Flights híbrido) con alertas全年 monitoring.",
   "main": "src/app.js",
   "type": "commonjs",
   "engines": {

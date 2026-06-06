@@ -1,10 +1,10 @@
-# Flight Price Alert Bot v5.0
+# Flight Price Alert Bot v7.0
 
-Telegram bot + web app que monitorea precios de vuelos y alerta a los usuarios cuando bajan de su umbral.
+Telegram bot + web app que monitorea precios de vuelos全年全年 (todo el año) Argentina ↔ Europa y alerta cuando aparecen ofertas baratas.
 
 ## Descripción
 
-Bot híbrido que combina scraping en tiempo real (Google Flights, Skyscanner, Amadeus) con alertas vía Telegram. Incluye dashboard web para gestionar alertas y un sistema de notificaciones silenciosas.
+Bot híbrido que combina scraping en tiempo real (Google Flights, Skyscanner) con Amadeus API y alertas vía Telegram. **30 destinos en Europa, 5 orígenes en Argentina**, monitoreo continuo de 12 meses rolling con 4 fechas/mes por ruta.
 
 ## Stack
 
@@ -19,7 +19,10 @@ Bot híbrido que combina scraping en tiempo real (Google Flights, Skyscanner, Am
 
 ```
 Flight-Price-Alert/
-├── src/app.js                 ← entrypoint moderno (v5)
+├── src/app.js                 ← entrypoint moderno (v7)
+├── src/bootstrap/
+│   ├── migrateRoutesV7.js     ← v7: 30 EU dest, rolling 12mo dates
+│   └── ...                    ← v2-v6 legacy migrations
 ├── server/
 │   └── app.js                 ← servidor legacy (compatibilidad)
 ├── public/
@@ -54,7 +57,7 @@ Flight-Price-Alert/
 - **Inline calendar** para elegir fechas en `/buscar` y `/nueva_alerta`
 - **Paginated dashboard** (`/mis_alertas`) — una alerta por página con pause/resume/delete
 - **Silent push notifications** — suena solo cuando el precio cruza el umbral por primera vez
-- **Rate-limited background monitoring** — máx 35 rutas/paso, 2s delay entre rutas, 10s pausa cada 5 rutas
+- **Rate-limited background monitoring** — máx 60 rutas/paso, 2s delay entre rutas, 10s pausa cada 5 rutas
 - **Non-blocking scraper** — hard timeout (30s) para que los health checks nunca bloqueen
 - **Self-ping keep-alive** — golpea `/health` cada 10 min para prevenir sleep de Render free-tier
 
@@ -89,7 +92,12 @@ npm run test:db               # tests de base de datos
 
 ### Render (recomendado)
 
-✅ **Estrategia global AR↔EU v6.0 activa** (Jun 2026 → Jun 2027). Los umbrales están configurados en `src/config/priceThresholds.js` y las rutas se generan automáticamente en `src/bootstrap/migrateRoutesV6.js`.
+✅ **Estrategia global AR↔EU v7.0 activa** (rolling 12 meses). 30 destinos EU, 5 orígenes AR, 4 fechas/mes.
+
+Umbrales:
+- AR → EU solo ida: ≤ €500
+- EU → AR solo ida: ≤ €400
+- Roundtrip AR ↔ EU: ≤ €800
 
 1. Conectar repo a Render
 2. Setear variables de entorno en dashboard:
@@ -110,7 +118,8 @@ docker run -p 3000:3000 --env-file .env flight-price-alert
 - ✅ Bot Telegram operativo (comandos `/buscar`, `/nueva_alerta`, `/mis_alertas`)
 - ✅ Dashboard web funcional
 - ✅ Scrapers de Skyscanner y Amadeus activos
-- ⚠️ Google Flights API cambió su formato de respuesta (ver `DEBUG_FIX_SUMMARY.md`). Implementado fix parcial con `parseFlightsResponse()` políglota y feature flag `GOOGLE_FLIGHTS_DEBUG`.
+- ✅ **v7.0**: 30 destinos EU, 5 orígenes AR, fechas rolling 12 meses
+- ⚠️ Google Flights API cambió su formato de respuesta (ver `DEBUG_FIX_SUMMARY.md`).
 - 🔄 Pendiente: normalizar responses entre providers (Amadeus / Google / Skyscanner)
 
 ## Environment Variables

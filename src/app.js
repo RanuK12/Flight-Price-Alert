@@ -21,13 +21,14 @@ const { runMigration: runRoutesMigrationV3 } = require('./bootstrap/migrateRoute
 const { runMigration: runRoutesMigrationV4 } = require('./bootstrap/migrateRoutesV4');
 const { runMigration: runRoutesMigrationV5 } = require('./bootstrap/migrateRoutesV5');
 const { runMigration: runRoutesMigrationV6 } = require('./bootstrap/migrateRoutesV6');
+const { runMigration: runRoutesMigrationV7 } = require('./bootstrap/migrateRoutesV7');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
 const sessions = require('./bot/sessions');
 const { connect: connectMongo } = require('./database/mongoose');
 
 async function main() {
-  logger.info('Booting Flight Deal Bot v5.0', {
+  logger.info('Booting Flight Deal Bot v7.0', {
     env: config.env, port: config.port,
   });
 
@@ -96,6 +97,13 @@ async function main() {
     //   · Purga rutas viejas, pausa las existentes, crea las nuevas.
     await runRoutesMigrationV6().catch((err) => {
       logger.error('migrateRoutesV6 failed (continuando)', /** @type {Error} */ (err));
+    });
+    // Migración idempotente v7:
+    //   · Expande a 30 destinos EU + 5 orígenes AR.
+    //   · Fechas rolling dinámicas (próximos 12 meses desde boot).
+    //   · 4 fechas/mes (vs 2 en v6) para mejor cobertura.
+    await runRoutesMigrationV7().catch((err) => {
+      logger.error('migrateRoutesV7 failed (continuando)', /** @type {Error} */ (err));
     });
   }
 

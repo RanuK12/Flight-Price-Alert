@@ -1,4 +1,4 @@
-# Render Blueprint — Flight Deal Bot v5.0
+# Render Blueprint — Flight Deal Bot v7.0
 # Docs: https://render.com/docs/blueprint-spec
 services:
   - type: web
@@ -6,7 +6,8 @@ services:
     runtime: docker
     plan: free
     healthCheckPath: /health
-    # v5.0 usa MongoDB Atlas como persistencia principal.
+    # v7.0: 30 destinos EU, 5 orígenes AR, fechas rolling 12 meses.
+    # MongoDB Atlas como persistencia principal.
     # SQLite solo como fallback local si MONGODB_URI no está configurado.
     envVars:
       # --- Telegram (configurar valor en el dashboard de Render) ---
