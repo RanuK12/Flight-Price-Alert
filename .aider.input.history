@@ -4,3 +4,9 @@
 
 # 2026-06-27 18:51:29.452928
 +edit src/config/constants.js and src/config/priceThresholds.js to add flight alert for one-way flights from Madrid (MAD), Barcelona (BCN), and Rome (ROM/FCO) to Ezeiza (EZE) and Córdoba (COR) from 2026-09-25 to 2026-10-20 with a maximum price of 450 EUR
+
+# 2026-06-28 06:46:21.467565
++Implement a simple license key check: read a LICENSE_KEY env variable, validate it against a hard-coded list of paid keys (placeholder). Add a new command --premium that enables advanced alert features (e.g., multi-city monitoring, email notifications). Update the CLI
+
+# 2026-06-28 06:46:21.468014
++Implement a simple license key check: read a LICENSE_KEY env variable, validate it against a hard-coded list of paid keys (placeholder). Add a new command --premium that enables advanced alert features (e.g., multi-city monitoring, email notifications). Update the CLI
