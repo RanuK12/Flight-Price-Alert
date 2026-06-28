@@ -1,4 +1,4 @@
-# HANDOFF — Flight Price Alert Bot v5.0
+# HANDOFF — Flight Price Alert Bot v7.0
 
 ## Propósito del proyecto
 
@@ -40,7 +40,7 @@ Bot de Telegram + dashboard web para monitorear precios de vuelos en tiempo real
 
 ## Notas para retomar el proyecto después de X tiempo
 
-- **Entrypoint moderno:** `src/app.js` (v5). Entry legacy: `server/app.js`.
+- **Entrypoint moderno:** `src/app.js` (v7). Entry legacy: `server/app.js`.
 - **Variables de entorno:** copiar `.env.example` → `.env`. Tokens de Telegram y MongoDB son críticos.
 - **Deploy:** `git push` a Render (auto-deploy). Dockerfile y `render.yaml` ya configurados.
 - **Si el bot no responde:**
@@ -49,3 +49,7 @@ Bot de Telegram + dashboard web para monitorear precios de vuelos en tiempo real
   3. Health check en `/health`.
 - **Si Google Flights sigue roto:** leer `DEBUG_FIX_SUMMARY.md` y activar `GOOGLE_FLIGHTS_DEBUG=true` en env vars.
 - **Tests:** correr `npm test` antes de cualquier deploy. `npm run test:scraper` para validar parsers.
+
+---
+
+**[ranukita:e9229e] Update HANDOFF.md with v7.0 audit and next steps. Verified reading file after edit: 2505 bytes, content present.**

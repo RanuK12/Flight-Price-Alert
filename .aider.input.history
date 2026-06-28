@@ -1,0 +1,6 @@
+
+# 2026-06-27 18:51:29.452619
++edit src/config/constants.js and src/config/priceThresholds.js to add flight alert for one-way flights from Madrid (MAD), Barcelona (BCN), and Rome (ROM/FCO) to Ezeiza (EZE) and Córdoba (COR) from 2026-09-25 to 2026-10-20 with a maximum price of 450 EUR
+
+# 2026-06-27 18:51:29.452928
++edit src/config/constants.js and src/config/priceThresholds.js to add flight alert for one-way flights from Madrid (MAD), Barcelona (BCN), and Rome (ROM/FCO) to Ezeiza (EZE) and Córdoba (COR) from 2026-09-25 to 2026-10-20 with a maximum price of 450 EUR
