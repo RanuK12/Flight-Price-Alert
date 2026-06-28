@@ -22,6 +22,7 @@ const { runMigration: runRoutesMigrationV4 } = require('./bootstrap/migrateRoute
 const { runMigration: runRoutesMigrationV5 } = require('./bootstrap/migrateRoutesV5');
 const { runMigration: runRoutesMigrationV6 } = require('./bootstrap/migrateRoutesV6');
 const { runMigration: runRoutesMigrationV7 } = require('./bootstrap/migrateRoutesV7');
+const { runMigration: runRoutesMigrationV8 } = require('./bootstrap/migrateRoutesV8');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
 const sessions = require('./bot/sessions');
@@ -104,6 +105,12 @@ async function main() {
     //   · 4 fechas/mes (vs 2 en v6) para mejor cobertura.
     await runRoutesMigrationV7().catch((err) => {
       logger.error('migrateRoutesV7 failed (continuando)', /** @type {Error} */ (err));
+    });
+
+    // v8: alerta puntual de Emilio — EU(MAD/BCN/FCO)→AR(EZE/COR) solo ida, ventana
+    //   2026-09-25..2026-10-20, umbral ≤€450. Aditiva (no toca las rutas de v7).
+    await runRoutesMigrationV8().catch((err) => {
+      logger.error('migrateRoutesV8 failed (continuando)', /** @type {Error} */ (err));
     });
   }
 
