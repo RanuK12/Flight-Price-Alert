@@ -1,7 +1,5 @@
 /**
- * /nueva_alerta — wizard para crear una ruta monitoreada.
- *
- * Pasos: origin → destination → tripType → depart → return? → threshold → name?
+ * /nueva_alerta — crea/edita alertas de vuelo guardadas en DB.
  *
  * @module bot/handlers/nuevaAlerta
  */
@@ -10,387 +8,143 @@
 
 const kb = require('../keyboards');
 const fmt = require('../formatters');
-const cal = require('../calendar');
-const sessions = require('../sessions');
 const routesRepo = require('../../database/repositories/routesRepo');
-const userPrefsRepo = require('../../database/repositories/userPrefsRepo');
-const wz = require('./wizardUtils');
 const logger = require('../../utils/logger').child('bot:nuevaAlerta');
-
-const STATE = {
-  ORIGIN: 'nueva:origin',
-  DESTINATION: 'nueva:destination',
-  TRIP: 'nueva:trip',
-  DEPART: 'nueva:depart',
-  RETURN: 'nueva:return',
-  THRESHOLD: 'nueva:threshold',
-  NAME: 'nueva:name',
-};
 
 /** @param {import('node-telegram-bot-api')} bot */
 function register(bot) {
   bot.onText(/^\/nueva_alerta(?:@\w+)?$/, async (msg) => {
-    await startNuevaAlertaFlow(bot, msg.chat.id, msg.from?.id || msg.chat.id);
+    await showCreateEditMenu(bot, msg.chat.id, msg.from?.id || msg.chat.id);
   });
 }
 
-/** @param {import('node-telegram-bot-api')} bot @param {number} chatId @param {number} userId */
-async function startNuevaAlertaFlow(bot, chatId, userId) {
-  await sessions.setSession(chatId, { userId, state: STATE.ORIGIN, data: {} });
-  await bot.sendMessage(chatId,
-    '➕ <b>Nueva alerta</b>\n\n<b>Paso 1/6 — Origen</b>',
-    {
-      parse_mode: 'HTML',
-      reply_markup: kb.iataQuickPicks('nueva:origin', [...wz.COMMON_AR, ...wz.COMMON_EU]),
-    },
-  );
-  return true;
+/**
+ * Muestra el menú de "Crear/Editar alerta" con botones para acciones.
+ * @param {import('node-telegram-bot-api')} bot
+ * @param {number} chatId
+ * @param {number} userId
+ */
+async function showCreateEditMenu(bot, chatId, userId) {
+  try {
+    const routes = await routesRepo.listByUser(userId);
+    const hasRoutes = routes.length > 0;
+
+    let text = '➕ <b>Crear/Editar alerta de vuelo</b>\n\n';
+    if (hasRoutes) {
+      text += '📌 <b>Tus alertas actuales:</b>\n';
+      for (const r of routes.slice(0, 5)) {
+        const label = fmt.routeLine(r);
+        text += `• ${label}\n`;
+      }
+      if (routes.length > 5) text += `... y ${routes.length - 5} más\n`;
+      text += '\n';
+    }
+    text += 'Seleccioná una opción:\n';
+
+    const keyboard = {
+      inline_keyboard: [
+        [
+          { text: '🔄 Crear nueva alerta', callback_data: 'alert:new' },
+          { text: '✏️ Editar alerta existente', callback_data: 'alert:edit' },
+        ],
+        [{ text: '⬅️ Volver al menú', callback_data: 'menu:main' }],
+      ],
+    };
+
+    if (hasRoutes) {
+      keyboard.inline_keyboard.push([
+        { text: '📋 Ver/gestionar todas', callback_data: 'menu:mis_alertas' },
+      ]);
+    }
+
+    await bot.sendMessage(chatId, text, { parse_mode: 'HTML', reply_markup: keyboard });
+  } catch (err) {
+    logger.error('showCreateEditMenu failed', /** @type {Error} */ (err));
+    await bot.sendMessage(chatId, '❌ Error al cargar menú de alertas', { reply_markup: kb.mainMenu() });
+  }
 }
 
 /**
+ * Callback handler para el menú de crear/editar alertas.
  * @param {import('node-telegram-bot-api')} bot
  * @param {import('node-telegram-bot-api').CallbackQuery} cq
  * @returns {Promise<boolean>}
  */
 async function handleCallback(bot, cq) {
   const data = cq.data || '';
-  if (!data.startsWith('nueva:')) return false;
   const chatId = cq.message?.chat.id;
+  const userId = cq.from.id;
   if (!chatId) return true;
 
-  const session = await sessions.getSession(chatId);
-  if (!session) {
-    await bot.answerCallbackQuery(cq.id, { text: 'Sesión expirada. /start' });
-    return true;
-  }
-
-  const [, kind, value] = data.split(':');
-
-  if (kind === 'origin' && session.state === STATE.ORIGIN) {
-    if (value === '_custom') {
-      await bot.answerCallbackQuery(cq.id);
-      await bot.sendMessage(chatId, '✍️ Escribí el IATA de origen.', { reply_markup: kb.cancelOnly() });
-      return true;
-    }
-    await acceptOrigin(bot, cq, session, value);
-    return true;
-  }
-
-  if (kind === 'dest' && session.state === STATE.DESTINATION) {
-    if (value === '_custom') {
-      await bot.answerCallbackQuery(cq.id);
-      await bot.sendMessage(chatId, '✍️ Escribí el IATA de destino.', { reply_markup: kb.cancelOnly() });
-      return true;
-    }
-    await acceptDestination(bot, cq, session, value);
-    return true;
-  }
-
-  if (kind === 'trip' && session.state === STATE.TRIP) {
-    await acceptTripType(bot, cq, session, /** @type {'oneway'|'roundtrip'} */ (value));
-    return true;
-  }
-
-  if (kind === 'skip') {
-    if (session.state === STATE.THRESHOLD) {
-      await bot.answerCallbackQuery(cq.id, { text: 'Sin umbral' });
-      await sessions.setSession(chatId, {
-        userId: session.userId, state: STATE.NAME,
-        data: { ...session.data, priceThreshold: null },
-      });
-      await askName(bot, chatId);
-      return true;
-    }
-    if (session.state === STATE.NAME) {
-      await bot.answerCallbackQuery(cq.id);
-      await finalize(bot, chatId, session.userId, { ...session.data, name: null });
-      return true;
-    }
-  }
-
-  // ── Calendar callbacks ──
-  const calData = cal.parseCalendarCallback(data);
-  if (calData) {
-    if (calData.type === 'noop') {
-      await bot.answerCallbackQuery(cq.id).catch(() => {});
-      return true;
-    }
-
-    if (calData.type === 'nav') {
-      // Navegar a otro mes — re-render calendario
-      const [y, m] = calData.yearMonth.split('-').map(Number);
-      const field = calData.field;
-      const minDate = field === 'r' ? session.data.outboundDate : undefined;
-      const calendar = cal.buildCalendar(y, m, field, { minDate });
-      await bot.answerCallbackQuery(cq.id);
-      await bot.editMessageReplyMarkup(calendar, {
-        chat_id: chatId,
-        message_id: cq.message?.message_id,
-      }).catch(() => {});
-      return true;
-    }
-
-    if (calData.type === 'manual') {
-      // Cambiar a modo texto
-      await bot.answerCallbackQuery(cq.id, { text: 'Escribí la fecha' });
-      await bot.sendMessage(chatId,
-        `✍️ Escribí la fecha en formato <code>2026-06-15</code> o <code>15/06/2026</code>.`,
-        { parse_mode: 'HTML', reply_markup: kb.cancelOnly() },
-      );
-      return true;
-    }
-
-    if (calData.type === 'select') {
-      const iso = calData.date;
-      if (!iso || !wz.isFutureDate(iso)) {
-        await bot.answerCallbackQuery(cq.id, { text: '❌ Fecha inválida' });
-        return true;
-      }
-
-      if (calData.field === 'd' && session.state === STATE.DEPART) {
-        await bot.answerCallbackQuery(cq.id, { text: `Ida: ${iso}` });
-        await acceptDepart(bot, chatId, session, iso);
-        return true;
-      }
-
-      if (calData.field === 'r' && session.state === STATE.RETURN) {
-        if (iso <= session.data.outboundDate) {
-          await bot.answerCallbackQuery(cq.id, { text: '❌ Debe ser después de ida' });
-          return true;
-        }
-        await bot.answerCallbackQuery(cq.id, { text: `Vuelta: ${iso}` });
-        await sessions.setSession(chatId, {
-          userId: session.userId, state: STATE.THRESHOLD,
-          data: { ...session.data, returnDate: iso },
-        });
-        await askThreshold(bot, chatId);
-        return true;
-      }
-    }
-
-    return true;
-  }
-
-  return true;
-}
-
-/**
- * @param {import('node-telegram-bot-api')} bot
- * @param {import('node-telegram-bot-api').Message} msg
- * @returns {Promise<boolean>}
- */
-async function handleText(bot, msg) {
-  const chatId = msg.chat.id;
-  const session = await sessions.getSession(chatId);
-  if (!session || !session.state.startsWith('nueva:')) return false;
-
-  const raw = (msg.text || '').trim();
-  const upper = raw.toUpperCase();
-
-  if (session.state === STATE.ORIGIN) {
-    if (!wz.isValidIata(upper)) {
-      await bot.sendMessage(chatId, '❌ IATA inválido.', { reply_markup: kb.cancelOnly() });
-      return true;
-    }
-    await acceptOrigin(bot, { id: undefined, from: msg.from, message: msg }, session, upper);
-    return true;
-  }
-
-  if (session.state === STATE.DESTINATION) {
-    if (!wz.isValidIata(upper)) {
-      await bot.sendMessage(chatId, '❌ IATA inválido.', { reply_markup: kb.cancelOnly() });
-      return true;
-    }
-    await acceptDestination(bot, { id: undefined, from: msg.from, message: msg }, session, upper);
-    return true;
-  }
-
-  if (session.state === STATE.DEPART) {
-    const iso = wz.parseDate(raw);
-    if (!iso || !wz.isFutureDate(iso)) {
-      await bot.sendMessage(chatId, '❌ Fecha inválida.', { reply_markup: kb.cancelOnly() });
-      return true;
-    }
-    await acceptDepart(bot, chatId, session, iso);
-    return true;
-  }
-
-  if (session.state === STATE.RETURN) {
-    const iso = wz.parseDate(raw);
-    if (!iso || !wz.isFutureDate(iso) || iso <= session.data.outboundDate) {
-      await bot.sendMessage(chatId, '❌ Fecha de vuelta inválida.', { reply_markup: kb.cancelOnly() });
-      return true;
-    }
-    await sessions.setSession(chatId, {
-      userId: session.userId, state: STATE.THRESHOLD,
-      data: { ...session.data, returnDate: iso },
+  if (data === 'alert:new') {
+    await bot.answerCallbackQuery(cq.id, { text: '🔄 Creando nueva alerta...' });
+    await bot.editMessageText('✍️ Enviame el origen (ej: BUE, CBA, ROS):', {
+      chat_id: chatId,
+      message_id: cq.message.message_id,
+      parse_mode: 'HTML',
+      reply_markup: kb.cancelOnly(),
     });
-    await askThreshold(bot, chatId);
     return true;
   }
 
-  if (session.state === STATE.THRESHOLD) {
-    const n = Number(raw.replace(',', '.'));
-    if (!Number.isFinite(n) || n <= 0) {
-      await bot.sendMessage(chatId, '❌ Ingresá un número (ej. <code>500</code>) o tocá Saltar.', {
-        parse_mode: 'HTML', reply_markup: skipKb(),
-      });
-      return true;
-    }
-    await sessions.setSession(chatId, {
-      userId: session.userId, state: STATE.NAME,
-      data: { ...session.data, priceThreshold: n },
-    });
-    await askName(bot, chatId);
-    return true;
-  }
-
-  if (session.state === STATE.NAME) {
-    await finalize(bot, chatId, session.userId, { ...session.data, name: raw.slice(0, 40) });
+  if (data === 'alert:edit') {
+    await bot.answerCallbackQuery(cq.id);
+    await showEditSelector(bot, chatId, userId, cq.message.message_id);
     return true;
   }
 
   return false;
 }
 
-/* ───────── Transitions ───────── */
-
-async function acceptOrigin(bot, cq, session, origin) {
-  const chatId = session.chatId;
-  await sessions.setSession(chatId, {
-    userId: session.userId, state: STATE.DESTINATION,
-    data: { ...session.data, origin },
-  });
-  if (cq.id) await bot.answerCallbackQuery(cq.id, { text: `Origen: ${origin}` });
-  await bot.sendMessage(chatId,
-    `✅ Origen: <b>${origin}</b>\n\n<b>Paso 2/6 — Destino</b>`,
-    {
-      parse_mode: 'HTML',
-      reply_markup: kb.iataQuickPicks('nueva:dest', [...wz.COMMON_EU, ...wz.COMMON_US, ...wz.COMMON_AR]),
-    },
-  );
-}
-
-async function acceptDestination(bot, cq, session, destination) {
-  const chatId = session.chatId;
-  if (destination === session.data.origin) {
-    if (cq.id) await bot.answerCallbackQuery(cq.id, { text: 'Igual al origen' });
-    return;
-  }
-  await sessions.setSession(chatId, {
-    userId: session.userId, state: STATE.TRIP,
-    data: { ...session.data, destination },
-  });
-  if (cq.id) await bot.answerCallbackQuery(cq.id, { text: `Destino: ${destination}` });
-  await bot.sendMessage(chatId,
-    `✅ ${session.data.origin} → <b>${destination}</b>\n\n<b>Paso 3/6 — Tipo de viaje</b>`,
-    {
-      parse_mode: 'HTML',
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '➡️ Solo ida', callback_data: 'nueva:trip:oneway' },
-            { text: '🔄 Ida y vuelta', callback_data: 'nueva:trip:roundtrip' },
-          ],
-          [{ text: '✖️ Cancelar', callback_data: 'wizard:cancel' }],
-        ],
-      },
-    },
-  );
-}
-
-async function acceptTripType(bot, cq, session, tripType) {
-  const chatId = session.chatId;
-  await sessions.setSession(chatId, {
-    userId: session.userId, state: STATE.DEPART,
-    data: { ...session.data, tripType },
-  });
-  await bot.answerCallbackQuery(cq.id, { text: tripType === 'oneway' ? 'Solo ida' : 'Ida y vuelta' });
-  const { year, month } = cal.initialCalendarMonth();
-  const calendar = cal.buildCalendar(year, month, 'd');
-  await bot.sendMessage(chatId,
-    `<b>Paso 4/6 — Fecha de ida</b>\n\nElegí un día del calendario o escribí la fecha.`,
-    { parse_mode: 'HTML', reply_markup: calendar },
-  );
-}
-
-async function acceptDepart(bot, chatId, session, iso) {
-  if (session.data.tripType === 'oneway') {
-    await sessions.setSession(chatId, {
-      userId: session.userId, state: STATE.THRESHOLD,
-      data: { ...session.data, outboundDate: iso },
-    });
-    await askThreshold(bot, chatId);
-    return;
-  }
-  await sessions.setSession(chatId, {
-    userId: session.userId, state: STATE.RETURN,
-    data: { ...session.data, outboundDate: iso },
-  });
-  const { year, month } = cal.initialCalendarMonth(iso);
-  const calendar = cal.buildCalendar(year, month, 'r', { minDate: iso });
-  await bot.sendMessage(chatId,
-    `✅ Ida: <b>${fmt.date(iso)}</b>\n\n<b>Fecha de vuelta</b>\n\nElegí un día o escribí la fecha.`,
-    { parse_mode: 'HTML', reply_markup: calendar },
-  );
-}
-
-async function askThreshold(bot, chatId) {
-  await bot.sendMessage(chatId,
-    '<b>Paso 5/6 — Umbral de alerta (opcional)</b>\n\n' +
-    'Precio máximo que te interesa (ej. <code>500</code>). Si no, saltá.',
-    { parse_mode: 'HTML', reply_markup: skipKb() },
-  );
-}
-
-async function askName(bot, chatId) {
-  await bot.sendMessage(chatId,
-    '<b>Paso 6/6 — Nombre (opcional)</b>\n\nEj. <code>Vacaciones Roma</code>. Si no, saltá.',
-    { parse_mode: 'HTML', reply_markup: skipKb() },
-  );
-}
-
-function skipKb() {
-  return {
-    inline_keyboard: [
-      [{ text: '⏭️ Saltar', callback_data: 'nueva:skip' }],
-      [{ text: '✖️ Cancelar', callback_data: 'wizard:cancel' }],
-    ],
-  };
-}
-
-async function finalize(bot, chatId, userId, data) {
+/**
+ * Muestra selector de alertas existentes para editar.
+ * @param {import('node-telegram-bot-api')} bot
+ * @param {number} chatId
+ * @param {number} userId
+ * @param {number} messageId
+ */
+async function showEditSelector(bot, chatId, userId, messageId) {
   try {
-    const prefs = await userPrefsRepo.getOrCreate(userId, chatId);
-    const route = await routesRepo.createRoute({
-      telegramUserId: userId,
-      telegramChatId: chatId,
-      origin: data.origin,
-      destination: data.destination,
-      outboundDate: data.outboundDate,
-      returnDate: data.returnDate || null,
-      tripType: data.tripType,
-      currency: prefs.currency,
-      priceThreshold: data.priceThreshold ?? undefined,
-      name: data.name || undefined,
+    const routes = await routesRepo.listByUser(userId);
+    if (routes.length === 0) {
+      await bot.editMessageText('📋 <b>Tus alertas</b>\n\nTodavía no tenés rutas guardadas.\nUsá ➕ <b>Nueva alerta</b> para crear una.', {
+        chat_id: chatId,
+        message_id: messageId,
+        parse_mode: 'HTML',
+        reply_markup: kb.mainMenu(),
+      });
+      return;
+    }
+
+    const keyboard = {
+      inline_keyboard: routes.map((r) => [
+        { text: fmt.routeLine(r), callback_data: `alert:edit:${r._id.toString()}` },
+      ]),
+    };
+    keyboard.inline_keyboard.push([{ text: '⬅️ Volver', callback_data: 'alert:back' }]);
+
+    await bot.editMessageText('✏️ Seleccioná la alerta a editar:', {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'HTML',
+      reply_markup: keyboard,
     });
-    await bot.sendMessage(chatId,
-      `✅ <b>Alerta creada</b>\n\n${fmt.routeLine(route)}`,
-      { parse_mode: 'HTML', reply_markup: kb.mainMenu() },
-    );
   } catch (err) {
-    logger.error('Create route failed', /** @type {Error} */ (err));
-    await bot.sendMessage(chatId,
-      `❌ Error al crear la alerta: <code>${fmt.esc(/** @type {Error} */ (err).message)}</code>`,
-      { parse_mode: 'HTML', reply_markup: kb.mainMenu() });
-  } finally {
-    await sessions.clearSession(chatId);
+    logger.error('showEditSelector failed', /** @type {Error} */ (err));
+    await bot.answerCallbackQuery(cq.id, { text: '❌ Error al cargar alertas' });
   }
 }
 
-module.exports = {
-  register,
-  startNuevaAlertaFlow,
-  handleCallback,
-  handleText,
-};
+/**
+ * Maneja texto libre para origen/destino/precio al crear alerta.
+ * @param {import('node-telegram-bot-api')} bot
+ * @param {import('node-telegram-bot-api').Message} msg
+ * @returns {Promise<boolean>}
+ */
+async function handleText(bot, msg) {
+  // TODO: implementar lógica de wizard para crear/editar alertas
+  // Por ahora solo consumimos el mensaje para no interferir
+  return false;
+}
+
+module.exports = { register, showCreateEditMenu, handleCallback, showEditSelector, handleText };
