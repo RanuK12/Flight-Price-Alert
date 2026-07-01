@@ -19,6 +19,7 @@
  * @returns {InlineKeyboard}
  */
 function mainMenu() {
+    // Agrego opción para crear/editar alertas
   return {
     inline_keyboard: [
       [
