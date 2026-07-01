@@ -16,7 +16,7 @@ const paginator = require('../paginator');
 const logger = require('../../utils/logger').child('bot:misAlertas');
 
 const NAMESPACE = 'alerts';
-const PER_PAGE = 1;
+const PER_PAGE = 5;
 
 /** @param {import('node-telegram-bot-api')} bot */
 function register(bot) {
