@@ -33,7 +33,7 @@ Bot de Telegram + dashboard web para monitorear precios de vuelos en tiempo real
 
 ## Próximos pasos claros
 
-1. **Monitorear logs de Render** para confirmar que Google Flights vuelve a devolver vuelos. Si persiste, activar `GOOGLE_FLIGHTS_DEBUG=true`.
+1. **Monitorear logs de Render** (dashboard → logs → últimos 100 líneas) para confirmar que Google Flights vuelve a devolver vuelos. Si persiste el error, activar `GOOGLE_FLIGHTS_DEBUG=true` en variables de entorno y revisar logs nuevamente.
 2. **Normalizar responses** entre providers (Amadeus / Google / Skyscanner) para unificar formato de datos.
 3. **Evaluar migración** de SQLite fallback a MongoDB exclusivo si el volumen de alertas crece.
 4. **Agregar nuevas rutas** si hay demanda (ver `scripts/seed-routes.js`).
