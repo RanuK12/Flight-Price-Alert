@@ -117,3 +117,4 @@ etl-bigdata-pipeline/
 import time.py
 setup.py
 test_results.json
+.aider*
