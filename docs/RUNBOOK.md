@@ -60,7 +60,7 @@ documentos; no hay undo.
 ```bash
 # 1. Exportar URI desde el entorno (o usar la del dashboard Atlas).
 #    Debe ser la URI completa con credenciales y ?authSource=admin.
-export MONGODB_URI='mongodb+srv://USER:PASS@CLUSTER.mongodb.net/flightdeals?retryWrites=true&w=majority'
+export MONGODB_URI='mongodb+srv://<TU_USUARIO>:<TU_PASSWORD>@CLUSTER.mongodb.net/flightdeals?retryWrites=true&w=majority'
 
 # 2. Crear directorio de backup con timestamp.
 BACKUP_DIR="backups/notifications-$(date +%Y%m%d-%H%M%S)"
