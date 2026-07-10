@@ -23,6 +23,7 @@ const { runMigration: runRoutesMigrationV5 } = require('./bootstrap/migrateRoute
 const { runMigration: runRoutesMigrationV6 } = require('./bootstrap/migrateRoutesV6');
 const { runMigration: runRoutesMigrationV7 } = require('./bootstrap/migrateRoutesV7');
 const { runMigration: runRoutesMigrationV8 } = require('./bootstrap/migrateRoutesV8');
+const { runMigration: runRoutesMigrationV9 } = require('./bootstrap/migrateRoutesV9');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
 const sessions = require('./bot/sessions');
@@ -111,6 +112,11 @@ async function main() {
     //   2026-09-25..2026-10-20, umbral ≤€450. Aditiva (no toca las rutas de v7).
     await runRoutesMigrationV8().catch((err) => {
       logger.error('migrateRoutesV8 failed (continuando)', /** @type {Error} */ (err));
+    });
+
+    // v9: alerta puntual de Emilio — AMS/BCN→COR/EZE, umbral ≤€500.
+    await runRoutesMigrationV9().catch((err) => {
+      logger.error('migrateRoutesV9 failed (continuando)', /** @type {Error} */ (err));
     });
   }
 
