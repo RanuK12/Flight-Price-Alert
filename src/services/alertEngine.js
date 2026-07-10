@@ -35,6 +35,9 @@ const MIN_LEVEL_TO_RANK = { steal: 0, great: 1, good: 2, all: 4 };
 /** Máximo de rutas a consultar por pasada (expandido para v7 ~18K rutas). */
 const MAX_ROUTES_PER_PASS = 60;
 
+/** Límite de alertas para tier free (3 alertas por usuario). */
+const FREE_TIER_ALERT_LIMIT = 3;
+
 /** Offset de rotación persistente entre pasadas. */
 let rotationOffset = 0;
 
@@ -203,6 +206,24 @@ async function runOnce() {
 
   for (let i = 0; i < routes.length; i++) {
     const route = routes[i];
+
+    // Free tier: contar alertas del usuario en los últimos 30 días
+    if (route.tier === 'free') {
+      const recentAlerts = await Notification.countDocuments({
+        telegramUserId: route.telegramUserId,
+        createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      });
+      if (recentAlerts >= FREE_TIER_ALERT_LIMIT) {
+        logger.info('Free tier limit reached — skipping alert', { telegramUserId: route.telegramUserId, recentAlerts });
+        await notifyOffer(route.telegramUserId, route.telegramChatId, {
+          route,
+          offer: null,
+          isUpgradePrompt: true,
+        });
+        skippedByThreshold++;
+        continue; // Saltar al siguiente ciclo
+      }
+    }
 
     // Early stop: si el circuit breaker del scraper está abierto,
     // no tiene sentido seguir consultando.

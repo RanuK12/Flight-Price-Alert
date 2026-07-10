@@ -23,6 +23,7 @@ const { runMigration: runRoutesMigrationV5 } = require('./bootstrap/migrateRoute
 const { runMigration: runRoutesMigrationV6 } = require('./bootstrap/migrateRoutesV6');
 const { runMigration: runRoutesMigrationV7 } = require('./bootstrap/migrateRoutesV7');
 const { runMigration: runRoutesMigrationV8 } = require('./bootstrap/migrateRoutesV8');
+const { runMigration: runRoutesMigrationV9 } = require('./bootstrap/migrateRoutesV9');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
 const sessions = require('./bot/sessions');

@@ -67,7 +67,23 @@ const { getBot } = require('./index');
  * @param {OfferContext} ctx
  * @returns {Promise<{sent: boolean, reason?: string, id?: number}>}
  */
-async function notifyOffer(flight, ctx) {
+async function notifyOffer(flight, ctx, { isUpgradePrompt } = {}) {
+  if (isUpgradePrompt) {
+    const msg = `
+⚠️ *Upgrade to Pro* ⚠️
+
+You've reached the free tier limit of ${FREE_TIER_ALERT_LIMIT} alerts per month.
+
+🔹 *Pro Tier Benefits:*
+- Unlimited alerts
+- Priority support
+- Advanced filters
+
+👉 Upgrade now: /upgrade
+`;
+    await ctx.reply(msg, { parse_mode: 'Markdown' });
+    return;
+  }
   const bot = getBot();
   if (!bot) {
     logger.warn('Bot no inicializado, skip notify');

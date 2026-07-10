@@ -20,6 +20,7 @@ const routeSchema = new mongoose.Schema({
   priceThreshold: { type: Number, default: null },
   name: { type: String, default: '' },
   paused: { type: Boolean, default: false },
+  tier: { type: String, enum: ['free', 'pro'], default: 'free' },
 }, {
   timestamps: true,
 });
