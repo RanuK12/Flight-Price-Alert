@@ -122,8 +122,11 @@ const config = Object.freeze({
   }),
 
   amadeus: Object.freeze({
-    apiKey: requireEnv('AMADEUS_API_KEY'),
-    apiSecret: requireEnv('AMADEUS_API_SECRET'),
+    // OPCIONAL (fix 07-20): antes eran requireEnv -> si Render no tenía las keys, el proceso salía
+    // con status 1 y NO arrancaba, aunque el bot tiene fallback a scraper (hybridSearch). Ahora si
+    // faltan, la app arranca en modo scraper-only (checkAmadeusBudget lo detecta por apiKey vacía).
+    apiKey: optionalEnv('AMADEUS_API_KEY', ''),
+    apiSecret: optionalEnv('AMADEUS_API_SECRET', ''),
     baseUrl: optionalEnv('AMADEUS_BASE_URL', 'https://api.amadeus.com').replace(/\/$/, ''),
     rateLimitRps: parseInteger(optionalEnv('AMADEUS_RATE_LIMIT_RPS', '8'), 'AMADEUS_RATE_LIMIT_RPS'),
     monthlyBudget: parseInteger(optionalEnv('AMADEUS_MONTHLY_BUDGET', '2000'), 'AMADEUS_MONTHLY_BUDGET'),

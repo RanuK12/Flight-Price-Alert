@@ -89,6 +89,13 @@ const amadeusProvider = new amadeus.FlightOffersProvider({ cache: amadeusCache }
  *   used: number, budget: number, usedToday: number, dailyBudget: number}>}
  */
 async function checkAmadeusBudget() {
+  // sin credenciales de Amadeus -> tratarlo como sin budget (scraper-only), sin intentar el token
+  // (evita 401 repetidos). Permite arrancar el servicio aunque Render no tenga las keys. (fix 07-20)
+  if (!config.amadeus.apiKey || !config.amadeus.apiSecret) {
+    return { ok: false, okMonthly: false, okDaily: false, used: 0,
+             budget: config.amadeus.monthlyBudget, usedToday: 0, dailyBudget: config.amadeus.dailyBudget,
+             noCredentials: true };
+  }
   const [used, usedToday] = await Promise.all([
     usageRepo.getMonthly(PROVIDER_NAMES.AMADEUS),
     usageRepo.getToday(PROVIDER_NAMES.AMADEUS),
