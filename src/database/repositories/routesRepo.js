@@ -28,7 +28,7 @@ async function createRoute(input) {
   const user = await User.findOneAndUpdate(
     { telegramUserId: input.telegramUserId },
     { telegramChatId: input.telegramChatId },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: 'after' }
   );
 
   const tripType = input.tripType || (input.returnDate ? 'roundtrip' : 'oneway');
@@ -50,7 +50,7 @@ async function createRoute(input) {
       priceThreshold: input.priceThreshold ?? null,
       paused: false,
     },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: 'after' }
   );
 
   return route;

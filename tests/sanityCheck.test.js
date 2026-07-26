@@ -15,7 +15,7 @@ jest.mock('../src/database/models/Notification', () => ({
 // Mock del logger para no contaminar la salida.
 jest.mock('../src/utils/logger', () => ({
   child: () => ({
-    info: () => {}, warn: () => {}, debug: () => {}, error: () => {},
+    info: () => { }, warn: () => { }, debug: () => { }, error: () => { },
   }),
 }));
 
@@ -61,9 +61,9 @@ describe('sanityCheck — capa 1 (hard floor)', () => {
 });
 
 describe('sanityCheck — capa 2 (threshold floor)', () => {
-  test('quarantines EZE-MAD at €280 (60% of steal=520 → floor 312)', async () => {
+  test('quarantines COR-LHR at €260 (60% of steal=440 → floor 264)', async () => {
     const v = await sanity.check({
-      origin: 'EZE', destination: 'MAD', price: 280, currency: 'EUR', tripType: 'oneway',
+      origin: 'COR', destination: 'LHR', price: 260, currency: 'EUR', tripType: 'oneway',
     });
     expect(v.severity).toBe('quarantine');
     expect(v.reason).toMatch(/steal floor/);
@@ -77,9 +77,9 @@ describe('sanityCheck — capa 2 (threshold floor)', () => {
   });
 
   test('USD priced is converted to EUR before threshold check', async () => {
-    // EZE-MAD steal=520 EUR → floor 312 EUR. $300 USD ≈ €276 → cuarentena.
+    // COR-LHR steal=440 EUR → floor 264 EUR. $280 USD ≈ €257 → cuarentena.
     const v = await sanity.check({
-      origin: 'EZE', destination: 'MAD', price: 300, currency: 'USD', tripType: 'oneway',
+      origin: 'COR', destination: 'LHR', price: 280, currency: 'USD', tripType: 'oneway',
     });
     expect(v.severity).toBe('quarantine');
   });
@@ -95,7 +95,7 @@ describe('sanityCheck — capa 3 (historico p25)', () => {
     Notification.aggregate.mockResolvedValueOnce([{
       count: 20,
       prices: [600, 650, 700, 750, 800, 850, 900, 950, 1000, 1050,
-               1100, 1150, 1200, 1250, 1300, 1350, 1400, 1450, 1500, 1550],
+        1100, 1150, 1200, 1250, 1300, 1350, 1400, 1450, 1500, 1550],
       avgPrice: 1075,
     }]);
 

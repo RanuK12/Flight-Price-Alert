@@ -29,7 +29,7 @@
 
 // ── Helpers ────────────────────────────────────────────
 const AR_ORIGINS = ['EZE', 'COR', 'MDQ', 'ROS'];
-const EU_DESTS   = ['MAD', 'BCN', 'FCO', 'MXP', 'CDG', 'LHR', 'AMS', 'LIS', 'BER', 'VIE'];
+const EU_DESTS = ['MAD', 'BCN', 'FCO', 'MXP', 'CDG', 'LHR', 'AMS', 'LIS', 'BER', 'VIE'];
 
 /**
  * One-way (solo ida). Valores en EUR.
@@ -183,6 +183,11 @@ const PRICE_THRESHOLDS_RT = {
   'EZE-BCN': { typical: 1200, deal: 800, steal: 600 },
   'EZE-FCO': { typical: 1300, deal: 800, steal: 650 },
   'EZE-MXP': { typical: 1300, deal: 800, steal: 650 },
+  'EZE-VCE': { typical: 1300, deal: 800, steal: 650 },
+  'VCE-EZE': { typical: 1300, deal: 800, steal: 650 },
+  'MAD-EZE': { typical: 1200, deal: 800, steal: 600 },
+  'BCN-EZE': { typical: 1200, deal: 800, steal: 600 },
+  'FCO-EZE': { typical: 1300, deal: 800, steal: 650 },
   'EZE-CDG': { typical: 1250, deal: 800, steal: 630 },
   'EZE-LHR': { typical: 1350, deal: 800, steal: 660 },
   'EZE-AMS': { typical: 1300, deal: 800, steal: 650 },
@@ -195,6 +200,11 @@ const PRICE_THRESHOLDS_RT = {
   'COR-BCN': { typical: 1350, deal: 800, steal: 650 },
   'COR-FCO': { typical: 1420, deal: 800, steal: 680 },
   'COR-MXP': { typical: 1420, deal: 800, steal: 680 },
+  'COR-VCE': { typical: 1420, deal: 800, steal: 680 },
+  'VCE-COR': { typical: 1420, deal: 800, steal: 680 },
+  'MAD-COR': { typical: 1350, deal: 800, steal: 650 },
+  'BCN-COR': { typical: 1350, deal: 800, steal: 650 },
+  'FCO-COR': { typical: 1420, deal: 800, steal: 680 },
   'COR-CDG': { typical: 1380, deal: 800, steal: 660 },
   'COR-LHR': { typical: 1480, deal: 800, steal: 700 },
   'COR-AMS': { typical: 1430, deal: 800, steal: 680 },

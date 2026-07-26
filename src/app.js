@@ -56,7 +56,7 @@ async function main() {
   if (!useMongo) {
     await runMigrations();
     await seedIfEmpty().catch((err) => {
-      logger.error('seedIfEmpty failed (continuando)', /** @type {Error} */ (err));
+      logger.error('seedIfEmpty failed (continuando)', /** @type {Error} */(err));
     });
   } else {
     // seed si la colección de rutas está vacía
@@ -64,25 +64,25 @@ async function main() {
     const count = await Route.countDocuments();
     if (count === 0) {
       await seedIfEmpty().catch((err) => {
-        logger.error('seedIfEmpty failed (continuando)', /** @type {Error} */ (err));
+        logger.error('seedIfEmpty failed (continuando)', /** @type {Error} */(err));
       });
     }
     // Migración idempotente v2: thresholds Europa €470 + ventana COR↔MDQ 6/5-20/5.
     await runRoutesMigrationV2().catch((err) => {
-      logger.error('migrateRoutesV2 failed (continuando)', /** @type {Error} */ (err));
+      logger.error('migrateRoutesV2 failed (continuando)', /** @type {Error} */(err));
     });
     // Migración idempotente v3:
     //   · upgrade alertMinLevel='steal' -> 'good' (default histórico)
     //   · seed de alertas Argentina -> Italia (cualquier aeropuerto),
     //     one-way, 7-10 jun 2026, <= €500.
     await runRoutesMigrationV3().catch((err) => {
-      logger.error('migrateRoutesV3 failed (continuando)', /** @type {Error} */ (err));
+      logger.error('migrateRoutesV3 failed (continuando)', /** @type {Error} */(err));
     });
     // Migración idempotente v4:
     //   · seed de alertas Argentina -> España (MAD, BCN),
     //     one-way, 7-10 jun 2026, <= €550.
     await runRoutesMigrationV4().catch((err) => {
-      logger.error('migrateRoutesV4 failed (continuando)', /** @type {Error} */ (err));
+      logger.error('migrateRoutesV4 failed (continuando)', /** @type {Error} */(err));
     });
     // Migración idempotente v5:
     //   · force-upgrade alertMinLevel='steal' -> 'good' para TODOS los
@@ -90,7 +90,7 @@ async function main() {
     //     routesMigrationVersion). Corrige el caso donde v3 no los
     //     alcanzó por tener ya version >= 3.
     await runRoutesMigrationV5().catch((err) => {
-      logger.error('migrateRoutesV5 failed (continuando)', /** @type {Error} */ (err));
+      logger.error('migrateRoutesV5 failed (continuando)', /** @type {Error} */(err));
     });
     // Migración idempotente v6:
     //   · Estrategia global AR ↔ EU, todo el año (Jun 2026 → Jun 2027).
@@ -98,20 +98,20 @@ async function main() {
     //   · 4 orígenes AR × 10 destinos EU × 2 fechas/mes × 12 meses.
     //   · Purga rutas viejas, pausa las existentes, crea las nuevas.
     await runRoutesMigrationV6().catch((err) => {
-      logger.error('migrateRoutesV6 failed (continuando)', /** @type {Error} */ (err));
+      logger.error('migrateRoutesV6 failed (continuando)', /** @type {Error} */(err));
     });
     // Migración idempotente v7:
     //   · Expande a 30 destinos EU + 5 orígenes AR.
     //   · Fechas rolling dinámicas (próximos 12 meses desde boot).
     //   · 4 fechas/mes (vs 2 en v6) para mejor cobertura.
     await runRoutesMigrationV7().catch((err) => {
-      logger.error('migrateRoutesV7 failed (continuando)', /** @type {Error} */ (err));
+      logger.error('migrateRoutesV7 failed (continuando)', /** @type {Error} */(err));
     });
 
     // v8: alerta puntual de Emilio — EU(MAD/BCN/FCO)→AR(EZE/COR) solo ida, ventana
     //   2026-09-25..2026-10-20, umbral ≤€450. Aditiva (no toca las rutas de v7).
     await runRoutesMigrationV8().catch((err) => {
-      logger.error('migrateRoutesV8 failed (continuando)', /** @type {Error} */ (err));
+      logger.error('migrateRoutesV8 failed (continuando)', /** @type {Error} */(err));
     });
 
     // v9: alerta puntual de Emilio — AMS/BCN→COR/EZE, umbral ≤€500.
@@ -144,7 +144,7 @@ async function main() {
         const { runOnce } = require('./services/alertEngine');
         await runOnce();
       } catch (err) {
-        logger.error('Alert engine cron failed', /** @type {Error} */ (err));
+        logger.error('Alert engine cron failed', /** @type {Error} */(err));
       }
     }, { timezone: config.tz });
     logger.info(`Alert engine cron scheduled: ${config.scheduler.monitor}`);
@@ -156,7 +156,7 @@ async function main() {
         const { runDaily } = require('./services/dailyReport');
         await runDaily();
       } catch (err) {
-        logger.error('Daily report cron failed', /** @type {Error} */ (err));
+        logger.error('Daily report cron failed', /** @type {Error} */(err));
       }
     }, { timezone: config.tz });
     logger.info(`Daily report cron scheduled: ${config.scheduler.dailyReport}`);
@@ -184,7 +184,7 @@ async function main() {
       ]);
       logger.info('Housekeeping', { cacheRemoved: c, sessionsRemoved: s });
     } catch (err) {
-      logger.error('Housekeeping failed', /** @type {Error} */ (err));
+      logger.error('Housekeeping failed', /** @type {Error} */(err));
     }
   });
 
@@ -208,7 +208,7 @@ async function main() {
 
 // Mantener vivo ante errores no capturados (cron + bot no deben caer).
 process.on('uncaughtException', (err) => logger.error('uncaughtException', err));
-process.on('unhandledRejection', (reason) => logger.error('unhandledRejection', /** @type {any} */ (reason)));
+process.on('unhandledRejection', (reason) => logger.error('unhandledRejection', /** @type {any} */(reason)));
 
 main().catch((err) => {
   logger.error('Fatal boot error', err);
