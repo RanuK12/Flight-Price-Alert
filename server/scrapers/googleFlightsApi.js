@@ -379,11 +379,41 @@ if (foundAtIndex !== null && DEBUG_RESPONSE) {
     }
   }
 
-  // Fallback: si no hay flights, intentar parsear como estructura plana
+  // Fallback: si no hay flights por la vía directa, escaneamos la estructura completa recursivamente
+  if (flights.length === 0 && parsed) {
+    deepExtractFlights(parsed, flights);
+  }
+
   if (flights.length === 0 && DEBUG_RESPONSE) {
     console.log(' 🔍 DEBUG: No flights parsed. Full data structure:', JSON.stringify(data).slice(0, 500));
   }
 
+  return flights;
+}
+
+/**
+ * Recorre recursivamente la estructura devuelta por la API para extraer vuelos válidos.
+ * Anti-regresión: funciona independientemente de si Google cambia los índices del envelope.
+ */
+function deepExtractFlights(node, flights = [], depth = 0, seen = new Set()) {
+  if (!node || depth > 7 || seen.has(node)) return flights;
+  if (typeof node === 'object') seen.add(node);
+
+  if (Array.isArray(node)) {
+    const flight = parseFlightItem(node);
+    if (flight && flight.price >= 10 && flight.price <= 15000 && flight.departureAirport && flight.arrivalAirport) {
+      flights.push(flight);
+      return flights;
+    }
+    for (const child of node) {
+      deepExtractFlights(child, flights, depth + 1, seen);
+    }
+  } else if (typeof node === 'string' && node.startsWith('[')) {
+    try {
+      const parsedChild = JSON.parse(node);
+      deepExtractFlights(parsedChild, flights, depth + 1, seen);
+    } catch (e) {}
+  }
   return flights;
 }
 
@@ -758,6 +788,50 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
       circuitBreaker.recordSuccess();
     } else {
       console.log(`  ⚠️ API: No flights parsed from response`);
+      if (returnDate) {
+        // Fallback para roundtrips: buscar ida y vuelta separadas y combinar las mejores ofertas
+        try {
+          const outRes = await searchFlightsApi(origin, destination, departureDate, null);
+          const retRes = await searchFlightsApi(destination, origin, returnDate, null);
+          if (outRes.success && retRes.success && outRes.flights.length > 0 && retRes.flights.length > 0) {
+            const outBest = outRes.flights[0];
+            const retBest = retRes.flights[0];
+            const combinedPrice = Math.round(outBest.price + retBest.price);
+            const combinedFlight = {
+              price: combinedPrice,
+              airline: outBest.airline === retBest.airline ? outBest.airline : `${outBest.airline} / ${retBest.airline}`,
+              airlineCode: outBest.airlineCode,
+              flightNumber: outBest.flightNumber,
+              stops: Math.max(outBest.stops, retBest.stops),
+              totalDuration: (outBest.totalDuration || 0) + (retBest.totalDuration || 0),
+              departureAirport: origin,
+              arrivalAirport: destination,
+              departureDate,
+              returnDate,
+              tripType: 'roundtrip',
+              source: 'Google Flights API (combined legs)',
+              link: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
+            };
+            const combinedResult = {
+              success: true,
+              flights: [combinedFlight],
+              minPrice: combinedPrice,
+              origin,
+              destination,
+              departureDate,
+              returnDate,
+              tripType: 'roundtrip',
+              searchUrl: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
+              scrapedAt: new Date().toISOString(),
+            };
+            console.log(`  ✅ API (RT combinado): $${combinedPrice} (${combinedFlight.airline}) — ${departureDate} ↔ ${returnDate}`);
+            setCache(cacheKey, combinedResult);
+            return combinedResult;
+          }
+        } catch (e) {
+          console.log(`  ⚠️ API RT fallback error: ${e.message}`);
+        }
+      }
     }
 
     setCache(cacheKey, result);
