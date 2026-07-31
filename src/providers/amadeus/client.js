@@ -78,6 +78,10 @@ class AmadeusClient {
    * @returns {Promise<string>}
    */
   async getToken() {
+    if (this.networkDisabled) {
+      throw new UpstreamError('Amadeus host unreachable (ENOTFOUND)');
+    }
+
     const now = Date.now();
     if (this.accessToken && this.tokenExpiryMs && now < this.tokenExpiryMs) {
       return this.accessToken;
@@ -109,6 +113,10 @@ class AmadeusClient {
         logger.info('Amadeus token acquired', { expiresIn });
         return token;
       } catch (err) {
+        if (err.code === 'ENOTFOUND' || err.message?.includes('ENOTFOUND')) {
+          this.networkDisabled = true;
+          logger.warn('Amadeus network unreachable — disabling Amadeus for this process run');
+        }
         const mapped = mapAxiosError(err);
         logger.error('Failed to acquire Amadeus token', mapped);
         throw mapped;
@@ -119,6 +127,7 @@ class AmadeusClient {
 
     return this._tokenInFlight;
   }
+
 
   /**
    * Invalida el token cacheado (p. ej. tras 401).
