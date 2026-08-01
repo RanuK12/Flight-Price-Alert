@@ -213,19 +213,18 @@ async function search(params, opts = {}) {
   // Background: scraper primero (evitar gastar Amadeus en cron masivos).
   try {
     const result = await runScraper(params, warnings);
-    // Fallback a Amadeus si Google no devuelve vuelos (problema detectado: Google retorna "wrb.fr")
+    // Fallback a Amadeus si Google no devuelve vuelos
     if (!result.flights || result.flights.length === 0) {
-// VERIFICAR si es horario clave para Amadeus (4 veces al día)
-const timeCheck = isAmadeusHour();
-if (!timeCheck.allowed) {
-logger.warn('Google sin resultados, pero NO es horario Amadeus', { currentHour: timeCheck.currentHour, allowedHours: AMADEUS_HOURS });
-warnings.push('Google sin datos. Amadeus solo en horarios clave (6, 12, 18, 22hs)');
-return emptyResult(warnings);
-}
-logger.warn('Google sin resultados + horario Amadeus OK', { hour: timeCheck.currentHour, keyHour: timeCheck.keyHour });
-try {
-// Ya normalizado al inicio de search()
-const amadeusResult = await amadeusProvider.search(params);
+      const budget = await checkAmadeusBudget();
+      if (!budget.ok) {
+        return emptyResult(warnings);
+      }
+      const timeCheck = isAmadeusHour();
+      if (!timeCheck.allowed) {
+        return emptyResult(warnings);
+      }
+      try {
+        const amadeusResult = await amadeusProvider.search(params);
         if (!amadeusResult.cached) {
           const usageRepo = require('../database/repositories/usageRepo');
           await usageRepo.increment(PROVIDER_NAMES.AMADEUS);
@@ -233,10 +232,10 @@ const amadeusResult = await amadeusProvider.search(params);
         return { ...amadeusResult, providerUsed: PROVIDER_NAMES.AMADEUS, warnings };
       } catch (amadeusErr) {
         logger.warn('Fallback Amadeus falló', { error: amadeusErr.message });
-        // Retornar resultat buit si Amadeus també falla
         return emptyResult(warnings);
       }
     }
+
     return result;
   } catch (scraperErr) {
     const msg = /** @type {Error} */(scraperErr).message || 'unknown';

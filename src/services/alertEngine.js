@@ -32,18 +32,18 @@ const logger = require('../utils/logger').child('alertEngine');
 const LEVEL_RANK = { steal: 0, great: 1, good: 2, normal: 3, high: 4 };
 const MIN_LEVEL_TO_RANK = { steal: 0, great: 1, good: 2, all: 4 };
 
-/** Máximo de rutas a consultar por pasada (expandido para v7 ~18K rutas). */
-const MAX_ROUTES_PER_PASS = 60;
+/** Máximo de rutas a consultar por pasada (rotación controlada para evitar 429). */
+const MAX_ROUTES_PER_PASS = 20;
 
 /** Offset de rotación persistente entre pasadas. */
 let rotationOffset = 0;
 
 /** Pausa entre rutas (ms). */
-const INTER_ROUTE_DELAY_MS = 2000;
+const INTER_ROUTE_DELAY_MS = 3500;
 
 /** Pausa adicional cada N rutas (ms). */
 const GROUP_SIZE = 5;
-const GROUP_PAUSE_MS = 10000;
+const GROUP_PAUSE_MS = 12000;
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -200,18 +200,33 @@ async function runOnce() {
   let skippedByThreshold = 0;
   let skippedByDedup = 0;
   let skippedByCircuitBreaker = 0;
+  let rateLimitHits = 0;
+
+  async function applyPacing(i, total) {
+    await sleep(INTER_ROUTE_DELAY_MS);
+    if ((i + 1) % GROUP_SIZE === 0 && i + 1 < total) {
+      logger.debug('Group pause', { completed: i + 1, total });
+      await sleep(GROUP_PAUSE_MS);
+    }
+  }
 
   for (let i = 0; i < routes.length; i++) {
     const route = routes[i];
 
-    // Early stop: si el circuit breaker del scraper está abierto,
-    // no tiene sentido seguir consultando.
-    // Detectamos esto mirando si las últimas búsquedas devuelven
-    // 'Circuit breaker open' en los errores.
+    // Early stop: si el circuit breaker del scraper está abierto o hubo múltiples 429,
+    // detenemos la pasada tempranamente para permitir el cooldown del anti-bot.
     if (errors >= 6 && errors > offersSent + skippedByLevel + skippedByThreshold) {
       skippedByCircuitBreaker = routes.length - i;
       logger.warn('Early stop: demasiados errores consecutivos (probable circuit breaker)', {
         errors, remaining: skippedByCircuitBreaker,
+      });
+      break;
+    }
+
+    if (rateLimitHits >= 2) {
+      skippedByCircuitBreaker = routes.length - i;
+      logger.warn('Early stop: 429 rate-limit detectado en Google Flights, pausando pasada para cooldown', {
+        remaining: skippedByCircuitBreaker,
       });
       break;
     }
@@ -232,20 +247,22 @@ async function runOnce() {
         max: 5,
       }, { mode: 'background' });
 
+      if (result.warnings?.some((w) => String(w).includes('429'))) {
+        rateLimitHits += 1;
+      }
+
       if (!result.flights?.length) {
         skippedNoFlights += 1;
         logger.debug('Ruta sin vuelos', {
           id: route._id, route: `${route.origin}-${route.destination}`,
           date: route.outboundDate,
         });
-        // Delay inter-ruta
-        await sleep(INTER_ROUTE_DELAY_MS);
+        await applyPacing(i, routes.length);
         continue;
       }
 
       // Elegimos la oferta más barata por ruta/fecha para no spamear.
       const cheapest = result.flights.reduce((a, b) => (a.price <= b.price ? a : b));
-
 
     // SANITY FLOOR universal (cualquier provider). Filtra precios obviamente
     // falsos del scraper (bug parser Google Flights NEW FORMAT que retornaba
@@ -258,15 +275,15 @@ async function runOnce() {
       ['EZE','COR','MDQ','ROS','BUE'].includes(cheapest.origin);
     const minFloor = isLongHaul
       ? (cheapest.tripType === 'roundtrip' ? 500 : 350)  // EUR/USD
-      : 30;  // doméstico/regional
+      : 20;  // doméstico/regional
+
     if (cheapest.price < minFloor) {
-      logger.warn('Precio sospechoso bajo floor, skip', {
-        route: cheapest.origin + '-' + cheapest.destination,
-        price: cheapest.price, source: cheapest.source,
-        floor: minFloor, tripType: cheapest.tripType,
+      skippedByThreshold += 1;
+      logger.warn('Piso hard floor rechazado', {
+        id: route._id, route: `${cheapest.origin}-${cheapest.destination}`,
+        price: cheapest.price, currency: cheapest.currency, minFloor,
       });
-      skippedNoFlights += 1;
-      await sleep(INTER_ROUTE_DELAY_MS);
+      await applyPacing(i, routes.length);
       continue;
     }
 
@@ -290,7 +307,7 @@ async function runOnce() {
             scraper: cheapest.price, amadeus: amaPrice,
           });
           skippedNoFlights += 1;
-          await sleep(INTER_ROUTE_DELAY_MS);
+          await applyPacing(i, routes.length);
           continue;
         }
       } catch (err) {
@@ -303,10 +320,15 @@ async function runOnce() {
       // Sin esta conversión, un vuelo EZE→FCO a $755 USD (≈€695) se
       // comparaba contra threshold.typical=700 EUR y era clasificado
       // como "high", bloqueando toda notificación (skippedByLevel).
-      const priceEur = toEur(cheapest.price, cheapest.currency || 'EUR');
-      let { level } = classifyPrice(
-        cheapest.origin, cheapest.destination,
-        priceEur, cheapest.tripType,
+      const priceEur = cheapest.currency === 'EUR'
+        ? cheapest.price
+        : toEur(cheapest.price, cheapest.currency);
+
+      let level = classifyPrice(
+        cheapest.origin,
+        cheapest.destination,
+        priceEur,
+        cheapest.tripType === 'roundtrip',
       );
 
       // Si la ruta tiene priceThreshold explícito (seteado por el usuario
@@ -358,7 +380,7 @@ async function runOnce() {
           priceEur, level, rank,
           minLevel: prefs.alert_min_level, minRank,
         });
-        await sleep(INTER_ROUTE_DELAY_MS);
+        await applyPacing(i, routes.length);
         continue;
       }
 
@@ -374,7 +396,7 @@ async function runOnce() {
           priceInThresholdCcy, threshold: route.priceThreshold,
           thresholdCcy: routeCurrency,
         });
-        await sleep(INTER_ROUTE_DELAY_MS);
+        await applyPacing(i, routes.length);
         continue;
       }
 
@@ -413,14 +435,7 @@ async function runOnce() {
       });
     }
 
-    // Delay inter-ruta
-    await sleep(INTER_ROUTE_DELAY_MS);
-
-    // Pausa extra cada GROUP_SIZE rutas
-    if ((i + 1) % GROUP_SIZE === 0 && i + 1 < routes.length) {
-      logger.debug('Group pause', { completed: i + 1, total: routes.length });
-      await sleep(GROUP_PAUSE_MS);
-    }
+    await applyPacing(i, routes.length);
   }
 
   // Header de batch (si mandamos ≥3 ofertas al mismo chat).

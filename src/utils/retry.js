@@ -37,7 +37,11 @@ const NON_RETRYABLE = [
 
 /** @param {unknown} err */
 function isNonRetryable(err) {
-  return NON_RETRYABLE.some((cls) => err instanceof cls);
+  if (NON_RETRYABLE.some((cls) => err instanceof cls)) return true;
+  // DNS resolution failures are permanent for this process — no point retrying
+  const msg = err && (err.message || '');
+  if (msg.includes('ENOTFOUND') || msg.includes('unreachable')) return true;
+  return false;
 }
 
 /**

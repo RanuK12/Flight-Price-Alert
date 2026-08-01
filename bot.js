@@ -71,35 +71,35 @@ function dateRange(start, end) {
 }
 
 const ROUTES = [
-  // Mar del Plata → Córdoba (19-24 abr)
-  { origin: 'MDQ', dest: 'COR', name: 'Mar del Plata → Córdoba',
-    dates: dateRange('2026-04-19', '2026-04-24'), threshold: 270, flag: '🇦🇷' },
+  // ── IDA: Europa → Argentina (15-22 sep 2026) ──────────
+  { origin: 'VCE', dest: 'EZE', name: 'Venecia → Ezeiza (IDA)', dates: dateRange('2026-09-15', '2026-09-22'), threshold: 400, flag: '🇪🇺→🇦🇷' },
+  { origin: 'VCE', dest: 'COR', name: 'Venecia → Córdoba (IDA)', dates: dateRange('2026-09-15', '2026-09-22'), threshold: 400, flag: '🇪🇺→🇦🇷' },
+  { origin: 'FCO', dest: 'EZE', name: 'Roma → Ezeiza (IDA)', dates: dateRange('2026-09-15', '2026-09-22'), threshold: 400, flag: '🇪🇺→🇦🇷' },
+  { origin: 'FCO', dest: 'COR', name: 'Roma → Córdoba (IDA)', dates: dateRange('2026-09-15', '2026-09-22'), threshold: 400, flag: '🇪🇺→🇦🇷' },
+  { origin: 'MAD', dest: 'EZE', name: 'Madrid → Ezeiza (IDA)', dates: dateRange('2026-09-15', '2026-09-22'), threshold: 400, flag: '🇪🇺→🇦🇷' },
+  { origin: 'MAD', dest: 'COR', name: 'Madrid → Córdoba (IDA)', dates: dateRange('2026-09-15', '2026-09-22'), threshold: 400, flag: '🇪🇺→🇦🇷' },
+  { origin: 'BCN', dest: 'EZE', name: 'Barcelona → Ezeiza (IDA)', dates: dateRange('2026-09-15', '2026-09-22'), threshold: 400, flag: '🇪🇺→🇦🇷' },
+  { origin: 'BCN', dest: 'COR', name: 'Barcelona → Córdoba (IDA)', dates: dateRange('2026-09-15', '2026-09-22'), threshold: 400, flag: '🇪🇺→🇦🇷' },
 
-  // España → Chicago (20-30 jun)
-  { origin: 'MAD', dest: 'ORD', name: 'Madrid → Chicago',
-    dates: dateRange('2026-06-20', '2026-06-30'), threshold: 520, flag: '🇪🇸→🇺🇸' },
-  { origin: 'BCN', dest: 'ORD', name: 'Barcelona → Chicago',
-    dates: dateRange('2026-06-20', '2026-06-30'), threshold: 500, flag: '🇪🇸→🇺🇸' },
+  // ── VUELTA: Argentina → Europa (3-10 nov 2026) ────────
+  { origin: 'EZE', dest: 'VCE', name: 'Ezeiza → Venecia (VUELTA)', dates: dateRange('2026-11-03', '2026-11-10'), threshold: 400, flag: '🇦🇷→🇪🇺' },
+  { origin: 'COR', dest: 'VCE', name: 'Córdoba → Venecia (VUELTA)', dates: dateRange('2026-11-03', '2026-11-10'), threshold: 400, flag: '🇦🇷→🇪🇺' },
+  { origin: 'EZE', dest: 'FCO', name: 'Ezeiza → Roma (VUELTA)', dates: dateRange('2026-11-03', '2026-11-10'), threshold: 400, flag: '🇦🇷→🇪🇺' },
+  { origin: 'COR', dest: 'FCO', name: 'Córdoba → Roma (VUELTA)', dates: dateRange('2026-11-03', '2026-11-10'), threshold: 400, flag: '🇦🇷→🇪🇺' },
+  { origin: 'EZE', dest: 'MAD', name: 'Ezeiza → Madrid (VUELTA)', dates: dateRange('2026-11-03', '2026-11-10'), threshold: 400, flag: '🇦🇷→🇪🇺' },
+  { origin: 'COR', dest: 'MAD', name: 'Córdoba → Madrid (VUELTA)', dates: dateRange('2026-11-03', '2026-11-10'), threshold: 400, flag: '🇦🇷→🇪🇺' },
+  { origin: 'EZE', dest: 'BCN', name: 'Ezeiza → Barcelona (VUELTA)', dates: dateRange('2026-11-03', '2026-11-10'), threshold: 400, flag: '🇦🇷→🇪🇺' },
+  { origin: 'COR', dest: 'BCN', name: 'Córdoba → Barcelona (VUELTA)', dates: dateRange('2026-11-03', '2026-11-10'), threshold: 400, flag: '🇦🇷→🇪🇺' },
 
-  // Buenos Aires → España/Italia (15 jun - 31 jul)
-  { origin: 'EZE', dest: 'MAD', name: 'Buenos Aires → Madrid',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 1100, flag: '🇦🇷→🇪🇸' },
-  { origin: 'EZE', dest: 'BCN', name: 'Buenos Aires → Barcelona',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 1100, flag: '🇦🇷→🇪🇸' },
-  { origin: 'EZE', dest: 'FCO', name: 'Buenos Aires → Roma',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 1200, flag: '🇦🇷→🇮🇹' },
-  { origin: 'EZE', dest: 'MXP', name: 'Buenos Aires → Milán',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 1200, flag: '🇦🇷→🇮🇹' },
-
-  // Córdoba → España/Italia (15 jun - 31 jul)
-  { origin: 'COR', dest: 'MAD', name: 'Córdoba → Madrid',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 1300, flag: '🇦🇷→🇪🇸' },
-  { origin: 'COR', dest: 'BCN', name: 'Córdoba → Barcelona',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 1300, flag: '🇦🇷→🇪🇸' },
-  { origin: 'COR', dest: 'FCO', name: 'Córdoba → Roma',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 1350, flag: '🇦🇷→🇮🇹' },
-  { origin: 'COR', dest: 'MXP', name: 'Córdoba → Milán',
-    dates: dateRange('2026-06-15', '2026-07-31'), threshold: 1350, flag: '🇦🇷→🇮🇹' },
+  // ── IDA Y VUELTA (Roundtrip Sep → Nov 2026) ───────────
+  { origin: 'VCE', dest: 'EZE', name: 'Venecia ↔ Ezeiza (RT)', dates: dateRange('2026-09-15', '2026-09-22'), returnDates: dateRange('2026-11-03', '2026-11-10'), threshold: 800, flag: '🇪🇺↔🇦🇷', tripType: 'roundtrip' },
+  { origin: 'VCE', dest: 'COR', name: 'Venecia ↔ Córdoba (RT)', dates: dateRange('2026-09-15', '2026-09-22'), returnDates: dateRange('2026-11-03', '2026-11-10'), threshold: 800, flag: '🇪🇺↔🇦🇷', tripType: 'roundtrip' },
+  { origin: 'FCO', dest: 'EZE', name: 'Roma ↔ Ezeiza (RT)', dates: dateRange('2026-09-15', '2026-09-22'), returnDates: dateRange('2026-11-03', '2026-11-10'), threshold: 800, flag: '🇪🇺↔🇦🇷', tripType: 'roundtrip' },
+  { origin: 'FCO', dest: 'COR', name: 'Roma ↔ Córdoba (RT)', dates: dateRange('2026-09-15', '2026-09-22'), returnDates: dateRange('2026-11-03', '2026-11-10'), threshold: 800, flag: '🇪🇺↔🇦🇷', tripType: 'roundtrip' },
+  { origin: 'MAD', dest: 'EZE', name: 'Madrid ↔ Ezeiza (RT)', dates: dateRange('2026-09-15', '2026-09-22'), returnDates: dateRange('2026-11-03', '2026-11-10'), threshold: 800, flag: '🇪🇺↔🇦🇷', tripType: 'roundtrip' },
+  { origin: 'MAD', dest: 'COR', name: 'Madrid ↔ Córdoba (RT)', dates: dateRange('2026-09-15', '2026-09-22'), returnDates: dateRange('2026-11-03', '2026-11-10'), threshold: 800, flag: '🇪🇺↔🇦🇷', tripType: 'roundtrip' },
+  { origin: 'BCN', dest: 'EZE', name: 'Barcelona ↔ Ezeiza (RT)', dates: dateRange('2026-09-15', '2026-09-22'), returnDates: dateRange('2026-11-03', '2026-11-10'), threshold: 800, flag: '🇪🇺↔🇦🇷', tripType: 'roundtrip' },
+  { origin: 'BCN', dest: 'COR', name: 'Barcelona ↔ Córdoba (RT)', dates: dateRange('2026-09-15', '2026-09-22'), returnDates: dateRange('2026-11-03', '2026-11-10'), threshold: 800, flag: '🇪🇺↔🇦🇷', tripType: 'roundtrip' },
 ];
 
 // ============================================

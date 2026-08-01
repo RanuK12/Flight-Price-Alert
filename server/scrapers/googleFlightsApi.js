@@ -1,21 +1,20 @@
 /**
- * Google Flights API Scraper v1.1
+ * Google Flights Scraper v2.0
  *
- * Calls Google Flights' internal API directly via HTTP POST.
- * Ported from the Python "fli" library (github.com/punitarani/fli).
- * Updated 2026-04-26: Handle new Google response format
+ * Primary: Playwright headless browser (DOM extraction).
+ * Fallback: Direct HTTP POST to internal RPC endpoint (legacy, may not work
+ *           since Aug 2026 Google requires session tokens).
  *
- * Advantages over Puppeteer:
- *   - No browser needed (faster, less memory)
- *   - Direct structured data (no DOM parsing)
- *   - More reliable results
- *   - Works on servers without Chrome
+ * Updated 2026-08-01: Google changed their RPC protocol to require a session
+ * token from AsyncDataService/GetAsyncData before GetShoppingResults returns
+ * data. Direct HTTP POST without this token returns empty responses.
+ * Playwright handles this automatically by running a real browser.
  *
- * Endpoint:
- *   POST https://www.google.com/_/FlightsFrontendUi/data/travel.frontend.flights.FlightsFrontendService/GetShoppingResults
+ * @module scrapers/googleFlightsApi
  */
 
 const axios = require('axios');
+const playwrightScraper = require('./playwrightScraper');
 
 
 // ═══════════════════════════════════════════════════════════════
@@ -207,17 +206,28 @@ const DEBUG_RESPONSE = process.env.GOOGLE_FLIGHTS_DEBUG === 'true';
  */
 function parseFlightsResponse(responseText) {
   // Strip XSSI prefix and parse
-  const cleaned = responseText.replace(/^\)\]\}'[\s\n]*/, '');
+  const cleaned = responseText.replace(/^\)\]\}'[\s\n]*/, '').trim();
 
-  let parsed;
+  let parsed = [];
   try {
     parsed = JSON.parse(cleaned);
+    if (!Array.isArray(parsed)) parsed = [parsed];
   } catch (e) {
-    console.log(' ⚠️ API: Failed to parse outer JSON -', e.message);
-    if (DEBUG_RESPONSE) {
-      console.log(' 🔍 DEBUG: Raw response (first 500 chars):', responseText.slice(0, 500));
+    // Intentar parsear respuestas RPC multilínea (chunked stream)
+    const lines = cleaned.split(/\n+/).filter((l) => l.trim().length > 0);
+    for (const line of lines) {
+      try {
+        const item = JSON.parse(line);
+        if (Array.isArray(item)) parsed.push(item);
+      } catch (err) {}
     }
-    return [];
+    if (parsed.length === 0) {
+      console.log(' ⚠️ API: Failed to parse outer JSON -', e.message);
+      if (DEBUG_RESPONSE) {
+        console.log(' 🔍 DEBUG: Raw response (first 500 chars):', responseText.slice(0, 500));
+      }
+      return [];
+    }
   }
 
   // === DIAGNÓSTICO DEL PROBLEMA ===
@@ -243,6 +253,7 @@ try {
     }
     return [];
   }
+  
   
   for (const idx of INDICES_TO_TRY) {
     if (parsed[0][idx] !== undefined && parsed[0][idx] !== null) {
@@ -379,11 +390,41 @@ if (foundAtIndex !== null && DEBUG_RESPONSE) {
     }
   }
 
-  // Fallback: si no hay flights, intentar parsear como estructura plana
+  // Fallback: si no hay flights por la vía directa, escaneamos la estructura completa recursivamente
+  if (flights.length === 0 && parsed) {
+    deepExtractFlights(parsed, flights);
+  }
+
   if (flights.length === 0 && DEBUG_RESPONSE) {
     console.log(' 🔍 DEBUG: No flights parsed. Full data structure:', JSON.stringify(data).slice(0, 500));
   }
 
+  return flights;
+}
+
+/**
+ * Recorre recursivamente la estructura devuelta por la API para extraer vuelos válidos.
+ * Anti-regresión: funciona independientemente de si Google cambia los índices del envelope.
+ */
+function deepExtractFlights(node, flights = [], depth = 0, seen = new Set()) {
+  if (!node || depth > 7 || seen.has(node)) return flights;
+  if (typeof node === 'object') seen.add(node);
+
+  if (Array.isArray(node)) {
+    const flight = parseFlightItem(node);
+    if (flight && flight.price >= 10 && flight.price <= 15000 && flight.departureAirport && flight.arrivalAirport) {
+      flights.push(flight);
+      return flights;
+    }
+    for (const child of node) {
+      deepExtractFlights(child, flights, depth + 1, seen);
+    }
+  } else if (typeof node === 'string' && node.startsWith('[')) {
+    try {
+      const parsedChild = JSON.parse(node);
+      deepExtractFlights(parsedChild, flights, depth + 1, seen);
+    } catch (e) {}
+  }
   return flights;
 }
 
@@ -696,48 +737,68 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
   try {
     await rateLimit();
 
-    const headersConfig = {
-      ...REQUEST_HEADERS,
-      'User-Agent': getRandomUserAgent(),
-      'Cookie': `CONSENT=YES+; NID=${generateNid()}`,
-    };
-    const response = await axios.post(SEARCH_URL, payload, {
-      headers: headersConfig,
-      timeout: 15000,
-      validateStatus: s => s < 500,
-    });
+    // ─── STRATEGY: Playwright first, then legacy HTTP fallback ───
+    let enrichedFlights = [];
 
-    if (response.status !== 200) {
-      console.log(`  ⚠️ API HTTP ${response.status}`);
-      if (response.status === 429) {
-        await circuitBreaker.backoff429();
-      } else {
-        circuitBreaker.recordFailure();
+    // 1) Try Playwright (handles Google's session token requirement)
+    if (playwrightScraper.isAvailable()) {
+      const pwResult = await playwrightScraper.searchWithPlaywright(
+        origin, destination, departureDate, returnDate
+      );
+      if (pwResult.success && pwResult.flights.length > 0) {
+        enrichedFlights = pwResult.flights.map(f => ({
+          ...f,
+          departureDate,
+          returnDate,
+          tripType: returnDate ? 'roundtrip' : 'oneway',
+          link: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
+        }));
       }
-      return { success: false, flights: [], minPrice: null, error: `HTTP ${response.status}` };
     }
 
-    const rawFlights = parseFlightsResponse(response.data);
+    // 2) Fallback: legacy direct HTTP POST (may fail without session token)
+    if (enrichedFlights.length === 0) {
+      const headersConfig = {
+        ...REQUEST_HEADERS,
+        'User-Agent': getRandomUserAgent(),
+        'Cookie': `CONSENT=YES+; NID=${generateNid()}`,
+      };
+      const response = await axios.post(SEARCH_URL, payload, {
+        headers: headersConfig,
+        timeout: 15000,
+        validateStatus: s => s < 500,
+      });
 
-  // DEBUG: Log raw response structure
-  if (DEBUG_RESPONSE) {
-    console.log(' 🔍 DEBUG: Raw flights from parser:', rawFlights.length);
-  }
+      if (response.status !== 200) {
+        console.log(`  ⚠️ API HTTP ${response.status}`);
+        if (response.status === 429) {
+          await circuitBreaker.backoff429();
+        } else {
+          circuitBreaker.recordFailure();
+        }
+        return { success: false, flights: [], minPrice: null, error: `HTTP ${response.status}` };
+      }
 
-    // Filter valid prices and sort
-    const validFlights = rawFlights
-      .filter(f => f.price >= 10 && f.price <= 15000)
-      .sort((a, b) => a.price - b.price);
+      const rawFlights = parseFlightsResponse(response.data);
 
-    // Add search metadata to each flight
-    const enrichedFlights = validFlights.map(f => ({
-      ...f,
-      departureDate,
-      returnDate,
-      tripType: returnDate ? 'roundtrip' : 'oneway',
-      link: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
-    }));
+      if (DEBUG_RESPONSE) {
+        console.log(' 🔍 DEBUG: Raw flights from parser:', rawFlights.length);
+      }
 
+      const validFlights = rawFlights
+        .filter(f => f.price >= 10 && f.price <= 15000)
+        .sort((a, b) => a.price - b.price);
+
+      enrichedFlights = validFlights.map(f => ({
+        ...f,
+        departureDate,
+        returnDate,
+        tripType: returnDate ? 'roundtrip' : 'oneway',
+        link: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
+      }));
+    }
+
+    // ─── BUILD RESULT ───
     const result = {
       success: enrichedFlights.length > 0,
       flights: enrichedFlights,
@@ -754,10 +815,54 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
     if (enrichedFlights.length > 0) {
       const best = enrichedFlights[0];
       const stopTag = best.stops === 0 ? 'directo' : `${best.stops} escala(s)`;
-      console.log(`  ✅ API: ${enrichedFlights.length} vuelos (min $${result.minPrice} — ${best.airline}, ${stopTag})`);
+      console.log(`  ✅ API: ${enrichedFlights.length} vuelos (min €${result.minPrice} — ${best.airline}, ${stopTag})`);
       circuitBreaker.recordSuccess();
     } else {
       console.log(`  ⚠️ API: No flights parsed from response`);
+      if (returnDate) {
+        // Fallback para roundtrips: buscar ida y vuelta separadas y combinar las mejores ofertas
+        try {
+          const outRes = await searchFlightsApi(origin, destination, departureDate, null);
+          const retRes = await searchFlightsApi(destination, origin, returnDate, null);
+          if (outRes.success && retRes.success && outRes.flights.length > 0 && retRes.flights.length > 0) {
+            const outBest = outRes.flights[0];
+            const retBest = retRes.flights[0];
+            const combinedPrice = Math.round(outBest.price + retBest.price);
+            const combinedFlight = {
+              price: combinedPrice,
+              airline: outBest.airline === retBest.airline ? outBest.airline : `${outBest.airline} / ${retBest.airline}`,
+              airlineCode: outBest.airlineCode,
+              flightNumber: outBest.flightNumber,
+              stops: Math.max(outBest.stops, retBest.stops),
+              totalDuration: (outBest.totalDuration || 0) + (retBest.totalDuration || 0),
+              departureAirport: origin,
+              arrivalAirport: destination,
+              departureDate,
+              returnDate,
+              tripType: 'roundtrip',
+              source: 'Google Flights API (combined legs)',
+              link: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
+            };
+            const combinedResult = {
+              success: true,
+              flights: [combinedFlight],
+              minPrice: combinedPrice,
+              origin,
+              destination,
+              departureDate,
+              returnDate,
+              tripType: 'roundtrip',
+              searchUrl: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
+              scrapedAt: new Date().toISOString(),
+            };
+            console.log(`  ✅ API (RT combinado): $${combinedPrice} (${combinedFlight.airline}) — ${departureDate} ↔ ${returnDate}`);
+            setCache(cacheKey, combinedResult);
+            return combinedResult;
+          }
+        } catch (e) {
+          console.log(`  ⚠️ API RT fallback error: ${e.message}`);
+        }
+      }
     }
 
     setCache(cacheKey, result);
