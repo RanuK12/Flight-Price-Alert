@@ -1,21 +1,20 @@
 /**
- * Google Flights API Scraper v1.1
+ * Google Flights Scraper v2.0
  *
- * Calls Google Flights' internal API directly via HTTP POST.
- * Ported from the Python "fli" library (github.com/punitarani/fli).
- * Updated 2026-04-26: Handle new Google response format
+ * Primary: Playwright headless browser (DOM extraction).
+ * Fallback: Direct HTTP POST to internal RPC endpoint (legacy, may not work
+ *           since Aug 2026 Google requires session tokens).
  *
- * Advantages over Puppeteer:
- *   - No browser needed (faster, less memory)
- *   - Direct structured data (no DOM parsing)
- *   - More reliable results
- *   - Works on servers without Chrome
+ * Updated 2026-08-01: Google changed their RPC protocol to require a session
+ * token from AsyncDataService/GetAsyncData before GetShoppingResults returns
+ * data. Direct HTTP POST without this token returns empty responses.
+ * Playwright handles this automatically by running a real browser.
  *
- * Endpoint:
- *   POST https://www.google.com/_/FlightsFrontendUi/data/travel.frontend.flights.FlightsFrontendService/GetShoppingResults
+ * @module scrapers/googleFlightsApi
  */
 
 const axios = require('axios');
+const playwrightScraper = require('./playwrightScraper');
 
 
 // ═══════════════════════════════════════════════════════════════
@@ -738,48 +737,68 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
   try {
     await rateLimit();
 
-    const headersConfig = {
-      ...REQUEST_HEADERS,
-      'User-Agent': getRandomUserAgent(),
-      'Cookie': `CONSENT=YES+; NID=${generateNid()}`,
-    };
-    const response = await axios.post(SEARCH_URL, payload, {
-      headers: headersConfig,
-      timeout: 15000,
-      validateStatus: s => s < 500,
-    });
+    // ─── STRATEGY: Playwright first, then legacy HTTP fallback ───
+    let enrichedFlights = [];
 
-    if (response.status !== 200) {
-      console.log(`  ⚠️ API HTTP ${response.status}`);
-      if (response.status === 429) {
-        await circuitBreaker.backoff429();
-      } else {
-        circuitBreaker.recordFailure();
+    // 1) Try Playwright (handles Google's session token requirement)
+    if (playwrightScraper.isAvailable()) {
+      const pwResult = await playwrightScraper.searchWithPlaywright(
+        origin, destination, departureDate, returnDate
+      );
+      if (pwResult.success && pwResult.flights.length > 0) {
+        enrichedFlights = pwResult.flights.map(f => ({
+          ...f,
+          departureDate,
+          returnDate,
+          tripType: returnDate ? 'roundtrip' : 'oneway',
+          link: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
+        }));
       }
-      return { success: false, flights: [], minPrice: null, error: `HTTP ${response.status}` };
     }
 
-    const rawFlights = parseFlightsResponse(response.data);
+    // 2) Fallback: legacy direct HTTP POST (may fail without session token)
+    if (enrichedFlights.length === 0) {
+      const headersConfig = {
+        ...REQUEST_HEADERS,
+        'User-Agent': getRandomUserAgent(),
+        'Cookie': `CONSENT=YES+; NID=${generateNid()}`,
+      };
+      const response = await axios.post(SEARCH_URL, payload, {
+        headers: headersConfig,
+        timeout: 15000,
+        validateStatus: s => s < 500,
+      });
 
-  // DEBUG: Log raw response structure
-  if (DEBUG_RESPONSE) {
-    console.log(' 🔍 DEBUG: Raw flights from parser:', rawFlights.length);
-  }
+      if (response.status !== 200) {
+        console.log(`  ⚠️ API HTTP ${response.status}`);
+        if (response.status === 429) {
+          await circuitBreaker.backoff429();
+        } else {
+          circuitBreaker.recordFailure();
+        }
+        return { success: false, flights: [], minPrice: null, error: `HTTP ${response.status}` };
+      }
 
-    // Filter valid prices and sort
-    const validFlights = rawFlights
-      .filter(f => f.price >= 10 && f.price <= 15000)
-      .sort((a, b) => a.price - b.price);
+      const rawFlights = parseFlightsResponse(response.data);
 
-    // Add search metadata to each flight
-    const enrichedFlights = validFlights.map(f => ({
-      ...f,
-      departureDate,
-      returnDate,
-      tripType: returnDate ? 'roundtrip' : 'oneway',
-      link: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
-    }));
+      if (DEBUG_RESPONSE) {
+        console.log(' 🔍 DEBUG: Raw flights from parser:', rawFlights.length);
+      }
 
+      const validFlights = rawFlights
+        .filter(f => f.price >= 10 && f.price <= 15000)
+        .sort((a, b) => a.price - b.price);
+
+      enrichedFlights = validFlights.map(f => ({
+        ...f,
+        departureDate,
+        returnDate,
+        tripType: returnDate ? 'roundtrip' : 'oneway',
+        link: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
+      }));
+    }
+
+    // ─── BUILD RESULT ───
     const result = {
       success: enrichedFlights.length > 0,
       flights: enrichedFlights,
@@ -796,7 +815,7 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
     if (enrichedFlights.length > 0) {
       const best = enrichedFlights[0];
       const stopTag = best.stops === 0 ? 'directo' : `${best.stops} escala(s)`;
-      console.log(`  ✅ API: ${enrichedFlights.length} vuelos (min $${result.minPrice} — ${best.airline}, ${stopTag})`);
+      console.log(`  ✅ API: ${enrichedFlights.length} vuelos (min €${result.minPrice} — ${best.airline}, ${stopTag})`);
       circuitBreaker.recordSuccess();
     } else {
       console.log(`  ⚠️ API: No flights parsed from response`);
