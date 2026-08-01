@@ -207,17 +207,28 @@ const DEBUG_RESPONSE = process.env.GOOGLE_FLIGHTS_DEBUG === 'true';
  */
 function parseFlightsResponse(responseText) {
   // Strip XSSI prefix and parse
-  const cleaned = responseText.replace(/^\)\]\}'[\s\n]*/, '');
+  const cleaned = responseText.replace(/^\)\]\}'[\s\n]*/, '').trim();
 
-  let parsed;
+  let parsed = [];
   try {
     parsed = JSON.parse(cleaned);
+    if (!Array.isArray(parsed)) parsed = [parsed];
   } catch (e) {
-    console.log(' ⚠️ API: Failed to parse outer JSON -', e.message);
-    if (DEBUG_RESPONSE) {
-      console.log(' 🔍 DEBUG: Raw response (first 500 chars):', responseText.slice(0, 500));
+    // Intentar parsear respuestas RPC multilínea (chunked stream)
+    const lines = cleaned.split(/\n+/).filter((l) => l.trim().length > 0);
+    for (const line of lines) {
+      try {
+        const item = JSON.parse(line);
+        if (Array.isArray(item)) parsed.push(item);
+      } catch (err) {}
     }
-    return [];
+    if (parsed.length === 0) {
+      console.log(' ⚠️ API: Failed to parse outer JSON -', e.message);
+      if (DEBUG_RESPONSE) {
+        console.log(' 🔍 DEBUG: Raw response (first 500 chars):', responseText.slice(0, 500));
+      }
+      return [];
+    }
   }
 
   // === DIAGNÓSTICO DEL PROBLEMA ===
@@ -243,6 +254,7 @@ try {
     }
     return [];
   }
+  
   
   for (const idx of INDICES_TO_TRY) {
     if (parsed[0][idx] !== undefined && parsed[0][idx] !== null) {
