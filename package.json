@@ -11,6 +11,7 @@
     "start": "node src/app.js",
     "start:legacy": "node server/app.js",
     "build": "npx playwright install --with-deps chromium",
+    "postinstall": "npx playwright install chromium",
     "bot": "node src/app.js",
     "server": "node src/app.js",
     "dev": "node src/app.js",

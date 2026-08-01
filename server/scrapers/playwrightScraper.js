@@ -43,8 +43,7 @@ async function getBrowser() {
 
   _browserLaunchPromise = (async () => {
     try {
-      console.log('  🎭 Playwright: launching Chromium...');
-      _browser = await chromium.launch({
+      const launchOptions = {
         headless: true,
         args: [
           '--no-sandbox',
@@ -59,7 +58,19 @@ async function getBrowser() {
           '--metrics-recording-only',
           '--no-first-run',
         ],
-      });
+      };
+      try {
+        _browser = await chromium.launch(launchOptions);
+      } catch (launchErr) {
+        if (launchErr.message.includes("Executable doesn't exist") || launchErr.message.includes('playwright install')) {
+          console.log('  🎭 Playwright: Chromium missing at runtime. Installing Chromium...');
+          const { execSync } = require('child_process');
+          execSync('npx playwright install chromium', { stdio: 'inherit' });
+          _browser = await chromium.launch(launchOptions);
+        } else {
+          throw launchErr;
+        }
+      }
       console.log('  🎭 Playwright: Chromium ready');
       return _browser;
     } catch (err) {
@@ -69,6 +80,7 @@ async function getBrowser() {
       _browserLaunchPromise = null;
     }
   })();
+
 
   return _browserLaunchPromise;
 }
