@@ -53,8 +53,12 @@ services:
       # --- Scheduler ---
       - key: AUTO_MONITOR
         value: "true"
+      # Cada hora x 40 rutas = 960 chequeos/dia. Con 640 rutas activas eso da
+      # ~1,5 revisiones por ruta por dia (antes: 1 cada 2,7 dias).
       - key: MONITOR_SCHEDULE
-        value: "0 */2 * * *"
+        value: "0 * * * *"
+      - key: MAX_ROUTES_PER_PASS
+        value: "40"
       - key: DAILY_REPORT_SCHEDULE
         value: "0 21 * * *"
 
@@ -71,5 +75,8 @@ services:
         value: /app/data/flights.db
 
       # --- Scraper ---
+      # 45s de presupuesto para ida sola (Playwright puede tardar hasta ~44s:
+      # goto 30s + selector 12s + lazy 2s). Los roundtrips usan 2,5x porque
+      # pueden disparar la busqueda de las dos piernas por separado.
       - key: SCRAPER_TIMEOUT_MS
-        value: "30000"
+        value: "45000"

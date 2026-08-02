@@ -748,6 +748,7 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
       if (pwResult.success && pwResult.flights.length > 0) {
         enrichedFlights = pwResult.flights.map(f => ({
           ...f,
+          currency: f.currency || currency,
           departureDate,
           returnDate,
           tripType: returnDate ? 'roundtrip' : 'oneway',
@@ -791,6 +792,7 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
 
       enrichedFlights = validFlights.map(f => ({
         ...f,
+        currency: f.currency || currency,
         departureDate,
         returnDate,
         tripType: returnDate ? 'roundtrip' : 'oneway',
@@ -815,7 +817,7 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
     if (enrichedFlights.length > 0) {
       const best = enrichedFlights[0];
       const stopTag = best.stops === 0 ? 'directo' : `${best.stops} escala(s)`;
-      console.log(`  ✅ API: ${enrichedFlights.length} vuelos (min €${result.minPrice} — ${best.airline}, ${stopTag})`);
+      console.log(`  ✅ API: ${enrichedFlights.length} vuelos (min ${result.minPrice} ${best.currency || currency} — ${best.airline}, ${stopTag})`);
       circuitBreaker.recordSuccess();
     } else {
       console.log(`  ⚠️ API: No flights parsed from response`);
@@ -827,9 +829,18 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
           if (outRes.success && retRes.success && outRes.flights.length > 0 && retRes.flights.length > 0) {
             const outBest = outRes.flights[0];
             const retBest = retRes.flights[0];
+            const outCcy = outBest.currency || currency;
+            const retCcy = retBest.currency || currency;
+            // Sumar precios de monedas distintas daría un total sin sentido.
+            if (outCcy !== retCcy) {
+              console.log(`  ⚠️ API RT fallback: monedas distintas (${outCcy}/${retCcy}), no se combina`);
+              setCache(cacheKey, result);
+              return result;
+            }
             const combinedPrice = Math.round(outBest.price + retBest.price);
             const combinedFlight = {
               price: combinedPrice,
+              currency: outCcy,
               airline: outBest.airline === retBest.airline ? outBest.airline : `${outBest.airline} / ${retBest.airline}`,
               airlineCode: outBest.airlineCode,
               flightNumber: outBest.flightNumber,
@@ -855,7 +866,7 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
               searchUrl: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
               scrapedAt: new Date().toISOString(),
             };
-            console.log(`  ✅ API (RT combinado): $${combinedPrice} (${combinedFlight.airline}) — ${departureDate} ↔ ${returnDate}`);
+            console.log(`  ✅ API (RT combinado): ${combinedPrice} ${outCcy} (${combinedFlight.airline}) — ${departureDate} ↔ ${returnDate}`);
             setCache(cacheKey, combinedResult);
             return combinedResult;
           }

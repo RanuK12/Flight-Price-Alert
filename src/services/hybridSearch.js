@@ -280,7 +280,10 @@ async function runScraper(params, warnings) {
     origin: params.origin,
     destination: params.destination,
     price: Number(f.price),
-    currency: f.currency || 'USD',
+    // El scraper pide y reporta EUR (curr=EUR en la URL de Google). El default
+    // 'USD' de antes hacía que toEur() aplicara ×0.92 sobre precios que ya
+    // estaban en euros, subestimando todo un 8%.
+    currency: f.currency || 'EUR',
     tripType: params.returnDate ? 'roundtrip' : 'oneway',
     departureDate: params.departureDate,
     returnDate: params.returnDate || null,

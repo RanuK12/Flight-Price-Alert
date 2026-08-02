@@ -59,6 +59,58 @@ async function runDaily() {
   }
 }
 
+/** Fecha corta "17/09" para las líneas de la tabla de precios. */
+function shortDate(value) {
+  if (!value) return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Arma la sección "Mejores precios de hoy": las rutas activas con el precio
+ * más bajo visto en la última consulta del alertEngine, con la distancia al
+ * umbral configurado.
+ *
+ * Es independiente de las notificaciones enviadas a propósito: si el mercado
+ * nunca baja del umbral no llega ninguna alerta, y sin esta sección Emilio
+ * no tendría forma de saber si el bot está mirando o si el precio simplemente
+ * no bajó.
+ *
+ * @param {number} userId
+ * @returns {Promise<string|null>} HTML listo para Telegram, o null si no hay datos
+ */
+async function buildBestPricesSection(userId) {
+  const routes = await routesRepo.listCheapestChecked(userId, 10);
+  if (!routes.length) return null;
+
+  const lines = routes.map((r) => {
+    const sep = r.returnDate ? '↔' : '→';
+    const dates = r.returnDate
+      ? `${shortDate(r.outboundDate)}-${shortDate(r.returnDate)}`
+      : shortDate(r.outboundDate);
+    const price = fmt.price(r.lastPriceEur, 'EUR');
+    const gap = r.priceThreshold ? r.lastPriceEur - r.priceThreshold : null;
+    const gapTxt = gap === null
+      ? ''
+      : gap <= 0
+        ? ' ✅'
+        : ` <i>(+${fmt.price(Math.round(gap), 'EUR')} sobre tu umbral)</i>`;
+    return `· <b>${r.origin}${sep}${r.destination}</b> ${dates} — ${price}${gapTxt}`;
+  });
+
+  const checkedAt = routes
+    .map((r) => (r.lastCheckedAt ? new Date(r.lastCheckedAt).getTime() : 0))
+    .reduce((a, b) => Math.max(a, b), 0);
+
+  return `📉 <b>Mejores precios encontrados</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `${lines.join('\n')}\n\n` +
+    `<i>Precio más bajo visto en la última revisión de cada ruta` +
+    (checkedAt ? `, la más reciente ${fmt.date(new Date(checkedAt).toISOString())}` : '') +
+    `. No son alertas: son el estado del mercado.</i>`;
+}
+
 /**
  * @param {import('node-telegram-bot-api')} bot
  * @param {number} userId
@@ -133,10 +185,27 @@ async function sendSummaryForUser(bot, userId, chatId) {
     disable_web_page_preview: true,
   });
 
+  // Mejores precios REALES vistos en las últimas búsquedas, crucen o no el
+  // umbral. Lee de las rutas (lastPriceEur), no de las notificaciones
+  // enviadas: si ninguna oferta llegó al umbral, esto igual muestra dónde
+  // está el mercado y cuánto falta.
+  const bestPrices = await buildBestPricesSection(userId).catch((err) => {
+    logger.warn('Sección mejores precios falló (continuando)', { err: err.message });
+    return null;
+  });
+  if (bestPrices) {
+    await bot.sendMessage(chatId, bestPrices, {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    });
+  }
+
   if (latest.length === 0) {
     await bot.sendMessage(chatId,
-      'ℹ️ Hoy no hubo ofertas que cumplieran tu nivel mínimo de alerta.\n' +
-      'Podés bajarlo desde <b>⚙️ Configuración → 🚨 Nivel de alertas</b>.',
+      'ℹ️ Hoy ninguna búsqueda bajó de tu umbral. Arriba tenés los precios ' +
+      'reales que sí encontró el bot.\n' +
+      'Si querés que avise antes, bajá el nivel desde ' +
+      '<b>⚙️ Configuración → 🚨 Nivel de alertas</b>.',
       {
         parse_mode: 'HTML',
         reply_markup: {
