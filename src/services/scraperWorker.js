@@ -14,7 +14,17 @@
 const { config } = require('../config');
 const logger = require('../utils/logger').child('scraperWorker');
 
-const SCRAPER_TIMEOUT_MS = Number(process.env.SCRAPER_TIMEOUT_MS) || 30000;
+const SCRAPER_TIMEOUT_MS = Number(process.env.SCRAPER_TIMEOUT_MS) || 45000;
+
+/**
+ * Multiplicador para roundtrips. Cuando Google no devuelve un roundtrip
+ * parseable, googleFlightsApi cae a buscar las dos piernas por separado:
+ * son dos búsquedas completas más, secuenciales. Con un presupuesto único
+ * la carrera rechazaba antes de que terminaran y el resultado ya calculado
+ * se tiraba a la basura (logs 08-02: "Scraper timeout" seguido de
+ * "✅ API (RT combinado)").
+ */
+const ROUNDTRIP_TIMEOUT_FACTOR = 2.5;
 
 /**
  * Ejecuta searchFlightsApi con timeout hard.
@@ -28,12 +38,21 @@ async function search(origin, destination, departureDate, returnDate) {
   // eslint-disable-next-line global-require
   const { searchFlightsApi } = require('../../server/scrapers/googleFlightsApi');
 
-  return Promise.race([
-    searchFlightsApi(origin, destination, departureDate, returnDate),
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('scraper-timeout')), SCRAPER_TIMEOUT_MS);
-    }),
-  ]);
+  const budgetMs = returnDate
+    ? Math.round(SCRAPER_TIMEOUT_MS * ROUNDTRIP_TIMEOUT_FACTOR)
+    : SCRAPER_TIMEOUT_MS;
+
+  let timer;
+  try {
+    return await Promise.race([
+      searchFlightsApi(origin, destination, departureDate, returnDate),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('scraper-timeout')), budgetMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 module.exports = { search };

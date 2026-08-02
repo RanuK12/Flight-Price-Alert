@@ -113,7 +113,7 @@ const CONSENT_COOKIES = [
  * Looks for flight result list items and parses their text content.
  *
  * @param {import('playwright').Page} page
- * @returns {Promise<Array<{price: number, airline: string, stops: number, totalDuration: number, departureAirport: string, arrivalAirport: string}>>}
+ * @returns {Promise<Array<{price: number, currency: string, airline: string, stops: number, totalDuration: number, departureAirport: string, arrivalAirport: string}>>}
  */
 async function extractFlightsFromDOM(page) {
   return page.evaluate(() => {
@@ -127,8 +127,17 @@ async function extractFlightsFromDOM(page) {
       try {
         const text = card.textContent || '';
 
-        // Extract price: look for "714 €" or "€714" or "$714" patterns
-        const priceMatch = text.match(/(\d[\d.,]*)\s*€/) || text.match(/€\s*(\d[\d.,]*)/) || text.match(/\$\s*(\d[\d.,]*)/);
+        // Extract price: look for "714 €" or "€714" or "$714" patterns.
+        // La moneda sale del símbolo que matcheó. La URL pide curr=EUR, pero
+        // Google no siempre lo respeta; etiquetar mal la moneda hace que
+        // toEur() aplique una conversión que no corresponde (los precios EUR
+        // se reportaban como USD y quedaban 8% por debajo del real).
+        let currency = 'EUR';
+        let priceMatch = text.match(/(\d[\d.,]*)\s*€/) || text.match(/€\s*(\d[\d.,]*)/);
+        if (!priceMatch) {
+          priceMatch = text.match(/\$\s*(\d[\d.,]*)/);
+          if (priceMatch) currency = 'USD';
+        }
         if (!priceMatch) continue;
         const price = parseInt(priceMatch[1].replace(/[.,]/g, ''), 10);
         if (isNaN(price) || price < 50 || price > 15000) continue;
@@ -183,6 +192,7 @@ async function extractFlightsFromDOM(page) {
 
         flights.push({
           price,
+          currency,
           airline,
           stops,
           totalDuration,
@@ -249,7 +259,8 @@ async function searchWithPlaywright(origin, destination, departureDate, returnDa
       url = `${base}?q=Flights+from+${origin}+to+${destination}+on+${departureDate}+one+way&curr=EUR&hl=es`;
     }
 
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    // 30s: en Render Free el goto de 20s expiraba en casi todas las pasadas.
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
     // Wait for flight results to render (up to 12s)
     try {

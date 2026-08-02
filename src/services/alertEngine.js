@@ -33,10 +33,10 @@ const LEVEL_RANK = { steal: 0, great: 1, good: 2, normal: 3, high: 4 };
 const MIN_LEVEL_TO_RANK = { steal: 0, great: 1, good: 2, all: 4 };
 
 /** Máximo de rutas a consultar por pasada (rotación controlada para evitar 429). */
-const MAX_ROUTES_PER_PASS = 20;
+const MAX_ROUTES_PER_PASS = Number(process.env.MAX_ROUTES_PER_PASS) || 40;
 
-/** Offset de rotación persistente entre pasadas. */
-let rotationOffset = 0;
+/** Evita que dos pasadas se solapen si una tarda más que el intervalo del cron. */
+let passInFlight = false;
 
 /** Pausa entre rutas (ms). */
 const INTER_ROUTE_DELAY_MS = 3500;
@@ -118,19 +118,27 @@ function filterPastRoutes(routes) {
 }
 
 /**
- * Selecciona un subset rotativo de rutas para esta pasada.
+ * Selecciona las rutas más desactualizadas para esta pasada.
+ *
+ * Antes esto era un offset en memoria: Render Free reinicia y duerme el
+ * servicio, con lo cual el offset volvía a 0 y las rutas del final de la
+ * lista podían no consultarse nunca. Ordenar por `lastCheckedAt` (las nunca
+ * consultadas primero) sobrevive a los reinicios y garantiza que la cola
+ * avance siempre.
+ *
  * @param {Array} routes
  * @param {number} max
  * @returns {Array}
  */
 function sampleRoutes(routes, max) {
   if (routes.length <= max) return routes;
-  const sampled = [];
-  for (let i = 0; i < max; i++) {
-    const idx = (rotationOffset + i) % routes.length;
-    sampled.push(routes[idx]);
-  }
-  return sampled;
+  return [...routes]
+    .sort((a, b) => {
+      const ta = a.lastCheckedAt ? new Date(a.lastCheckedAt).getTime() : 0;
+      const tb = b.lastCheckedAt ? new Date(b.lastCheckedAt).getTime() : 0;
+      return ta - tb;
+    })
+    .slice(0, max);
 }
 
 /**
@@ -166,6 +174,24 @@ function shouldBeSilent(currentPrice, previousPrice, threshold) {
  * @returns {Promise<{routesChecked: number, offersSent: number, errors: number}>}
  */
 async function runOnce() {
+  if (passInFlight) {
+    logger.warn('Pasada anterior todavía en curso, se saltea este tick');
+    return { routesChecked: 0, offersSent: 0, errors: 0 };
+  }
+  passInFlight = true;
+  try {
+    return await runPass();
+  } finally {
+    passInFlight = false;
+  }
+}
+
+/**
+ * Cuerpo de la pasada. Separado de runOnce para que el guard de reentrada
+ * quede en un solo lugar.
+ * @returns {Promise<{routesChecked: number, offersSent: number, errors: number}>}
+ */
+async function runPass() {
   const started = Date.now();
 
   // Auto-limpieza: pausar/eliminar rutas vencidas antes de buscar
@@ -180,16 +206,17 @@ async function runOnce() {
   const validRoutes = filterPastRoutes(allRoutes);
   const pastCount = allRoutes.length - validRoutes.length;
 
-  // Sampling: tomar un subset rotativo
+  // Sampling: las rutas más desactualizadas primero.
   const routes = sampleRoutes(validRoutes, MAX_ROUTES_PER_PASS);
-  rotationOffset = (rotationOffset + routes.length) % Math.max(1, validRoutes.length);
+  const neverChecked = validRoutes.filter(r => !r.lastCheckedAt).length;
 
   logger.info('Alert pass iniciada', {
     totalActive: allRoutes.length,
     pastFiltered: pastCount,
     validRoutes: validRoutes.length,
     sampledThisPass: routes.length,
-    rotationOffset,
+    neverChecked,
+    oldestCheckedAt: routes[0]?.lastCheckedAt || null,
   });
 
   const notificationsByChat = /** @type {Map<number, number>} */ (new Map());
@@ -231,6 +258,11 @@ async function runOnce() {
       break;
     }
 
+    // Mejor precio visto en esta consulta (EUR). Se persiste en la ruta pase
+    // lo que pase, para priorizar las rutas más desactualizadas en la próxima
+    // pasada y para alimentar el resumen diario aunque no se alerte nada.
+    let checkedPriceEur = null;
+
     try {
       const prefs = await userPrefsRepo.getOrCreate(
         route.telegramUserId,
@@ -257,7 +289,6 @@ async function runOnce() {
           id: route._id, route: `${route.origin}-${route.destination}`,
           date: route.outboundDate,
         });
-        await applyPacing(i, routes.length);
         continue;
       }
 
@@ -283,7 +314,6 @@ async function runOnce() {
         id: route._id, route: `${cheapest.origin}-${cheapest.destination}`,
         price: cheapest.price, currency: cheapest.currency, minFloor,
       });
-      await applyPacing(i, routes.length);
       continue;
     }
 
@@ -307,7 +337,6 @@ async function runOnce() {
             scraper: cheapest.price, amadeus: amaPrice,
           });
           skippedNoFlights += 1;
-          await applyPacing(i, routes.length);
           continue;
         }
       } catch (err) {
@@ -323,12 +352,24 @@ async function runOnce() {
       const priceEur = cheapest.currency === 'EUR'
         ? cheapest.price
         : toEur(cheapest.price, cheapest.currency);
+      checkedPriceEur = priceEur;
 
-      let level = classifyPrice(
+      // classifyPrice devuelve {level, threshold}: hay que desestructurar.
+      // Asignar el objeto entero a `level` dejaba LEVEL_RANK[level]=undefined,
+      // rank=99 y `rank > minRank` siempre true → NINGUNA oferta podía
+      // notificarse, a cualquier precio (logs 08-02: rank:99 en el 100% de
+      // las rutas, offersSent:0 en todas las pasadas).
+      //
+      // El 4to argumento es el STRING 'roundtrip'|'oneway'. Pasar el booleano
+      // `x === 'roundtrip'` hacía que getThreshold evaluara `true === 'roundtrip'`
+      // = false y usara SIEMPRE la tabla de one-way: un roundtrip FCO-COR se
+      // comparaba contra deal €400 en vez de €800.
+      const tripType = cheapest.tripType === 'roundtrip' ? 'roundtrip' : 'oneway';
+      let { level, threshold } = classifyPrice(
         cheapest.origin,
         cheapest.destination,
         priceEur,
-        cheapest.tripType === 'roundtrip',
+        tripType,
       );
 
       // Si la ruta tiene priceThreshold explícito (seteado por el usuario
@@ -375,12 +416,11 @@ async function runOnce() {
         skippedByLevel += 1;
         logger.info('Ruta filtrada por nivel (precio por encima del mínimo configurado)', {
           id: route._id, route: `${route.origin}-${route.destination}`,
-          date: route.outboundDate,
+          date: route.outboundDate, tripType,
           priceRaw: cheapest.price, currency: cheapest.currency || 'EUR',
-          priceEur, level, rank,
+          priceEur, level, rank, threshold,
           minLevel: prefs.alert_min_level, minRank,
         });
-        await applyPacing(i, routes.length);
         continue;
       }
 
@@ -396,7 +436,6 @@ async function runOnce() {
           priceInThresholdCcy, threshold: route.priceThreshold,
           thresholdCcy: routeCurrency,
         });
-        await applyPacing(i, routes.length);
         continue;
       }
 
@@ -433,9 +472,15 @@ async function runOnce() {
         id: route._id, route: `${route.origin}-${route.destination}`,
         err: /** @type {Error} */ (err).message,
       });
+    } finally {
+      // Se marca en TODOS los caminos (incluido el de error) para que una
+      // ruta que falla no se quede clavada al frente de la cola bloqueando
+      // al resto.
+      await routesRepo.markChecked(route._id, checkedPriceEur).catch((err) => {
+        logger.debug('markChecked falló (continuando)', { err: err.message });
+      });
+      await applyPacing(i, routes.length);
     }
-
-    await applyPacing(i, routes.length);
   }
 
   // Header de batch (si mandamos ≥3 ofertas al mismo chat).

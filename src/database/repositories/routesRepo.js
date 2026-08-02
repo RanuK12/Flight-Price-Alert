@@ -103,6 +103,41 @@ async function listAllActive() {
   return Route.find({ paused: false }).lean();
 }
 
+/**
+ * Registra que una ruta fue consultada, con el mejor precio visto (EUR).
+ * Best-effort: un fallo acá no debe cortar la pasada del alertEngine.
+ *
+ * @param {string} routeId
+ * @param {number|null} lastPriceEur precio más barato en EUR, o null si no hubo vuelos
+ * @returns {Promise<void>}
+ */
+async function markChecked(routeId, lastPriceEur) {
+  await Route.updateOne(
+    { _id: routeId },
+    { lastCheckedAt: new Date(), lastPriceEur: lastPriceEur ?? null },
+  );
+}
+
+/**
+ * Rutas activas con precio conocido, de la más barata a la más cara.
+ * Alimenta la sección "mejores precios" del resumen diario, que debe
+ * informar aunque no se haya enviado ninguna alerta.
+ *
+ * @param {number} telegramUserId
+ * @param {number} [limit=10]
+ * @returns {Promise<any[]>}
+ */
+async function listCheapestChecked(telegramUserId, limit = 10) {
+  return Route.find({
+    telegramUserId,
+    paused: false,
+    lastPriceEur: { $ne: null },
+  })
+    .sort({ lastPriceEur: 1 })
+    .limit(limit)
+    .lean();
+}
+
 module.exports = {
   createRoute,
   listByUser,
@@ -111,4 +146,6 @@ module.exports = {
   setPaused,
   deleteRoute,
   listAllActive,
+  markChecked,
+  listCheapestChecked,
 };
