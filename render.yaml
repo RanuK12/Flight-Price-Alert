@@ -59,6 +59,13 @@ services:
         value: "0 * * * *"
       - key: MAX_ROUTES_PER_PASS
         value: "40"
+      # Barrido por "Tabla de fechas" de Google: cubre las 512 combinaciones
+      # de ida y vuelta con ~30 cargas de pagina. Desfasado del cron de
+      # alertas para no pelear por el navegador.
+      - key: GRID_SWEEP_SCHEDULE
+        value: "20 */3 * * *"
+      - key: GRID_SCAN_DELAY_MS
+        value: "5000"
       - key: DAILY_REPORT_SCHEDULE
         value: "0 21 * * *"
 

@@ -112,6 +112,50 @@ async function buildBestPricesSection(userId) {
 }
 
 /**
+ * Arma la tabla ida x vuelta del par de aeropuertos más barato.
+ *
+ * La lista de "mejores precios" contesta *cuánto* sale; la tabla contesta
+ * *qué combinación de fechas* conviene, que es la decisión real. Los datos
+ * salen del barrido por grilla (services/gridSweep), que ya dejó el precio
+ * de cada combinación en su ruta.
+ *
+ * @param {number} userId
+ * @returns {Promise<string|null>}
+ */
+async function buildGridSection(userId) {
+  const routes = await routesRepo.listCheapestChecked(userId, 400);
+  const roundtrips = routes.filter(r => r.tripType === 'roundtrip' && r.returnDate);
+  if (roundtrips.length < 4) return null;
+
+  // El par de aeropuertos que contiene el precio más bajo de todos.
+  const cheapest = roundtrips[0];
+  const pair = `${cheapest.origin}-${cheapest.destination}`;
+
+  const cells = roundtrips
+    .filter(r => `${r.origin}-${r.destination}` === pair)
+    .map(r => ({
+      departureDate: isoDay(r.outboundDate),
+      returnDate: isoDay(r.returnDate),
+      price: Math.round(r.lastPriceEur),
+    }))
+    .filter(c => c.departureDate && c.returnDate);
+
+  if (cells.length < 4) return null;
+
+  return fmt.priceGrid(cells, {
+    title: `📊 ${cheapest.origin} ↔ ${cheapest.destination} — el par más barato`,
+    threshold: cheapest.priceThreshold || null,
+  });
+}
+
+/** Date → "YYYY-MM-DD" en UTC. */
+function isoDay(value) {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
+}
+
+/**
  * @param {import('node-telegram-bot-api')} bot
  * @param {number} userId
  * @param {number} chatId
@@ -195,6 +239,19 @@ async function sendSummaryForUser(bot, userId, chatId) {
   });
   if (bestPrices) {
     await bot.sendMessage(chatId, bestPrices, {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    });
+  }
+
+  // Tabla ida x vuelta del par más barato: dice qué combinación de fechas
+  // conviene, no sólo cuánto sale.
+  const grid = await buildGridSection(userId).catch((err) => {
+    logger.warn('Tabla de precios falló (continuando)', { err: err.message });
+    return null;
+  });
+  if (grid) {
+    await bot.sendMessage(chatId, grid, {
       parse_mode: 'HTML',
       disable_web_page_preview: true,
     });

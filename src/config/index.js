@@ -147,6 +147,9 @@ const config = Object.freeze({
   scheduler: Object.freeze({
     monitor: optionalEnv('MONITOR_SCHEDULE', '0 */2 * * *'),
     dailyReport: optionalEnv('DAILY_REPORT_SCHEDULE', '0 21 * * *'),
+    // Barrido por grilla: cada 3h, desfasado 20 min del cron de alertas para
+    // no pelear por el navegador. Cubre las 512 combinaciones con ~30 cargas.
+    gridSweep: optionalEnv('GRID_SWEEP_SCHEDULE', '20 */3 * * *'),
     autoMonitor: parseBool(optionalEnv('AUTO_MONITOR', 'true')),
   }),
 
