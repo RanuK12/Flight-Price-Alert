@@ -24,6 +24,7 @@ const { runMigration: runRoutesMigrationV6 } = require('./bootstrap/migrateRoute
 const { runMigration: runRoutesMigrationV7 } = require('./bootstrap/migrateRoutesV7');
 const { runMigration: runRoutesMigrationV8 } = require('./bootstrap/migrateRoutesV8');
 const { runMigration: runRoutesMigrationV9 } = require('./bootstrap/migrateRoutesV9');
+const { runMigration: runRoutesMigrationV10 } = require('./bootstrap/migrateRoutesV10');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
 const sessions = require('./bot/sessions');
@@ -118,6 +119,13 @@ async function main() {
     await runRoutesMigrationV9().catch((err) => {
       logger.error('migrateRoutesV9 failed (continuando)', /** @type {Error} */ (err));
     });
+
+    // v10: aditiva. Suma LIS/OPO (LIS midió €929 vs €1223 de BCN), las rutas
+    //   de largo radio EU↔EZE y el salto doméstico EZE↔COR por separado.
+    //   No toca ninguna ruta existente.
+    await runRoutesMigrationV10().catch((err) => {
+      logger.error('migrateRoutesV10 failed (continuando)', /** @type {Error} */ (err));
+    });
   }
 
   // 2. Health / debug HTTP
@@ -148,6 +156,22 @@ async function main() {
       }
     }, { timezone: config.tz });
     logger.info(`Alert engine cron scheduled: ${config.scheduler.monitor}`);
+
+    // Barrido por grilla: cubre TODAS las combinaciones de ida y vuelta con
+    // ~30 cargas de página (contra 512 búsquedas individuales). No notifica:
+    // deja el precio en cada ruta para que la pasada de alertas mire primero
+    // las que están cerca del umbral. Ver services/gridSweep.
+    cron.schedule(config.scheduler.gridSweep, async () => {
+      try {
+        logger.info('Grid sweep tick');
+        // eslint-disable-next-line global-require
+        const { runSweep } = require('./services/gridSweep');
+        await runSweep();
+      } catch (err) {
+        logger.error('Grid sweep cron failed', /** @type {Error} */(err));
+      }
+    }, { timezone: config.tz });
+    logger.info(`Grid sweep cron scheduled: ${config.scheduler.gridSweep}`);
 
     cron.schedule(config.scheduler.dailyReport, async () => {
       try {

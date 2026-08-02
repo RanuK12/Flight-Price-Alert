@@ -166,6 +166,93 @@ function searchModeInfo(mode) {
   return descriptions[mode] || descriptions.hybrid;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// TABLA DE PRECIOS (ida x vuelta)
+// ═══════════════════════════════════════════════════════════════
+
+/** Meses abreviados para las cabeceras de la tabla. */
+const MONTHS_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
+  'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/** "2026-09-17" → 17 (día del mes). */
+function dayOf(iso) {
+  return Number(String(iso).slice(8, 10));
+}
+
+/** "2026-09-17" → "sep". */
+function monthOf(iso) {
+  return MONTHS_SHORT[Number(String(iso).slice(5, 7)) - 1] || '';
+}
+
+/**
+ * Tabla monoespaciada de precios ida x vuelta, como la "Tabla de fechas" de
+ * Google pero dentro de Telegram.
+ *
+ * Va en un bloque `<pre>`: Telegram lo renderiza en monoespaciado y con
+ * scroll horizontal propio, así que en el celular la tabla se desliza en
+ * lugar de romper el mensaje.
+ *
+ * Se muestran sólo las N filas de ida más baratas: una grilla de 8x8 no se
+ * lee en un teléfono y lo que importa es dónde está el mínimo. La celda más
+ * barata va marcada con «».
+ *
+ * @param {Array<{departureDate: string, returnDate: string, price: number}>} cells
+ * @param {{title?: string, maxRows?: number, threshold?: number|null}} [opts]
+ * @returns {string} HTML listo para Telegram, o '' si no hay datos
+ */
+function priceGrid(cells, opts = {}) {
+  const rows = Array.isArray(cells) ? cells.filter(c => Number.isFinite(c?.price)) : [];
+  if (!rows.length) return '';
+
+  const maxRows = opts.maxRows ?? 6;
+
+  // Mejor precio por fecha de ida, para elegir qué filas mostrar.
+  const bestByDeparture = new Map();
+  for (const c of rows) {
+    const prev = bestByDeparture.get(c.departureDate);
+    if (prev === undefined || c.price < prev) bestByDeparture.set(c.departureDate, c.price);
+  }
+  const departures = [...bestByDeparture.entries()]
+    .sort((a, b) => a[1] - b[1])
+    .slice(0, maxRows)
+    .map(([d]) => d)
+    .sort();
+
+  const shown = new Set(departures);
+  const returns = [...new Set(rows.filter(c => shown.has(c.departureDate)).map(c => c.returnDate))].sort();
+  if (!returns.length) return '';
+
+  const byCombo = new Map(rows.map(c => [`${c.departureDate}|${c.returnDate}`, c.price]));
+  const min = Math.min(...rows.map(c => c.price));
+
+  // Ancho de columna: el precio más largo, más el hueco del marcador.
+  const width = Math.max(4, ...rows.map(c => String(c.price).length)) + 2;
+  const pad = (s) => String(s).padStart(width);
+
+  const lines = [];
+  lines.push(pad('').slice(0, 3) + returns.map(r => pad(dayOf(r))).join(''));
+
+  for (const dep of departures) {
+    const cellsOfRow = returns.map((ret) => {
+      const value = byCombo.get(`${dep}|${ret}`);
+      if (value === undefined) return pad('·');
+      return pad(value === min ? `«${value}` : value);
+    });
+    lines.push(String(dayOf(dep)).padStart(3) + cellsOfRow.join(''));
+  }
+
+  const depMonth = monthOf(departures[0]);
+  const retMonth = monthOf(returns[0]);
+  const header = opts.title ? `<b>${esc(opts.title)}</b>\n` : '';
+  const axes = `<i>filas: ida (${depMonth}) · columnas: vuelta (${retMonth})</i>\n`;
+  const footer = opts.threshold
+    ? `\n🎯 Tu umbral: ${price(opts.threshold, 'EUR')} · mejor visto: <b>${price(min, 'EUR')}</b>` +
+      (min <= opts.threshold ? ' ✅' : ` (faltan ${price(min - opts.threshold, 'EUR')})`)
+    : `\nMejor visto: <b>${price(min, 'EUR')}</b>`;
+
+  return `${header}${axes}<pre>${esc(lines.join('\n'))}</pre>${footer}`;
+}
+
 module.exports = {
   esc,
   price,
@@ -177,4 +264,5 @@ module.exports = {
   routeLine,
   searchModeInfo,
   levelLabel,
+  priceGrid,
 };

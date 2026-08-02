@@ -118,27 +118,59 @@ function filterPastRoutes(routes) {
 }
 
 /**
- * Selecciona las rutas más desactualizadas para esta pasada.
+ * Margen sobre el umbral dentro del cual una ruta se considera candidata.
+ * 1.15 = hasta 15% por encima: los precios se mueven entre el barrido de
+ * grilla y la confirmación, y perder una oferta por 20 euros sería peor que
+ * gastar una búsqueda de más.
+ */
+const CANDIDATE_MARGIN = 1.15;
+
+/**
+ * ¿Vale la pena confirmar esta ruta ya mismo?
  *
- * Antes esto era un offset en memoria: Render Free reinicia y duerme el
- * servicio, con lo cual el offset volvía a 0 y las rutas del final de la
- * lista podían no consultarse nunca. Ordenar por `lastCheckedAt` (las nunca
- * consultadas primero) sobrevive a los reinicios y garantiza que la cola
- * avance siempre.
+ * `lastPriceEur` lo deja el barrido de grilla (services/gridSweep), que cubre
+ * las 512 combinaciones con ~30 cargas de página. Si la grilla vio un precio
+ * cerca del umbral, esa ruta va al frente de la cola: es la única forma de
+ * llegar a la oferta el mismo día que aparece.
+ *
+ * @param {any} route
+ * @returns {boolean}
+ */
+function isCandidate(route) {
+  if (!route.priceThreshold || route.lastPriceEur == null) return false;
+  return route.lastPriceEur <= route.priceThreshold * CANDIDATE_MARGIN;
+}
+
+/**
+ * Ordena las rutas de esta pasada: primero las que la grilla marcó baratas,
+ * después las más desactualizadas.
+ *
+ * La rotación era antes un offset en memoria: Render Free reinicia y duerme
+ * el servicio, con lo cual el offset volvía a 0 y las rutas del final de la
+ * lista podían no consultarse nunca. Ordenar por `lastCheckedAt` sobrevive a
+ * los reinicios y garantiza que la cola avance siempre.
  *
  * @param {Array} routes
  * @param {number} max
  * @returns {Array}
  */
 function sampleRoutes(routes, max) {
-  if (routes.length <= max) return routes;
-  return [...routes]
-    .sort((a, b) => {
-      const ta = a.lastCheckedAt ? new Date(a.lastCheckedAt).getTime() : 0;
-      const tb = b.lastCheckedAt ? new Date(b.lastCheckedAt).getTime() : 0;
-      return ta - tb;
-    })
-    .slice(0, max);
+  const ordered = [...routes].sort((a, b) => {
+    const ca = isCandidate(a) ? 0 : 1;
+    const cb = isCandidate(b) ? 0 : 1;
+    if (ca !== cb) return ca - cb;
+
+    // Entre candidatas, la más barata primero.
+    if (ca === 0 && a.lastPriceEur !== b.lastPriceEur) {
+      return a.lastPriceEur - b.lastPriceEur;
+    }
+
+    const ta = a.lastCheckedAt ? new Date(a.lastCheckedAt).getTime() : 0;
+    const tb = b.lastCheckedAt ? new Date(b.lastCheckedAt).getTime() : 0;
+    return ta - tb;
+  });
+
+  return routes.length <= max ? ordered : ordered.slice(0, max);
 }
 
 /**
@@ -206,17 +238,19 @@ async function runPass() {
   const validRoutes = filterPastRoutes(allRoutes);
   const pastCount = allRoutes.length - validRoutes.length;
 
-  // Sampling: las rutas más desactualizadas primero.
+  // Sampling: primero las candidatas que marcó la grilla, después las más
+  // desactualizadas.
   const routes = sampleRoutes(validRoutes, MAX_ROUTES_PER_PASS);
   const neverChecked = validRoutes.filter(r => !r.lastCheckedAt).length;
+  const candidates = validRoutes.filter(isCandidate).length;
 
   logger.info('Alert pass iniciada', {
     totalActive: allRoutes.length,
     pastFiltered: pastCount,
     validRoutes: validRoutes.length,
     sampledThisPass: routes.length,
+    candidatas: candidates,
     neverChecked,
-    oldestCheckedAt: routes[0]?.lastCheckedAt || null,
   });
 
   const notificationsByChat = /** @type {Map<number, number>} */ (new Map());
