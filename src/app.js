@@ -25,6 +25,7 @@ const { runMigration: runRoutesMigrationV7 } = require('./bootstrap/migrateRoute
 const { runMigration: runRoutesMigrationV8 } = require('./bootstrap/migrateRoutesV8');
 const { runMigration: runRoutesMigrationV9 } = require('./bootstrap/migrateRoutesV9');
 const { runMigration: runRoutesMigrationV10 } = require('./bootstrap/migrateRoutesV10');
+const { runMigration: runRoutesMigrationV11 } = require('./bootstrap/migrateRoutesV11');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
 const sessions = require('./bot/sessions');
@@ -125,6 +126,14 @@ async function main() {
     //   No toca ninguna ruta existente.
     await runRoutesMigrationV10().catch((err) => {
       logger.error('migrateRoutesV10 failed (continuando)', /** @type {Error} */ (err));
+    });
+
+    // v11: reconfiguración pedida por Emilio (2026-08-03). Reemplaza la config
+    //   Europa↔Argentina: 640 rutas → 108. Una ruta VENTANA por par de
+    //   aeropuertos para ida y vuelta (la grilla cubre las 64 combinaciones),
+    //   más solo ida por fecha. Umbrales: ida ≤€480, ida y vuelta ≤€800.
+    await runRoutesMigrationV11().catch((err) => {
+      logger.error('migrateRoutesV11 failed (continuando)', /** @type {Error} */ (err));
     });
   }
 

@@ -4,7 +4,7 @@
  * v6.0 — Estrategia global AR ↔ EU全年 (todo el año).
  *
  *   • AR → EU one-way: alerta ≤ €500 (deal)
- *   • EU → AR one-way: alerta ≤ €400 (deal)
+ *   • EU → AR one-way: alerta ≤ €480 (deal)  ← pedido de Emilio 2026-08-03
  *   • AR ↔ EU roundtrip: alerta ≤ €800 (deal)
  *
  * Niveles:
@@ -39,7 +39,7 @@ const EU_DESTS = ['MAD', 'BCN', 'FCO', 'MXP', 'CDG', 'LHR', 'AMS', 'LIS', 'BER',
  *   Italia: mid (~€450-550)
  *   Francia/UK/NL/Alemania/Austria: higher (~€500-700)
  *
- * EU → AR (threshold deal: €400):
+ * EU → AR (threshold deal: €480):
  *   Spain/Portugal: ~€350-500 off-peak
  *   Italy: ~€400-550
  *   Rest: ~€450-650
@@ -108,56 +108,61 @@ const PRICE_THRESHOLDS = {
   'ROS-VIE': { typical: 970, deal: 500, steal: 420 },
 
   // ══════════════════════════════════════════════════════
-  //  EU → AR ONE-WAY  (deal ≤ €400)
+  //  EU → AR ONE-WAY  (deal ≤ €480)
   // ══════════════════════════════════════════════════════
 
   // ── España → AR ─────────────────────────────────────
-  'MAD-EZE': { typical: 680, deal: 400, steal: 300 },
-  'BCN-EZE': { typical: 680, deal: 400, steal: 300 },
-  'MAD-COR': { typical: 750, deal: 400, steal: 320 },
-  'BCN-COR': { typical: 750, deal: 400, steal: 320 },
-  'MAD-MDQ': { typical: 780, deal: 400, steal: 320 },
-  'BCN-MDQ': { typical: 780, deal: 400, steal: 320 },
-  'MAD-ROS': { typical: 760, deal: 400, steal: 320 },
-  'BCN-ROS': { typical: 760, deal: 400, steal: 320 },
+  'MAD-EZE': { typical: 680, deal: 480, steal: 300 },
+  'BCN-EZE': { typical: 680, deal: 480, steal: 300 },
+  'MAD-COR': { typical: 750, deal: 480, steal: 320 },
+  'BCN-COR': { typical: 750, deal: 480, steal: 320 },
+  'MAD-MDQ': { typical: 780, deal: 480, steal: 320 },
+  'BCN-MDQ': { typical: 780, deal: 480, steal: 320 },
+  'MAD-ROS': { typical: 760, deal: 480, steal: 320 },
+  'BCN-ROS': { typical: 760, deal: 480, steal: 320 },
 
   // ── Italia → AR ─────────────────────────────────────
-  'FCO-EZE': { typical: 700, deal: 400, steal: 310 },
-  'MXP-EZE': { typical: 700, deal: 400, steal: 310 },
-  'FCO-COR': { typical: 780, deal: 400, steal: 330 },
-  'MXP-COR': { typical: 780, deal: 400, steal: 330 },
-  'FCO-MDQ': { typical: 800, deal: 400, steal: 330 },
-  'MXP-MDQ': { typical: 800, deal: 400, steal: 330 },
-  'FCO-ROS': { typical: 780, deal: 400, steal: 330 },
-  'MXP-ROS': { typical: 780, deal: 400, steal: 330 },
+  'FCO-EZE': { typical: 700, deal: 480, steal: 310 },
+  'MXP-EZE': { typical: 700, deal: 480, steal: 310 },
+  // Venecia: faltaba en la tabla de solo ida, así que classifyPrice devolvía
+  // 'normal' con threshold null para toda ruta VCE. Es de los aeropuertos más
+  // caros medidos (€1350 ida y vuelta a EZE), de ahí el typical alto.
+  'VCE-EZE': { typical: 820, deal: 480, steal: 340 },
+  'VCE-COR': { typical: 900, deal: 480, steal: 360 },
+  'FCO-COR': { typical: 780, deal: 480, steal: 330 },
+  'MXP-COR': { typical: 780, deal: 480, steal: 330 },
+  'FCO-MDQ': { typical: 800, deal: 480, steal: 330 },
+  'MXP-MDQ': { typical: 800, deal: 480, steal: 330 },
+  'FCO-ROS': { typical: 780, deal: 480, steal: 330 },
+  'MXP-ROS': { typical: 780, deal: 480, steal: 330 },
 
   // ── Francia/UK/NL → AR ──────────────────────────────
-  'CDG-EZE': { typical: 750, deal: 400, steal: 320 },
-  'CDG-COR': { typical: 830, deal: 400, steal: 340 },
-  'CDG-MDQ': { typical: 850, deal: 400, steal: 340 },
-  'CDG-ROS': { typical: 830, deal: 400, steal: 340 },
-  'LHR-EZE': { typical: 800, deal: 400, steal: 330 },
-  'LHR-COR': { typical: 880, deal: 400, steal: 350 },
-  'LHR-MDQ': { typical: 900, deal: 400, steal: 350 },
-  'LHR-ROS': { typical: 880, deal: 400, steal: 350 },
-  'AMS-EZE': { typical: 780, deal: 400, steal: 330 },
-  'AMS-COR': { typical: 860, deal: 400, steal: 350 },
-  'AMS-MDQ': { typical: 880, deal: 400, steal: 350 },
-  'AMS-ROS': { typical: 860, deal: 400, steal: 350 },
+  'CDG-EZE': { typical: 750, deal: 480, steal: 320 },
+  'CDG-COR': { typical: 830, deal: 480, steal: 340 },
+  'CDG-MDQ': { typical: 850, deal: 480, steal: 340 },
+  'CDG-ROS': { typical: 830, deal: 480, steal: 340 },
+  'LHR-EZE': { typical: 800, deal: 480, steal: 330 },
+  'LHR-COR': { typical: 880, deal: 480, steal: 350 },
+  'LHR-MDQ': { typical: 900, deal: 480, steal: 350 },
+  'LHR-ROS': { typical: 880, deal: 480, steal: 350 },
+  'AMS-EZE': { typical: 780, deal: 480, steal: 330 },
+  'AMS-COR': { typical: 860, deal: 480, steal: 350 },
+  'AMS-MDQ': { typical: 880, deal: 480, steal: 350 },
+  'AMS-ROS': { typical: 860, deal: 480, steal: 350 },
 
   // ── Alemania/Austria/Portugal/Grecia → AR ───────────
-  'LIS-EZE': { typical: 650, deal: 400, steal: 300 },
-  'LIS-COR': { typical: 730, deal: 400, steal: 320 },
-  'LIS-MDQ': { typical: 750, deal: 400, steal: 320 },
-  'LIS-ROS': { typical: 730, deal: 400, steal: 320 },
-  'BER-EZE': { typical: 760, deal: 400, steal: 320 },
-  'BER-COR': { typical: 840, deal: 400, steal: 340 },
-  'BER-MDQ': { typical: 860, deal: 400, steal: 340 },
-  'BER-ROS': { typical: 840, deal: 400, steal: 340 },
-  'VIE-EZE': { typical: 770, deal: 400, steal: 320 },
-  'VIE-COR': { typical: 850, deal: 400, steal: 340 },
-  'VIE-MDQ': { typical: 870, deal: 400, steal: 340 },
-  'VIE-ROS': { typical: 850, deal: 400, steal: 340 },
+  'LIS-EZE': { typical: 650, deal: 480, steal: 300 },
+  'LIS-COR': { typical: 730, deal: 480, steal: 320 },
+  'LIS-MDQ': { typical: 750, deal: 480, steal: 320 },
+  'LIS-ROS': { typical: 730, deal: 480, steal: 320 },
+  'BER-EZE': { typical: 760, deal: 480, steal: 320 },
+  'BER-COR': { typical: 840, deal: 480, steal: 340 },
+  'BER-MDQ': { typical: 860, deal: 480, steal: 340 },
+  'BER-ROS': { typical: 840, deal: 480, steal: 340 },
+  'VIE-EZE': { typical: 770, deal: 480, steal: 320 },
+  'VIE-COR': { typical: 850, deal: 480, steal: 340 },
+  'VIE-MDQ': { typical: 870, deal: 480, steal: 340 },
+  'VIE-ROS': { typical: 850, deal: 480, steal: 340 },
 
   // ── Italia → Tokio (legacy) ──────────────────────────
   'FCO-TYO': { typical: 1200, deal: 970, steal: 840 },
@@ -205,6 +210,14 @@ const PRICE_THRESHOLDS_RT = {
   'MAD-COR': { typical: 1350, deal: 800, steal: 650 },
   'BCN-COR': { typical: 1350, deal: 800, steal: 650 },
   'FCO-COR': { typical: 1420, deal: 800, steal: 680 },
+  // Pares que faltaban en la tabla de ida y vuelta: sin entrada, classifyPrice
+  // devolvía 'normal' con threshold null y el nivel no significaba nada.
+  // `typical` calibrado con la grilla de Google el 2026-08-03 (mínimo real de
+  // la ventana 15-22 sep / 3-10 nov, redondeado hacia arriba).
+  'MXP-EZE': { typical: 1150, deal: 800, steal: 620 },  // medido €1049
+  'MXP-COR': { typical: 1250, deal: 800, steal: 650 },
+  'LIS-EZE': { typical: 1020, deal: 800, steal: 580 },  // medido €929, el más barato
+  'LIS-COR': { typical: 1120, deal: 800, steal: 610 },
   'COR-CDG': { typical: 1380, deal: 800, steal: 660 },
   'COR-LHR': { typical: 1480, deal: 800, steal: 700 },
   'COR-AMS': { typical: 1430, deal: 800, steal: 680 },

@@ -77,18 +77,27 @@ async function autoCleanupPastRoutes() {
 
   const Route = require('../database/models/Route');
 
-  // 1. Pausar rutas con fecha de hoy o pasada que estén activas
+  // En una ruta ventana `outboundDate` es el ARRANQUE del rango: sigue siendo
+  // útil hasta que venza el final. Por eso la fecha que manda para limpiar es
+  // `outboundDateEnd` cuando existe. Sin esta distinción, una ventana
+  // 15-22 sep se pausaba el 15 y se perdían los últimos 7 días.
+  const expired = (limit) => ({
+    $or: [
+      { outboundDateEnd: { $ne: null }, outboundDateEnd: limit },
+      { outboundDateEnd: null, outboundDate: limit },
+    ],
+  });
+
+  // 1. Pausar rutas cuya última fecha útil ya pasó.
   const pauseResult = await Route.updateMany(
-    { outboundDate: { $lte: today }, paused: false },
+    { ...expired({ $lte: today }), paused: false },
     { paused: true },
   );
 
-  // 2. Eliminar rutas con fecha pasada hace >3 días (ya no sirven para nada)
+  // 2. Eliminar rutas vencidas hace >3 días (ya no sirven para nada).
   const graceDate = new Date(today);
   graceDate.setDate(graceDate.getDate() - 3);
-  const deleteResult = await Route.deleteMany({
-    outboundDate: { $ne: null, $lt: graceDate },
-  });
+  const deleteResult = await Route.deleteMany(expired({ $ne: null, $lt: graceDate }));
 
   if (pauseResult.modifiedCount > 0 || deleteResult.deletedCount > 0) {
     logger.info('Auto-cleanup rutas pasadas', {
@@ -104,17 +113,48 @@ async function autoCleanupPastRoutes() {
 }
 
 /**
- * Filtra rutas con fecha de salida pasada (ya no tiene sentido consultarlas).
+ * Filtra rutas cuya última fecha útil ya pasó.
+ *
+ * En una ruta ventana la fecha que cuenta es el final del rango, no el
+ * arranque: una ventana 15-22 sep sigue sirviendo el día 20.
+ *
  * @param {Array} routes
  * @returns {Array}
  */
 function filterPastRoutes(routes) {
   const today = new Date().toISOString().split('T')[0];
   return routes.filter(r => {
-    if (!r.outboundDate) return true; // fecha flexible → mantener
-    const iso = r.outboundDate.toISOString().split('T')[0];
-    return iso >= today;
+    const last = r.outboundDateEnd || r.outboundDate;
+    if (!last) return true; // fecha flexible → mantener
+    return new Date(last).toISOString().split('T')[0] >= today;
   });
+}
+
+/** ¿Esta ruta cubre un rango de fechas en vez de una sola? */
+function isWindowRoute(route) {
+  return Boolean(route.outboundDateEnd);
+}
+
+/**
+ * Qué fechas hay que confirmar para esta ruta.
+ *
+ * En una ruta ventana, `outboundDate` es apenas el arranque del rango: buscar
+ * ahí sería mirar el 15 de septiembre cuando la oferta está el 18. Las fechas
+ * buenas las dejó el barrido por grilla en `bestOutboundDate`/`bestReturnDate`.
+ * Si el barrido todavía no corrió, se cae al inicio de la ventana, que al menos
+ * es una fecha válida.
+ *
+ * @param {any} route
+ * @returns {{departureDate: Date, returnDate: Date|null}}
+ */
+function resolveTargetDates(route) {
+  if (!isWindowRoute(route)) {
+    return { departureDate: route.outboundDate, returnDate: route.returnDate || null };
+  }
+  return {
+    departureDate: route.bestOutboundDate || route.outboundDate,
+    returnDate: route.bestReturnDate || route.returnDate || null,
+  };
 }
 
 /**
@@ -304,11 +344,16 @@ async function runPass() {
       );
       const minRank = MIN_LEVEL_TO_RANK[prefs.alert_min_level] ?? 0;
 
+      // Rutas ventana: la mejor combinación de fechas la eligió el barrido por
+      // grilla y quedó en bestOutboundDate/bestReturnDate. Se confirma ESA
+      // combinación, no el arranque de la ventana, que casi nunca es la barata.
+      const target = resolveTargetDates(route);
+
       const result = await hybrid.search({
         origin: route.origin,
         destination: route.destination,
-        departureDate: route.outboundDate,
-        returnDate: route.returnDate || undefined,
+        departureDate: target.departureDate,
+        returnDate: target.returnDate || undefined,
         currency: route.currency || prefs.currency,
         max: 5,
       }, { mode: 'background' });

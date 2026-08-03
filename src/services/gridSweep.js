@@ -57,9 +57,15 @@ function groupRoundtripRoutes(routes) {
 
   for (const route of routes) {
     if (route.tripType !== 'roundtrip' || !route.returnDate) continue;
+
     const out = isoOf(route.outboundDate);
     const ret = isoOf(route.returnDate);
-    if (!out || !ret || out < today) continue;
+    if (!out || !ret) continue;
+
+    // Ruta ventana: outboundDate/returnDate son el arranque del rango.
+    const outEnd = isoOf(route.outboundDateEnd) || out;
+    const retEnd = isoOf(route.returnDateEnd) || ret;
+    if (outEnd < today) continue;
 
     const key = `${route.origin}-${route.destination}`;
     if (!groups.has(key)) {
@@ -72,11 +78,24 @@ function groupRoundtripRoutes(routes) {
       });
     }
     const g = groups.get(key);
-    g.outboundDates.add(out);
-    g.returnDates.add(ret);
-    g.routes.push({ ...route, _outIso: out, _retIso: ret });
+    for (const d of datesBetween(out, outEnd)) if (d >= today) g.outboundDates.add(d);
+    for (const d of datesBetween(ret, retEnd)) g.returnDates.add(d);
+    g.routes.push({ ...route, _outIso: out, _retIso: ret, _isWindow: Boolean(route.outboundDateEnd) });
   }
   return groups;
+}
+
+/** Fechas ISO entre dos extremos, inclusive. */
+function datesBetween(fromIso, toIso) {
+  const out = [];
+  const cur = new Date(`${fromIso}T00:00:00.000Z`);
+  const end = new Date(`${toIso}T00:00:00.000Z`);
+  // Guard: una ventana mal armada no debe colgar el barrido.
+  for (let i = 0; cur <= end && i < 400; i++) {
+    out.push(cur.toISOString().split('T')[0]);
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
 }
 
 /**
@@ -160,8 +179,22 @@ async function runSweep() {
 
       // Índice precio por combinación para volcarlo en cada ruta.
       const byCombo = new Map(cells.map(c => [`${c.departureDate}|${c.returnDate}`, c.price]));
+      const cheapest = cells[0]; // scanRoute devuelve ordenado por precio
 
       for (const route of group.routes) {
+        if (route._isWindow) {
+          // Ruta ventana: se guarda el mínimo de TODA la ventana junto con las
+          // fechas que lo producen. Sin las fechas, el alertEngine iría a
+          // confirmar el arranque del rango, que casi nunca es el barato.
+          if (!cheapest) continue;
+          await routesRepo.markWindowBest(
+            route._id, cheapest.price, cheapest.departureDate, cheapest.returnDate,
+          ).catch((err) => logger.debug('markWindowBest falló', { err: err.message }));
+          updated += 1;
+          if (route.priceThreshold && cheapest.price <= route.priceThreshold) belowThreshold += 1;
+          continue;
+        }
+
         const price = byCombo.get(`${route._outIso}|${route._retIso}`);
         if (price === undefined) continue;
 

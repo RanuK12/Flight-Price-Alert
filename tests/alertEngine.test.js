@@ -94,8 +94,10 @@ describe('classifyPrice — tabla correcta segun tripType (defecto 2)', () => {
   test('roundtrip usa la tabla de roundtrip, no la de one-way', () => {
     const rt = getThreshold('FCO', 'COR', 'roundtrip');
     const ow = getThreshold('FCO', 'COR', 'oneway');
+    // Umbrales pedidos por Emilio el 2026-08-03: ida €480, ida y vuelta €800.
     expect(rt.deal).toBe(800);
-    expect(ow.deal).toBe(400);
+    expect(ow.deal).toBe(480);
+    expect(rt.deal).not.toBe(ow.deal); // el punto del test: son tablas distintas
 
     const res = classifyPrice('FCO', 'COR', 780, 'roundtrip');
     expect(res.threshold.typical).toBe(1420);
