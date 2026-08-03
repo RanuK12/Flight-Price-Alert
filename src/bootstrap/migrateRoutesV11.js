@@ -13,16 +13,16 @@
  * reconfigurar; el resto del sistema las trata como intocables
  * (ver .agents/AGENTS.md).
  *
- * DE 640 RUTAS A 108
+ * DE 640 RUTAS A 96
  *
  * El problema no era la cantidad de aeropuertos sino el modelo: hacía falta
- * una ruta por combinación de fechas, o sea 8 idas x 8 vueltas = 64 rutas por
- * par de aeropuertos. Con la "Tabla de fechas" de Google esas 64 se leen en 4
- * cargas de página (services/gridScan), así que ahora hay UNA ruta por par que
- * cubre toda la ventana y alerta con la combinación concreta más barata.
+ * una ruta por combinación de fechas, o sea 7 idas x 7 vueltas = 49 rutas por
+ * par de aeropuertos. Con la "Tabla de fechas" de Google esas 49 se leen en
+ * UNA carga de página (services/gridScan), así que ahora hay una sola ruta por
+ * par que cubre toda la ventana y alerta con la combinación más barata.
  *
- *   ida y vuelta:  6 EU x 2 AR = 12 rutas ventana (antes 768)
- *   solo ida:      6 EU x 2 AR x 8 fechas = 96 rutas (Google no da grilla
+ *   ida y vuelta:  6 EU x 2 AR = 12 rutas ventana (antes 588)
+ *   solo ida:      6 EU x 2 AR x 7 fechas = 84 rutas (Google no da grilla
  *                  para solo ida: necesita fecha de vuelta)
  *
  * AEROPUERTOS
@@ -61,13 +61,18 @@ const AR_AIRPORTS = ['EZE', 'COR'];
 const OW_THRESHOLD = 480;
 const RT_THRESHOLD = 800;
 
-/** Ventana de ida: 15 al 22 de septiembre de 2026. */
-const OUTBOUND_FROM = '2026-09-15';
-const OUTBOUND_TO = '2026-09-22';
+/**
+ * Ventanas de viaje (corregidas por Emilio el 2026-08-03).
+ *
+ * Son 7 días cada una, y eso importa: la "Tabla de fechas" de Google es de
+ * 7x7, así que la ventana entera entra en UNA sola carga de página por par de
+ * aeropuertos. Con las ventanas de 8 días anteriores hacían falta 4.
+ */
+const OUTBOUND_FROM = '2026-09-14';
+const OUTBOUND_TO = '2026-09-20';
 
-/** Ventana de vuelta: 3 al 10 de noviembre de 2026. */
-const RETURN_FROM = '2026-11-03';
-const RETURN_TO = '2026-11-10';
+const RETURN_FROM = '2026-11-01';
+const RETURN_TO = '2026-11-07';
 
 /** Fechas ISO entre dos extremos, inclusive. */
 function datesBetween(fromIso, toIso) {

@@ -111,6 +111,36 @@ function planGridFetches(outboundDates, returnDates) {
 }
 
 /**
+ * Pide una grilla, y si falla la reintenta una vez.
+ *
+ * El fallo es transitorio y está medido: en una tanda de 6 aeropuertos
+ * seguidos, 2 devolvieron vacío en 3-5 segundos, y los mismos 2 funcionaron
+ * perfecto al pedirlos de a uno. Google a veces no llega a renderizar la barra
+ * con "Tabla de fechas". Un reintento tapa el caso sin inventar complejidad:
+ * si falla dos veces, es un problema de verdad y se loguea como tal.
+ *
+ * @param {object} scraper
+ * @param {string} origin @param {string} destination
+ * @param {string} departureDate @param {string} returnDate
+ * @param {number} delayMs - pausa antes de reintentar
+ * @returns {Promise<{success: boolean, cells: Array, error?: string}>}
+ */
+async function fetchWithRetry(scraper, origin, destination, departureDate, returnDate, delayMs) {
+  const attempt = () => scraper
+    .searchDateGrid(origin, destination, departureDate, returnDate)
+    .catch((err) => ({ success: false, cells: [], error: err.message }));
+
+  const first = await attempt();
+  if (first.success) return first;
+
+  logger.debug('Grilla vacía, reintentando', {
+    route: `${origin}-${destination}`, departureDate, err: first.error,
+  });
+  if (delayMs > 0) await sleep(delayMs);
+  return attempt();
+}
+
+/**
  * Barre un par de aeropuertos y devuelve el precio de cada combinación
  * pedida.
  *
@@ -144,13 +174,11 @@ async function scanRoute(origin, destination, outboundDates, returnDates, deps =
 
   for (let i = 0; i < plan.length; i++) {
     const { departureDate, returnDate } = plan[i];
-    const result = await scraper
-      .searchDateGrid(origin, destination, departureDate, returnDate)
-      .catch((err) => ({ success: false, cells: [], error: err.message }));
+    const result = await fetchWithRetry(scraper, origin, destination, departureDate, returnDate, delayMs);
 
     if (!result.success) {
       failed += 1;
-      logger.debug('Grilla sin resultado', {
+      logger.warn('Grilla sin resultado tras reintentar', {
         route: `${origin}-${destination}`, departureDate, returnDate, err: result.error,
       });
     }

@@ -54,31 +54,37 @@ describe('lo que pidió Emilio', () => {
 });
 
 describe('menos rutas, sin perder cobertura', () => {
-  test('108 rutas en total (antes 640)', () => {
-    expect(ops).toHaveLength(108);
+  test('96 rutas en total (antes 640)', () => {
+    expect(ops).toHaveLength(96);
     expect(ops.length).toBeLessThan(640);
   });
 
   test('ida y vuelta: una ruta VENTANA por par de aeropuertos, no una por combinacion', () => {
-    // 6 EU x 2 AR = 12. Con una ruta por combinación de fechas serían 768.
+    // 6 EU x 2 AR = 12. Con una ruta por combinación de fechas serían 588.
     expect(roundtrips).toHaveLength(EU_AIRPORTS.length * AR_AIRPORTS.length);
     expect(roundtrips).toHaveLength(12);
   });
 
-  test('la ventana de ida y vuelta cubre las 8 fechas de ida y las 8 de vuelta', () => {
+  test('la ventana cubre las 7 fechas de ida y las 7 de vuelta pedidas', () => {
     const s = set(roundtrips[0]);
     expect(datesBetween(
       s.outboundDate.toISOString().split('T')[0],
       s.outboundDateEnd.toISOString().split('T')[0],
-    )).toHaveLength(8);
+    )).toHaveLength(7);
     expect(datesBetween(
       s.returnDate.toISOString().split('T')[0],
       s.returnDateEnd.toISOString().split('T')[0],
-    )).toHaveLength(8);
+    )).toHaveLength(7);
+
+    // Las fechas exactas que pidió Emilio.
+    expect(s.outboundDate.toISOString().split('T')[0]).toBe('2026-09-14');
+    expect(s.outboundDateEnd.toISOString().split('T')[0]).toBe('2026-09-20');
+    expect(s.returnDate.toISOString().split('T')[0]).toBe('2026-11-01');
+    expect(s.returnDateEnd.toISOString().split('T')[0]).toBe('2026-11-07');
   });
 
   test('solo ida: una por fecha, porque Google no da grilla sin fecha de vuelta', () => {
-    expect(oneways).toHaveLength(6 * 2 * 8);
+    expect(oneways).toHaveLength(6 * 2 * 7);
     expect(oneways.every(o => set(o).outboundDateEnd === null)).toBe(true);
   });
 

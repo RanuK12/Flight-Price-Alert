@@ -24,7 +24,6 @@ const { runMigration: runRoutesMigrationV6 } = require('./bootstrap/migrateRoute
 const { runMigration: runRoutesMigrationV7 } = require('./bootstrap/migrateRoutesV7');
 const { runMigration: runRoutesMigrationV8 } = require('./bootstrap/migrateRoutesV8');
 const { runMigration: runRoutesMigrationV9 } = require('./bootstrap/migrateRoutesV9');
-const { runMigration: runRoutesMigrationV10 } = require('./bootstrap/migrateRoutesV10');
 const { runMigration: runRoutesMigrationV11 } = require('./bootstrap/migrateRoutesV11');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
@@ -119,13 +118,6 @@ async function main() {
     // v9: alerta puntual de Emilio — AMS/BCN→COR/EZE, umbral ≤€500.
     await runRoutesMigrationV9().catch((err) => {
       logger.error('migrateRoutesV9 failed (continuando)', /** @type {Error} */ (err));
-    });
-
-    // v10: aditiva. Suma LIS/OPO (LIS midió €929 vs €1223 de BCN), las rutas
-    //   de largo radio EU↔EZE y el salto doméstico EZE↔COR por separado.
-    //   No toca ninguna ruta existente.
-    await runRoutesMigrationV10().catch((err) => {
-      logger.error('migrateRoutesV10 failed (continuando)', /** @type {Error} */ (err));
     });
 
     // v11: reconfiguración pedida por Emilio (2026-08-03). Reemplaza la config
