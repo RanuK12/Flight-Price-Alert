@@ -24,6 +24,7 @@ const { runMigration: runRoutesMigrationV6 } = require('./bootstrap/migrateRoute
 const { runMigration: runRoutesMigrationV7 } = require('./bootstrap/migrateRoutesV7');
 const { runMigration: runRoutesMigrationV8 } = require('./bootstrap/migrateRoutesV8');
 const { runMigration: runRoutesMigrationV9 } = require('./bootstrap/migrateRoutesV9');
+const { runMigration: runRoutesMigrationV10 } = require('./bootstrap/migrateRoutesV10');
 const { runMigration: runRoutesMigrationV11 } = require('./bootstrap/migrateRoutesV11');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
