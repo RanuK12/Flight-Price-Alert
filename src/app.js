@@ -24,6 +24,7 @@ const { runMigration: runRoutesMigrationV6 } = require('./bootstrap/migrateRoute
 const { runMigration: runRoutesMigrationV7 } = require('./bootstrap/migrateRoutesV7');
 const { runMigration: runRoutesMigrationV8 } = require('./bootstrap/migrateRoutesV8');
 const { runMigration: runRoutesMigrationV9 } = require('./bootstrap/migrateRoutesV9');
+const { runMigration: runRoutesMigrationV11 } = require('./bootstrap/migrateRoutesV11');
 const { startBot } = require('./bot');
 const cacheRepo = require('./database/repositories/cacheRepo');
 const sessions = require('./bot/sessions');
@@ -118,6 +119,14 @@ async function main() {
     await runRoutesMigrationV9().catch((err) => {
       logger.error('migrateRoutesV9 failed (continuando)', /** @type {Error} */ (err));
     });
+
+    // v11: reconfiguración pedida por Emilio (2026-08-03). Reemplaza la config
+    //   Europa↔Argentina: 640 rutas → 108. Una ruta VENTANA por par de
+    //   aeropuertos para ida y vuelta (la grilla cubre las 64 combinaciones),
+    //   más solo ida por fecha. Umbrales: ida ≤€480, ida y vuelta ≤€800.
+    await runRoutesMigrationV11().catch((err) => {
+      logger.error('migrateRoutesV11 failed (continuando)', /** @type {Error} */ (err));
+    });
   }
 
   // 2. Health / debug HTTP
@@ -148,6 +157,22 @@ async function main() {
       }
     }, { timezone: config.tz });
     logger.info(`Alert engine cron scheduled: ${config.scheduler.monitor}`);
+
+    // Barrido por grilla: cubre TODAS las combinaciones de ida y vuelta con
+    // ~30 cargas de página (contra 512 búsquedas individuales). No notifica:
+    // deja el precio en cada ruta para que la pasada de alertas mire primero
+    // las que están cerca del umbral. Ver services/gridSweep.
+    cron.schedule(config.scheduler.gridSweep, async () => {
+      try {
+        logger.info('Grid sweep tick');
+        // eslint-disable-next-line global-require
+        const { runSweep } = require('./services/gridSweep');
+        await runSweep();
+      } catch (err) {
+        logger.error('Grid sweep cron failed', /** @type {Error} */(err));
+      }
+    }, { timezone: config.tz });
+    logger.info(`Grid sweep cron scheduled: ${config.scheduler.gridSweep}`);
 
     cron.schedule(config.scheduler.dailyReport, async () => {
       try {

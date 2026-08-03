@@ -174,10 +174,13 @@ async function migrateOneUser(user) {
 }
 
 async function runMigration() {
-  const users = await User.find({ routesMigrationVersion: { $lt: TARGET_VERSION } }).lean();
-  const all = users.length ? users : await User.find({}).lean();
+  // Sólo usuarios por debajo de la versión objetivo. El fallback anterior
+  // ("si no hay ninguno, correr sobre TODOS") hacía que esta migración
+  // purgara y recreara las rutas en CADA arranque, con lo cual cualquier
+  // ruta agregada después desaparecía al reiniciar Render.
+  const all = await User.find({ routesMigrationVersion: { $lt: TARGET_VERSION } }).lean();
   if (all.length === 0) {
-    logger.info('No users found, skip migrateV9');
+    logger.info('Todos los usuarios ya están en V9, skip');
     return { migrated: 0 };
   }
 

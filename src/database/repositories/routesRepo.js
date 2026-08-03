@@ -119,6 +119,29 @@ async function markChecked(routeId, lastPriceEur) {
 }
 
 /**
+ * Igual que markChecked pero para rutas VENTANA: además del precio guarda las
+ * fechas concretas que lo producen, para que el alertEngine confirme esa
+ * combinación y no el arranque del rango.
+ *
+ * @param {string} routeId
+ * @param {number} priceEur
+ * @param {string} bestOutboundDate - ISO "YYYY-MM-DD"
+ * @param {string} bestReturnDate - ISO "YYYY-MM-DD"
+ * @returns {Promise<void>}
+ */
+async function markWindowBest(routeId, priceEur, bestOutboundDate, bestReturnDate) {
+  await Route.updateOne(
+    { _id: routeId },
+    {
+      lastCheckedAt: new Date(),
+      lastPriceEur: priceEur ?? null,
+      bestOutboundDate: bestOutboundDate ? new Date(`${bestOutboundDate}T00:00:00.000Z`) : null,
+      bestReturnDate: bestReturnDate ? new Date(`${bestReturnDate}T00:00:00.000Z`) : null,
+    },
+  );
+}
+
+/**
  * Rutas activas con precio conocido, de la más barata a la más cara.
  * Alimenta la sección "mejores precios" del resumen diario, que debe
  * informar aunque no se haya enviado ninguna alerta.
@@ -147,5 +170,6 @@ module.exports = {
   deleteRoute,
   listAllActive,
   markChecked,
+  markWindowBest,
   listCheapestChecked,
 };

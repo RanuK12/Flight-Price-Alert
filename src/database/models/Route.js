@@ -17,6 +17,19 @@ const routeSchema = new mongoose.Schema({
   tripType: { type: String, enum: ['oneway', 'roundtrip'], required: true },
   outboundDate: { type: Date, required: true },
   returnDate: { type: Date, default: null },
+  // Rutas VENTANA: cuando estos campos están, la ruta no representa una fecha
+  // sola sino un rango, y `outboundDate`/`returnDate` son el inicio.
+  //
+  // Antes hacía falta una ruta por cada combinación de fechas: 8 idas x 8
+  // vueltas = 64 rutas para un solo par de aeropuertos, y 640 en total. Emilio
+  // no quiere 64 avisos, quiere uno que diga "LIS↔EZE, 18 sep → 7 nov, €780".
+  // La "Tabla de fechas" de Google devuelve las 64 combinaciones en 4 cargas
+  // (ver services/gridScan), así que una ruta por par alcanza y sobra.
+  outboundDateEnd: { type: Date, default: null },
+  returnDateEnd: { type: Date, default: null },
+  // Mejor combinación encontrada dentro de la ventana (la que se alerta).
+  bestOutboundDate: { type: Date, default: null },
+  bestReturnDate: { type: Date, default: null },
   priceThreshold: { type: Number, default: null },
   // Moneda del priceThreshold. Estaba ausente del schema aunque las
   // migraciones y routesRepo la setean: en modo strict mongoose la

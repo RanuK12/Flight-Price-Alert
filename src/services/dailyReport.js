@@ -112,6 +112,89 @@ async function buildBestPricesSection(userId) {
 }
 
 /**
+ * Arma la tabla ida x vuelta del par de aeropuertos más barato.
+ *
+ * La lista de "mejores precios" contesta *cuánto* sale; la tabla contesta
+ * *qué combinación de fechas* conviene, que es la decisión real. Los datos
+ * salen del barrido por grilla (services/gridSweep), que ya dejó el precio
+ * de cada combinación en su ruta.
+ *
+ * @param {number} userId
+ * @returns {Promise<string|null>}
+ */
+async function buildGridSection(userId) {
+  const routes = await routesRepo.listCheapestChecked(userId, 400);
+  const roundtrips = routes.filter(r => r.tripType === 'roundtrip' && r.returnDate);
+  if (roundtrips.length < 2) return null;
+
+  // Con rutas VENTANA hay una sola ruta por par de aeropuertos, con el mínimo
+  // de todo el rango y las fechas que lo producen. La pregunta útil pasa a ser
+  // "desde qué aeropuerto conviene salir", no "qué combinación dentro de uno".
+  const windows = roundtrips.filter(r => r.outboundDateEnd && r.bestOutboundDate);
+  if (windows.length >= 2) return buildPairRanking(windows);
+
+  // Config vieja (una ruta por combinación): tabla ida x vuelta del par más barato.
+  const cheapest = roundtrips[0];
+  const pair = `${cheapest.origin}-${cheapest.destination}`;
+  const cells = roundtrips
+    .filter(r => `${r.origin}-${r.destination}` === pair)
+    .map(r => ({
+      departureDate: isoDay(r.outboundDate),
+      returnDate: isoDay(r.returnDate),
+      price: Math.round(r.lastPriceEur),
+    }))
+    .filter(c => c.departureDate && c.returnDate);
+
+  if (cells.length < 4) return null;
+
+  return fmt.priceGrid(cells, {
+    title: `📊 ${cheapest.origin} ↔ ${cheapest.destination} — el par más barato`,
+    threshold: cheapest.priceThreshold || null,
+  });
+}
+
+/**
+ * Ranking de pares de aeropuertos por su mejor precio, con las fechas concretas
+ * que lo consiguen. Es la decisión real cuando el origen es flexible.
+ *
+ * @param {any[]} windows - rutas ventana con bestOutboundDate ya calculado
+ * @returns {string}
+ */
+function buildPairRanking(windows) {
+  const orden = [...windows].sort((a, b) => a.lastPriceEur - b.lastPriceEur);
+  const mejor = orden[0];
+  const threshold = mejor.priceThreshold || null;
+
+  const lines = orden.map((r, i) => {
+    const marca = i === 0 ? '🥇' : '  ';
+    const ruta = `${r.origin}↔${r.destination}`.padEnd(9);
+    const precio = fmt.price(r.lastPriceEur, 'EUR').padStart(8);
+    const fechas = `${shortDate(r.bestOutboundDate)}→${shortDate(r.bestReturnDate)}`;
+    const cumple = threshold && r.lastPriceEur <= threshold ? ' ✅' : '';
+    return `${marca} <b>${ruta}</b> ${precio}  ${fechas}${cumple}`;
+  });
+
+  const gap = threshold ? mejor.lastPriceEur - threshold : null;
+  const footer = gap === null
+    ? ''
+    : gap <= 0
+      ? `\n\n🎯 <b>Cumple tu umbral de ${fmt.price(threshold, 'EUR')}</b> ✅`
+      : `\n\n🎯 Tu umbral: ${fmt.price(threshold, 'EUR')} · faltan <b>${fmt.price(Math.round(gap), 'EUR')}</b>`;
+
+  return `📊 <b>Ida y vuelta por aeropuerto</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `${lines.join('\n')}${footer}\n\n` +
+    `<i>Mejor combinación de fechas dentro de tu ventana, por aeropuerto de salida.</i>`;
+}
+
+/** Date → "YYYY-MM-DD" en UTC. */
+function isoDay(value) {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
+}
+
+/**
  * @param {import('node-telegram-bot-api')} bot
  * @param {number} userId
  * @param {number} chatId
@@ -195,6 +278,19 @@ async function sendSummaryForUser(bot, userId, chatId) {
   });
   if (bestPrices) {
     await bot.sendMessage(chatId, bestPrices, {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    });
+  }
+
+  // Tabla ida x vuelta del par más barato: dice qué combinación de fechas
+  // conviene, no sólo cuánto sale.
+  const grid = await buildGridSection(userId).catch((err) => {
+    logger.warn('Tabla de precios falló (continuando)', { err: err.message });
+    return null;
+  });
+  if (grid) {
+    await bot.sendMessage(chatId, grid, {
       parse_mode: 'HTML',
       disable_web_page_preview: true,
     });
