@@ -3,7 +3,7 @@
  *
  * Lo que se verifica es el PEDIDO literal, para que un cambio futuro que lo
  * rompa se note:
- *   · ida ≤ €480, ida y vuelta ≤ €800
+ *   · ida ≤ €480, ida y vuelta ≤ €900
  *   · Italia (FCO/VCE/MXP) y España (MAD/BCN) presentes
  *   · menos rutas que antes, sin perder cobertura de fechas
  */
@@ -32,9 +32,16 @@ describe('lo que pidió Emilio', () => {
     expect(oneways.every(o => set(o).priceThreshold === 480)).toBe(true);
   });
 
-  test('ida y vuelta ≤ €800 el total', () => {
-    expect(RT_THRESHOLD).toBe(800);
-    expect(roundtrips.every(o => set(o).priceThreshold === 800)).toBe(true);
+  test('ida y vuelta ≤ €900 el total', () => {
+    expect(RT_THRESHOLD).toBe(900);
+    expect(roundtrips.every(o => set(o).priceThreshold === 900)).toBe(true);
+  });
+
+  test('€900 deja pasar el vuelo real que €800 dejaba afuera', () => {
+    // MXP↔EZE medido el 2026-08-03 dentro de la ventana: €868. Es el motivo
+    // literal del cambio, así que si alguien vuelve a bajar el umbral se nota.
+    expect(868).toBeLessThanOrEqual(RT_THRESHOLD);
+    expect(868).toBeGreaterThan(800);
   });
 
   test('estan Roma, Venecia y Milan', () => {

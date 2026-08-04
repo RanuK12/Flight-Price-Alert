@@ -30,6 +30,10 @@ function mainMenu() {
         { text: '🔔 Últimas ofertas', callback_data: 'menu:ofertas' },
       ],
       [
+        { text: '📉 Mejores precios', callback_data: 'menu:precios' },
+        { text: '📊 Por aeropuerto', callback_data: 'menu:grilla' },
+      ],
+      [
         { text: '💡 Inspirarme', callback_data: 'menu:inspirar' },
         { text: '📄 Informe diario', callback_data: 'menu:informe' },
       ],
