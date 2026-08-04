@@ -7,6 +7,7 @@
  *    españa madrid y barcelona, y el resto te lo dejo para ti a tu criterio.
  *    Y roadtrip ida y vuelta tiene que ser igual pero abajo de 800 el total"
  *   "reconfigura las rutas para no tener tantas y hacer un buen trabajo"
+ *   "sube el umbral de 900 para abajo, asi me llegan tambien esas notificaciones"
  *
  * ESTA MIGRACIÓN REEMPLAZA la configuración Europa↔Argentina anterior (V9/V10).
  * Es la única que borra rutas, y lo hace porque Emilio pidió explícitamente
@@ -49,7 +50,7 @@ const User = require('../database/models/User');
 const Route = require('../database/models/Route');
 const logger = require('../utils/logger').child('migrateV11');
 
-const TARGET_VERSION = 12;
+const TARGET_VERSION = 13;
 
 /** Aeropuertos europeos. Los 5 primeros los pidió Emilio; LIS es criterio propio. */
 const EU_AIRPORTS = ['FCO', 'VCE', 'MXP', 'MAD', 'BCN', 'LIS'];
@@ -57,9 +58,16 @@ const EU_AIRPORTS = ['FCO', 'VCE', 'MXP', 'MAD', 'BCN', 'LIS'];
 /** Destinos en Argentina. EZE es la puerta de largo radio; COR a veces sale más barato. */
 const AR_AIRPORTS = ['EZE', 'COR'];
 
-/** Umbrales pedidos el 2026-08-03. La ida sube de €400 a €480. */
+/**
+ * Umbrales pedidos el 2026-08-03. La ida sube de €400 a €480.
+ *
+ * La ida y vuelta arrancó en €800 y Emilio la subió a €900 el mismo día, con
+ * el mercado medido delante: lo más barato de la ventana era MXP↔EZE a €868,
+ * o sea €68 por encima del corte, y con €800 no le habría llegado nada. €900
+ * deja pasar eso y sigue dejando afuera el resto (LIS €939 para arriba).
+ */
 const OW_THRESHOLD = 480;
-const RT_THRESHOLD = 800;
+const RT_THRESHOLD = 900;
 
 /**
  * Ventanas de viaje (corregidas por Emilio el 2026-08-03).

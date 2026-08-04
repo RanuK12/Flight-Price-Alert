@@ -154,6 +154,14 @@ async function handleMenuCallback(bot, cq) {
     const { sendInformeOnDemand } = require('./informe');
     return sendInformeOnDemand(bot, chatId, userId);
   }
+  if (action === 'precios') {
+    const { sendMejoresPrecios } = require('./precios');
+    return sendMejoresPrecios(bot, chatId, userId);
+  }
+  if (action === 'grilla') {
+    const { sendGrilla } = require('./precios');
+    return sendGrilla(bot, chatId, userId);
+  }
   if (action === 'inspirar') {
     const { startInspirarFlow } = require('./inspirar');
     return startInspirarFlow(bot, chatId, userId);

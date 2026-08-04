@@ -18,6 +18,7 @@ const ofertasHandler = require('./handlers/ofertas');
 const nuevaAlertaHandler = require('./handlers/nuevaAlerta');
 const informeHandler = require('./handlers/informe');
 const inspirarHandler = require('./handlers/inspirar');
+const preciosHandler = require('./handlers/precios');
 
 /** @type {TelegramBot|null} */
 let botInstance = null;
@@ -47,6 +48,7 @@ function startBot() {
   nuevaAlertaHandler.register(bot);
   informeHandler.register(bot);
   inspirarHandler.register(bot);
+  preciosHandler.register(bot);
 
   // Callbacks: probamos handlers en orden; el primero que consuma gana.
   bot.on('callback_query', async (cq) => {
@@ -113,6 +115,8 @@ function startBot() {
     { command: 'ofertas', description: '🔔 Últimas ofertas' },
     { command: 'nueva_alerta', description: '➕ Nueva alerta' },
     { command: 'inspirar', description: '💡 Inspirarme' },
+    { command: 'precios', description: '📉 Mejores precios encontrados' },
+    { command: 'grilla', description: '📊 Ida y vuelta por aeropuerto' },
     { command: 'informe', description: '📄 Informe diario' },
     { command: 'cancel', description: '🚫 Cancelar acción' },
   ]).catch((e) => logger.warn('setMyCommands falló', { err: e.message }));

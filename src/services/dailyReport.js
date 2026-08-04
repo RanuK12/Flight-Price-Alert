@@ -86,9 +86,15 @@ async function buildBestPricesSection(userId) {
 
   const lines = routes.map((r) => {
     const sep = r.returnDate ? '↔' : '→';
+    // En una ruta VENTANA, outboundDate es el arranque del rango (14/09) y casi
+    // nunca es el día del precio: el barrido dejó las fechas buenas en
+    // bestOutboundDate. Mostrar el arranque decía "€868 el 14/09-01/11" cuando
+    // esos €868 son del 14/09→07/11, o sea la fecha de vuelta equivocada.
+    const ida = r.bestOutboundDate || r.outboundDate;
+    const vuelta = r.bestReturnDate || r.returnDate;
     const dates = r.returnDate
-      ? `${shortDate(r.outboundDate)}-${shortDate(r.returnDate)}`
-      : shortDate(r.outboundDate);
+      ? `${shortDate(ida)}-${shortDate(vuelta)}`
+      : shortDate(ida);
     const price = fmt.price(r.lastPriceEur, 'EUR');
     const gap = r.priceThreshold ? r.lastPriceEur - r.priceThreshold : null;
     const gapTxt = gap === null
@@ -371,4 +377,8 @@ function progressBar(pct) {
   return '▓'.repeat(filled) + '░'.repeat(10 - filled);
 }
 
-module.exports = { runDaily };
+// Las dos secciones se exportan porque además del informe diario tienen
+// botón propio en el menú (bot/handlers/precios): son las respuestas a
+// "¿cuánto sale?" y "¿desde dónde conviene salir?", y esperar a las 21:00
+// para verlas no tenía sentido.
+module.exports = { runDaily, buildBestPricesSection, buildGridSection };
