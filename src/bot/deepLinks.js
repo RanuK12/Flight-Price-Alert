@@ -1,16 +1,27 @@
 /**
- * Deep links "Reservar ahora" a la aerolínea o metasearch.
+ * Links de compra para una oferta.
  *
- * Amadeus Self-Service NO provee una URL de booking directa a la
- * aerolínea (eso es parte de la Booking API enterprise). Con el
- * offer, podemos construir deep links best-effort por carrier:
+ * Hubo una tabla de URLs armadas a mano por aerolínea (Iberia, LATAM,
+ * Aerolíneas, Lufthansa, Air Europa, BA, KLM/AF, JetSmart, Flybondi). Se
+ * probaron las cinco más usadas en estas rutas el 2026-08-04, en un navegador
+ * real, y NINGUNA seguía viva:
  *
- *   1) Aerolínea directa (Iberia, Air Europa, AR, LATAM, Lufthansa…)
- *   2) Google Flights filtrado por carrier + fecha + ruta (universal)
- *   3) Skyscanner como backup
+ *   Aerolíneas Argentinas → "Ups, página no encontrada"
+ *   LATAM                 → "Application error: a client-side exception"
+ *   Iberia                → redirige a /notfound/
+ *   Lufthansa             → "No ha sido posible encontrar la página"
+ *   Air Europa            → cae en la home, sin la búsqueda cargada
  *
- * Si el offer confirma precio con Amadeus pricing, usamos el offer.id
- * junto con los segmentos reales → link más fiable.
+ * El problema no es que estuvieran mal escritas: las aerolíneas cambian sus
+ * URLs y nadie se entera, porque los sitios bloquean a los bots y ningún test
+ * automático puede verificarlas. Un botón "Reservar en LATAM" que abre una
+ * pantalla de error es peor que no tener el botón.
+ *
+ * Quedan los dos que sí funcionan y no dependen de adivinar:
+ *
+ *   1) Google Flights — de ahí sale el precio, y desde ahí se llega a la
+ *      aerolínea con la tarifa ya seleccionada.
+ *   2) Skyscanner — para comparar.
  *
  * @module bot/deepLinks
  */
@@ -22,115 +33,29 @@
  */
 
 /**
- * Mapping IATA carrier → builder de URL directa en el sitio de la aerolínea.
- * Cada builder recibe datos ya normalizados y devuelve la URL o null si
- * no puede armarse.
+ * URL de búsqueda de Google Flights.
  *
- * @type {Record<string, (args:{origin:string,destination:string,departureDate:string,returnDate?:string|null,flightNumber?:string,passengers?:number}) => string|null>}
- */
-const CARRIER_BUILDERS = {
-  // Iberia — sitio soporta query params de búsqueda
-  IB: ({ origin, destination, departureDate, returnDate, passengers = 1 }) => {
-    const base = 'https://www.iberia.com/es/vuelos/';
-    const params = new URLSearchParams({
-      market: 'es',
-      originCode: origin,
-      destinationCode: destination,
-      departureDate,
-      adults: String(passengers),
-    });
-    if (returnDate) params.set('returnDate', returnDate);
-    return `${base}?${params.toString()}`;
-  },
-
-  // Air Europa
-  UX: ({ origin, destination, departureDate, returnDate }) => {
-    const params = new URLSearchParams({
-      trip: returnDate ? 'RT' : 'OW',
-      origin,
-      destination,
-      departure: departureDate,
-      ...(returnDate ? { return: returnDate } : {}),
-      adults: '1',
-    });
-    return `https://www.aireuropa.com/es/vuelos?${params.toString()}`;
-  },
-
-  // Aerolíneas Argentinas
-  AR: ({ origin, destination, departureDate, returnDate }) => {
-    const params = new URLSearchParams({
-      origin,
-      destination,
-      departure: departureDate,
-      ...(returnDate ? { return: returnDate, trip: 'RT' } : { trip: 'OW' }),
-    });
-    return `https://www.aerolineas.com.ar/es-ar/buscar-vuelos?${params.toString()}`;
-  },
-
-  // LATAM
-  LA: ({ origin, destination, departureDate, returnDate }) => {
-    const dateStr = returnDate ? `${departureDate}/${returnDate}` : departureDate;
-    return `https://www.latamairlines.com/ar/es/ofertas-vuelos?origin=${origin}&destination=${destination}&outbound=${dateStr}&adt=1&chd=0&inf=0&trip=${returnDate ? 'RT' : 'OW'}`;
-  },
-
-  // Lufthansa
-  LH: ({ origin, destination, departureDate, returnDate }) => {
-    const path = returnDate
-      ? `roundtrip/${origin}-${destination}/${departureDate}/${returnDate}`
-      : `oneway/${origin}-${destination}/${departureDate}`;
-    return `https://www.lufthansa.com/es/es/book/flight/${path}?adults=1`;
-  },
-
-  // KLM / Air France (comparten motor)
-  KL: klmAf,
-  AF: klmAf,
-
-  // British Airways
-  BA: ({ origin, destination, departureDate, returnDate }) => {
-    const params = new URLSearchParams({
-      eId: '111001',
-      Origin: origin,
-      Destination: destination,
-      DepartDate: departureDate,
-      ...(returnDate ? { ReturnDate: returnDate } : {}),
-      CabinCode: 'M',
-      NumberOfAdults: '1',
-    });
-    return `https://www.britishairways.com/travel/fx/public/es_es?${params.toString()}`;
-  },
-
-  // JetSmart
-  JA: ({ origin, destination, departureDate, returnDate }) => {
-    return `https://jetsmart.com/ar/es/?origin=${origin}&destination=${destination}&departure=${departureDate}${returnDate ? `&return=${returnDate}` : ''}`;
-  },
-
-  // Flybondi
-  FO: ({ origin, destination, departureDate, returnDate }) => {
-    return `https://flybondi.com/ar/book?origin=${origin}&destination=${destination}&departure=${departureDate}${returnDate ? `&return=${returnDate}` : ''}`;
-  },
-};
-
-/** @type {typeof CARRIER_BUILDERS[string]} */
-function klmAf({ origin, destination, departureDate, returnDate }) {
-  const trip = returnDate ? 'R' : 'O';
-  return `https://www.klm.com/home/es/es/prepare-for-travel/bookFlight/flights?trip=${trip}&orig=${origin}&dest=${destination}&deptDate=${departureDate}${returnDate ? `&retDate=${returnDate}` : ''}&adt=1`;
-}
-
-/**
- * URL genérica de Google Flights — universal, respeta carriers en la UI.
+ * La frase es EXACTAMENTE la que usa el scraper (`buildSearchUrl` en
+ * server/scrapers/playwrightScraper.js), y no por casualidad: es la única
+ * probada. Decía "returning X" y agregaba "with LA" para filtrar por
+ * aerolínea; con esas variantes Google abre su portada en vez de los
+ * resultados, o sea que el botón "reservar" no mostraba ningún vuelo. Con
+ * "return X" abre la búsqueda hecha, que es de donde salió el precio.
+ *
+ * Si algún día se toca esto, hay que abrirlo en un navegador y confirmar que
+ * caiga en resultados: un test no lo puede ver.
+ *
  * @param {{origin:string,destination:string,departureDate:string,returnDate?:string|null,currency?:string,carrier?:string}} args
  */
 function googleFlightsUrl(args) {
   if (!args || !args.origin || !args.destination) {
     return 'https://www.google.com/travel/flights?hl=es';
   }
-  const parts = [`Flights from ${args.origin} to ${args.destination}`];
-  if (args.departureDate) parts[0] += ` on ${args.departureDate}`;
-  if (args.returnDate) parts.push(`returning ${args.returnDate}`);
-  if (args.carrier) parts.push(`with ${args.carrier}`);
-  const q = encodeURIComponent(parts.join(' '));
+  let q = `Flights from ${args.origin} to ${args.destination}`;
+  if (args.departureDate) q += ` on ${args.departureDate}`;
+  if (args.departureDate) q += args.returnDate ? ` return ${args.returnDate}` : ' one way';
   const curr = args.currency || 'EUR';
-  return `https://www.google.com/travel/flights?q=${q}&curr=${curr}&hl=es`;
+  return `https://www.google.com/travel/flights?q=${encodeURIComponent(q)}&curr=${curr}&hl=es`;
 }
 
 /**
@@ -149,8 +74,23 @@ function skyscannerUrl({ origin, destination, departureDate, returnDate }) {
   return returnDate ? `${base}/${r}/` : `${base}/`;
 }
 
+/** Host de una URL, o '' si no parsea. Para no ofrecer dos veces el mismo sitio. */
+function hostOf(url) {
+  try {
+    return new URL(String(url)).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
 /**
- * Devuelve un set de links "best-effort" para una oferta concreta.
+ * Devuelve los links de compra de una oferta.
+ *
+ * Cada botón dice a dónde lleva DE VERDAD. Antes la etiqueta se elegía por
+ * "¿tiene bookingUrl?", y como el scraper llena ese campo con la búsqueda de
+ * Google, el botón decía "Reservar en Amadeus" sobre un link de Google Flights
+ * en el 100% de los resultados (Amadeus está caído, así que todos vienen del
+ * scraper).
  *
  * @param {Flight} flight
  * @returns {{primary:{label:string,url:string}, alternatives:Array<{label:string,url:string}>}}
@@ -164,38 +104,30 @@ function buildLinksForFlight(flight) {
     passengers: 1,
   };
 
-  const firstSeg = flight.segments?.[0];
-  const flightNumber = firstSeg?.flightNumber;
-  const mainCarrier = flight.carrierCodes?.[0] || firstSeg?.carrierCode;
+  const mainCarrier = flight.carrierCodes?.[0] || flight.segments?.[0]?.carrierCode;
 
   /** @type {{label:string,url:string}[]} */
-  const alternatives = [];
-  let primary = null;
+  const links = [];
 
-  // Si la oferta tiene bookingUrl (ej: Amadeus), usar como primary
-  if (flight.bookingUrl) {
-    primary = { label: 'Reservar en Amadeus', url: flight.bookingUrl };
-    // Agregar Google Flights como alternativa
-    const gf = googleFlightsUrl({ ...common, currency: flight.currency, carrier: mainCarrier });
-    alternatives.push({ label: 'Ver en Google Flights (comparar)', url: gf });
-  } else {
-    // Sin bookingUrl: usar Google como primary
-    const gf = googleFlightsUrl({ ...common, currency: flight.currency, carrier: mainCarrier });
-    if (mainCarrier && CARRIER_BUILDERS[mainCarrier]) {
-      const url = CARRIER_BUILDERS[mainCarrier]({ ...common, flightNumber });
-      if (url) primary = { label: `Reservar en ${mainCarrier}`, url };
-    }
-    if (!primary) primary = { label: 'Ver en Google Flights', url: gf };
-    else alternatives.push({ label: 'Google Flights', url: gf });
+  // Google Flights, filtrado por la aerolínea de la oferta: es de donde salió
+  // el precio y desde ahí se llega a comprar.
+  const gf = googleFlightsUrl({ ...common, currency: flight.currency, carrier: mainCarrier });
+  links.push({ label: 'Ver y reservar', url: gf });
+
+  // El bookingUrl del provider, sólo si lleva a otro lado. El del scraper es la
+  // misma búsqueda de Google que ya está arriba: repetirla es un botón que
+  // promete algo distinto y no lo es.
+  if (flight.bookingUrl && hostOf(flight.bookingUrl) !== hostOf(gf)) {
+    links.push({ label: 'Ver la oferta en Amadeus', url: flight.bookingUrl });
   }
-  alternatives.push({ label: 'Skyscanner', url: skyscannerUrl(common) });
 
-  return { primary, alternatives };
+  links.push({ label: 'Comparar en Skyscanner', url: skyscannerUrl(common) });
+
+  return { primary: links[0], alternatives: links.slice(1) };
 }
 
 module.exports = {
   buildLinksForFlight,
   googleFlightsUrl,
   skyscannerUrl,
-  CARRIER_BUILDERS,
 };

@@ -18,6 +18,7 @@ const userPrefsRepo = require('../../database/repositories/userPrefsRepo');
 const hybrid = require('../../services/hybridSearch');
 const scraperWorker = require('../../services/scraperWorker');
 const wz = require('./wizardUtils');
+const { googleFlightsUrl } = require('../deepLinks');
 const logger = require('../../utils/logger').child('bot:inspirar');
 
 const STATE = {
@@ -183,9 +184,20 @@ async function runInspire(bot, chatId, userId, origin, budget) {
       `✈️ <b>${fmt.price(d.price, d.currency)}</b>\n` +
       `${fmt.esc(d.origin)} → <b>${fmt.esc(d.destination)}</b>\n` +
       `📅 ${fmt.date(d.departureDate)}${d.returnDate ? ` → ${fmt.date(d.returnDate)}` : ''}`;
-    const ikb = d.bookingUrl
-      ? { inline_keyboard: [[{ text: '🔗 Ver en Amadeus', url: d.bookingUrl }]] }
-      : undefined;
+    // El `bookingUrl` que devuelve la API de inspiración es un endpoint de la
+    // API de Amadeus (test.api.amadeus.com/v2/shopping/...), no una página:
+    // el botón "Ver en Amadeus" abría JSON o un 401. Google Flights con la
+    // ruta y las fechas del destino sí es algo que se puede mirar y comprar.
+    const ikb = { inline_keyboard: [[{
+      text: '🔎 Ver vuelos',
+      url: googleFlightsUrl({
+        origin: d.origin,
+        destination: d.destination,
+        departureDate: d.departureDate,
+        returnDate: d.returnDate,
+        currency: d.currency,
+      }),
+    }]] };
     await bot.sendMessage(chatId, text, {
       parse_mode: 'HTML',
       reply_markup: ikb,
