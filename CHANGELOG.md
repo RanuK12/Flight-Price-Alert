@@ -1,5 +1,11 @@
 # Changelog - Flight Price Finder
 
+## [Unreleased]
+
+### 🔧 Google Flights request normalization
+- Se agregó una capa de normalización para construir los payloads de Google Flights de forma más estable y testeable.
+- El cambio se integró en el scraper principal y quedó cubierto con una prueba de regresión.
+
 ## [2.0.0] - 2025-01-08 🚀 MAJOR RELEASE
 
 ### 🎉 Complete Application Redesign: Bot → Web Application

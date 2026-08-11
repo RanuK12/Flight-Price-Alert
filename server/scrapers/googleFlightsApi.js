@@ -188,6 +188,53 @@ function encodePayload(filters) {
   return `f.req=${encodeURIComponent(wrapped)}`;
 }
 
+/**
+ * Normaliza y construye la request de búsqueda para Google Flights.
+ * Esta capa extrae la lógica de query-building del scraper y permite
+ * testearla de forma aislada, inspirada en enfoques de parsers más
+ * robustos y estructurados.
+ */
+function buildSearchRequest({
+  segments,
+  tripType = TRIP_TYPE.ONE_WAY,
+  seatType = SEAT_TYPE.ECONOMY,
+  adults = 1,
+  children = 0,
+  infantsOnLap = 0,
+  infantsInSeat = 0,
+  maxStops = MAX_STOPS.ANY,
+  sortBy = SORT_BY.CHEAPEST,
+  maxPrice = null,
+  currency = 'EUR',
+}) {
+  const normalizedSegments = (segments || []).map(seg => ({
+    origin: String(seg?.origin || '').toUpperCase(),
+    destination: String(seg?.destination || '').toUpperCase(),
+    date: String(seg?.date || '').trim(),
+  })).filter(seg => seg.origin && seg.destination && seg.date);
+
+  const request = {
+    segments: normalizedSegments,
+    tripType,
+    seatType,
+    adults,
+    children,
+    infantsOnLap,
+    infantsInSeat,
+    maxStops,
+    sortBy,
+    maxPrice,
+    currency,
+  };
+
+  const filters = buildFiltersArray(request);
+  return {
+    request,
+    filters,
+    payload: encodePayload(filters),
+  };
+}
+
 
 // ═══════════════════════════════════════════════════════════════
 // RESPONSE PARSING (port of fli's response parser)
@@ -623,7 +670,7 @@ async function searchDateRange(origin, destination, dateFrom, dateTo, options = 
     date: dateFrom,
   };
 
-  const filters = buildFiltersArray({
+  const { payload } = buildSearchRequest({
     segments: [segment],
     tripType,
     seatType,
@@ -632,8 +679,6 @@ async function searchDateRange(origin, destination, dateFrom, dateTo, options = 
     sortBy: SORT_BY.CHEAPEST,
     currency: 'EUR',
   });
-
-  const payload = encodePayload(filters);
 
   try {
     await rateLimit();
@@ -722,7 +767,7 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
     segments.push({ origin: destination, destination: origin, date: returnDate });
   }
 
-  const filters = buildFiltersArray({
+  const { payload } = buildSearchRequest({
     segments,
     tripType,
     seatType,
@@ -731,8 +776,6 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
     sortBy,
     currency,
   });
-
-  const payload = encodePayload(filters);
 
   try {
     await rateLimit();
@@ -1014,6 +1057,7 @@ module.exports = {
   searchFlightsApi,
   searchDateRange,
   buildGoogleFlightsUrl,
+  buildSearchRequest,
   TRIP_TYPE,
   SEAT_TYPE,
   MAX_STOPS,

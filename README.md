@@ -119,6 +119,7 @@ docker run -p 3000:3000 --env-file .env flight-price-alert
 - ✅ Dashboard web funcional
 - ✅ Scrapers de Skyscanner y Amadeus activos
 - ✅ **v7.0**: 30 destinos EU, 5 orígenes AR, fechas rolling 12 meses
+- ✅ Mejorada la construcción de requests de Google Flights con una capa de normalización y validación de payloads para reducir problemas por cambios de formato.
 - ⚠️ Google Flights API cambió su formato de respuesta (ver `DEBUG_FIX_SUMMARY.md`).
 - 🔄 Pendiente: normalizar responses entre providers (Amadeus / Google / Skyscanner)
 

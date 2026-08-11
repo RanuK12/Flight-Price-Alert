@@ -21,6 +21,10 @@ const {
   parseFlightsResponse,
   parseFlightItem,
   extractPlausiblePrice,
+  buildSearchRequest,
+  TRIP_TYPE,
+  SEAT_TYPE,
+  MAX_STOPS,
 } = require('../server/scrapers/googleFlightsApi');
 
 const FIXTURE_DIR = path.join(__dirname, 'fixtures', 'google-flights');
@@ -55,6 +59,41 @@ describe('Google Flights parser — regression', () => {
       // SIEMPRE se queda con el ultimo (811). El caso 155 solo se cubre con
       // la capa de sanityCheck (long-haul floor).
       expect(extractPlausiblePrice([155, 811])).toBe(811);
+    });
+  });
+
+  describe('buildSearchRequest', () => {
+    test('normalizes one-way and round-trip queries into a stable payload', () => {
+      const oneWay = buildSearchRequest({
+        segments: [{ origin: 'EZE', destination: 'MAD', date: '2026-06-10' }],
+        tripType: TRIP_TYPE.ONE_WAY,
+        seatType: SEAT_TYPE.ECONOMY,
+        adults: 2,
+        maxStops: MAX_STOPS.NON_STOP,
+        currency: 'EUR',
+      });
+
+      expect(oneWay.request.segments).toEqual([{ origin: 'EZE', destination: 'MAD', date: '2026-06-10' }]);
+      expect(oneWay.request.tripType).toBe(TRIP_TYPE.ONE_WAY);
+      expect(oneWay.request.adults).toBe(2);
+      expect(oneWay.request.maxStops).toBe(MAX_STOPS.NON_STOP);
+      expect(oneWay.request.currency).toBe('EUR');
+      expect(oneWay.payload).toContain('f.req=');
+      expect(oneWay.payload).toContain('EZE');
+
+      const roundTrip = buildSearchRequest({
+        segments: [
+          { origin: 'EZE', destination: 'MAD', date: '2026-06-10' },
+          { origin: 'MAD', destination: 'EZE', date: '2026-06-20' },
+        ],
+        tripType: TRIP_TYPE.ROUND_TRIP,
+        adults: 1,
+        currency: 'EUR',
+      });
+
+      expect(roundTrip.request.segments).toHaveLength(2);
+      expect(roundTrip.request.tripType).toBe(TRIP_TYPE.ROUND_TRIP);
+      expect(roundTrip.payload).toContain('f.req=');
     });
   });
 
