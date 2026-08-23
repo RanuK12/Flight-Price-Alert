@@ -295,6 +295,12 @@ async function runScraper(params, warnings) {
     fetchedAt: new Date().toISOString(),
   }));
 
+  // Google devolvió su pantalla de error en vez de resultados: no es una ruta
+  // sin vuelos. Va como warning para que el alertEngine pueda frenar la pasada.
+  if (raw?.renderError && flights.length === 0) {
+    warnings.push('google-render-error');
+  }
+
   const result = {
     flights,
     source: PROVIDER_NAMES.GOOGLE_FLIGHTS,

@@ -435,7 +435,7 @@ async function searchWithPlaywright(origin, destination, departureDate, returnDa
     // 30s: en Render Free el goto de 20s expiraba en casi todas las pasadas.
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    await waitForResults(page);
+    const rendered = await waitForResults(page);
 
     // Extra time for lazy-loaded results
     await page.waitForTimeout(2000);
@@ -446,6 +446,11 @@ async function searchWithPlaywright(origin, destination, departureDate, returnDa
       success: flights.length > 0,
       flights: flights.sort((a, b) => a.price - b.price),
       minPrice: flights.length > 0 ? flights[0].price : null,
+      // Cero vuelos porque Google no rindio la pagina NO es lo mismo que cero
+      // vuelos porque la ruta no tiene: sin distinguirlos, el alertEngine
+      // contaba ambos como "skippedNoFlights" y su freno por rate-limit nunca
+      // se enteraba (logs 08-23: 33 rutas sin vuelos, 0 errores, 0 freno).
+      renderError: !rendered && flights.length === 0,
     };
   } catch (err) {
     console.error(`  🎭 Playwright search error: ${err.message}`);
@@ -579,11 +584,15 @@ async function searchDateGrid(origin, destination, departureDate, returnDate) {
     // La barra con "Tabla de fechas" solo se renderiza una vez que llegaron
     // los resultados: sin esta espera la página sigue en "Cargando resultados"
     // y el botón no existe todavía.
-    await waitForResults(page);
+    const rendered = await waitForResults(page);
 
     const gridButton = await findGridButton(page);
     if (!gridButton) {
-      return { success: false, cells: [], minPrice: null, error: 'grid button not found' };
+      return {
+        success: false, cells: [], minPrice: null,
+        error: rendered ? 'grid button not found' : 'google-render-error',
+        renderError: !rendered,
+      };
     }
     await gridButton.click();
 
@@ -860,4 +869,5 @@ module.exports = {
   newPageFor,
   closePage,
   RECYCLE_AFTER,
+  waitForResults,
 };

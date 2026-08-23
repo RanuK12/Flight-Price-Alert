@@ -41,6 +41,9 @@ let passInFlight = false;
 /** Pausa entre rutas (ms). */
 const INTER_ROUTE_DELAY_MS = 3500;
 
+/** Cuántas pantallas de error de Google seguidas cortan la pasada. */
+const RENDER_ERRORS_TO_STOP = Number(process.env.RENDER_ERRORS_TO_STOP) || 6;
+
 /** Pausa adicional cada N rutas (ms). */
 const GROUP_SIZE = 5;
 const GROUP_PAUSE_MS = 12000;
@@ -248,7 +251,10 @@ function shouldBeSilent(currentPrice, previousPrice, threshold) {
 async function runOnce() {
   if (passInFlight) {
     logger.warn('Pasada anterior todavía en curso, se saltea este tick');
-    return { routesChecked: 0, offersSent: 0, errors: 0 };
+    return {
+      routesChecked: 0, offersSent: 0, errors: 0,
+      skippedNoFlights: 0, renderErrors: 0, skippedByCircuitBreaker: 0,
+    };
   }
   passInFlight = true;
   try {
@@ -302,6 +308,7 @@ async function runPass() {
   let skippedByDedup = 0;
   let skippedByCircuitBreaker = 0;
   let rateLimitHits = 0;
+  let renderErrors = 0;
 
   async function applyPacing(i, total) {
     await sleep(INTER_ROUTE_DELAY_MS);
@@ -328,6 +335,18 @@ async function runPass() {
       skippedByCircuitBreaker = routes.length - i;
       logger.warn('Early stop: 429 rate-limit detectado en Google Flights, pausando pasada para cooldown', {
         remaining: skippedByCircuitBreaker,
+      });
+      break;
+    }
+
+    // Google puede devolver 200 con su pantalla de error en vez de resultados.
+    // Eso caía en skippedNoFlights y ningún freno se enteraba: la pasada del
+    // 08-23 recorrió las 40 rutas para cerrar con 33 sin vuelos y 0 ofertas,
+    // golpeando a Google mientras no rendía nada. Seguir no trae resultados.
+    if (renderErrors >= RENDER_ERRORS_TO_STOP) {
+      skippedByCircuitBreaker = routes.length - i;
+      logger.warn('Early stop: Google no está devolviendo resultados, pausando pasada', {
+        renderErrors, remaining: skippedByCircuitBreaker,
       });
       break;
     }
@@ -360,6 +379,15 @@ async function runPass() {
 
       if (result.warnings?.some((w) => String(w).includes('429'))) {
         rateLimitHits += 1;
+      }
+
+      if (result.warnings?.some((w) => String(w) === 'google-render-error')) {
+        renderErrors += 1;
+        skippedNoFlights += 1;
+        logger.warn('Google devolvió su pantalla de error, no es una ruta sin vuelos', {
+          id: route._id, route: `${route.origin}-${route.destination}`, renderErrors,
+        });
+        continue;
       }
 
       if (!result.flights?.length) {
@@ -572,13 +600,16 @@ async function runPass() {
   const elapsed = ((Date.now() - started) / 1000).toFixed(1);
   logger.info('Alert pass terminada', {
     routesChecked: routes.length, offersSent, errors,
-    skippedNoFlights, skippedByLevel, skippedByThreshold,
+    skippedNoFlights, renderErrors, skippedByLevel, skippedByThreshold,
     skippedByDedup, skippedByCircuitBreaker,
     cleanupPaused: cleanup.paused,
     cleanupDeleted: cleanup.deleted,
     elapsedSec: elapsed,
   });
-  return { routesChecked: routes.length, offersSent, errors };
+  return {
+    routesChecked: routes.length, offersSent, errors,
+    skippedNoFlights, renderErrors, skippedByCircuitBreaker,
+  };
 }
 
 module.exports = { runOnce };

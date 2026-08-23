@@ -791,12 +791,17 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
 
     // ─── STRATEGY: Playwright first, then legacy HTTP fallback ───
     let enrichedFlights = [];
+    let renderError = false;
 
     // 1) Try Playwright (handles Google's session token requirement)
     if (playwrightScraper.isAvailable()) {
       const pwResult = await playwrightScraper.searchWithPlaywright(
         origin, destination, departureDate, returnDate
       );
+      // Google devolvio su pantalla de error en vez de resultados. Se propaga
+      // para que el alertEngine pueda frenar la pasada: seguir pidiendo
+      // mientras Google no rinde no trae nada y sostiene el throttle.
+      renderError = !!pwResult.renderError;
       if (pwResult.success && pwResult.flights.length > 0) {
         enrichedFlights = pwResult.flights.map(f => ({
           ...f,
@@ -864,6 +869,7 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
       tripType: returnDate ? 'roundtrip' : 'oneway',
       searchUrl: buildGoogleFlightsUrl(origin, destination, departureDate, returnDate),
       scrapedAt: new Date().toISOString(),
+      renderError: renderError && enrichedFlights.length === 0,
     };
 
     if (enrichedFlights.length > 0) {
