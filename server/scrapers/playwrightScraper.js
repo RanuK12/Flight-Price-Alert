@@ -186,44 +186,106 @@ function stealthInit(platform) {
  *
  * Se recicla cada RECYCLE_AFTER usos para no acumular estado indefinidamente
  * ni quedarse pegado a una huella si esa huella empieza a ser bloqueada.
- * @type {Map<string, {context: any, uses: number}>}
+ *
+ * `live` cuenta las páginas abiertas sobre el contexto. Reciclar cerrando de
+ * una mataba las páginas que otro cron tenía en vuelo: alertEngine y
+ * gridSweep comparten el locale es-ES y se solapan (uno cada 2 horas, el
+ * otro cada 3), así que el uso 25 de uno abortaba la búsqueda del otro con
+ * "Target page, context or browser has been closed". Ahora el contexto se
+ * saca del pool enseguida (nadie nuevo lo toma) y se cierra recién cuando la
+ * última página lo suelta.
+ * @type {Map<string, {context: any, uses: number, live: number, retired: boolean}>}
  */
 const _contexts = new Map();
 const RECYCLE_AFTER = 25;
 
+/** Contexto del que salió cada página, para devolverle el préstamo al cerrar. */
+const _pageOwner = new WeakMap();
+
+/** Creación en curso por locale: sin esto dos llamadas a la vez crean dos contextos y uno queda huérfano. */
+const _contextPending = new Map();
+
 /**
- * Devuelve un contexto listo para usar (con cookies de consentimiento y
- * stealth ya aplicados) para el locale que corresponda al origen.
+ * Abre una página sobre el contexto que corresponde al origen (con cookies de
+ * consentimiento y stealth ya aplicados).
+ *
+ * Devuelve la página y no el contexto a propósito: el préstamo se cuenta acá,
+ * donde no hay ventana entre pedir el contexto y abrir la página.
+ *
  * @param {string} origin
+ * @returns {Promise<any>} página lista para navegar; cerrarla con closePage()
+ */
+async function newPageFor(origin) {
+  const { locale, timezoneId } = localeForOrigin(origin);
+  let entry = _contexts.get(locale);
+
+  if (entry && entry.uses >= RECYCLE_AFTER) {
+    _contexts.delete(locale);
+    retire(entry);
+    entry = null;
+  }
+  if (!entry) {
+    entry = { context: await createContext(locale, timezoneId), uses: 0, live: 0, retired: false };
+    _contexts.set(locale, entry);
+  }
+
+  entry.uses += 1;
+  entry.live += 1;
+  try {
+    const page = await entry.context.newPage();
+    _pageOwner.set(page, entry);
+    return page;
+  } catch (err) {
+    release(entry);
+    throw err;
+  }
+}
+
+/** Cierra una página abierta con newPageFor() y devuelve el préstamo. */
+async function closePage(page) {
+  const entry = _pageOwner.get(page);
+  await page.close().catch(() => {});
+  if (entry) release(entry);
+}
+
+/** Marca el contexto para cierre; si ya no queda nadie usándolo, lo cierra. */
+function retire(entry) {
+  entry.retired = true;
+  if (entry.live <= 0) entry.context.close().catch(() => {});
+}
+
+/** Suelta un préstamo y cierra el contexto si estaba retirado y quedó vacío. */
+function release(entry) {
+  entry.live -= 1;
+  if (entry.retired && entry.live <= 0) entry.context.close().catch(() => {});
+}
+
+/**
+ * Crea un contexto nuevo para el locale, deduplicando llamadas simultáneas.
+ * @param {string} locale @param {string} timezoneId
  * @returns {Promise<any>}
  */
-async function getContext(origin) {
-  const { locale, timezoneId } = localeForOrigin(origin);
-  const entry = _contexts.get(locale);
+function createContext(locale, timezoneId) {
+  const pending = _contextPending.get(locale);
+  if (pending) return pending;
 
-  if (entry && entry.uses < RECYCLE_AFTER) {
-    entry.uses += 1;
-    return entry.context;
-  }
-  if (entry) {
-    await entry.context.close().catch(() => {});
-    _contexts.delete(locale);
-  }
+  const promise = (async () => {
+    const browser = await getBrowser();
+    const profile = BROWSER_PROFILES[Math.floor(Math.random() * BROWSER_PROFILES.length)];
+    const context = await browser.newContext({
+      userAgent: profile.userAgent,
+      locale,
+      timezoneId,
+      viewport: profile.viewport,
+      extraHTTPHeaders: { 'Accept-Language': `${locale},es;q=0.9,en;q=0.8` },
+    });
+    await context.addCookies(CONSENT_COOKIES);
+    await context.addInitScript(stealthInit(profile.platform));
+    return context;
+  })().finally(() => _contextPending.delete(locale));
 
-  const browser = await getBrowser();
-  const profile = BROWSER_PROFILES[Math.floor(Math.random() * BROWSER_PROFILES.length)];
-  const context = await browser.newContext({
-    userAgent: profile.userAgent,
-    locale,
-    timezoneId,
-    viewport: profile.viewport,
-    extraHTTPHeaders: { 'Accept-Language': `${locale},es;q=0.9,en;q=0.8` },
-  });
-  await context.addCookies(CONSENT_COOKIES);
-  await context.addInitScript(stealthInit(profile.platform));
-
-  _contexts.set(locale, { context, uses: 1 });
-  return context;
+  _contextPending.set(locale, promise);
+  return promise;
 }
 
 /** Cierra los contextos cacheados (shutdown / recovery). */
@@ -366,20 +428,14 @@ async function searchWithPlaywright(origin, destination, departureDate, returnDa
 
   let page = null;
   try {
-    const context = await getContext(origin);
-    page = await context.newPage();
+    page = await newPageFor(origin);
 
     const url = buildSearchUrl(origin, destination, departureDate, returnDate);
 
     // 30s: en Render Free el goto de 20s expiraba en casi todas las pasadas.
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    // Wait for flight results to render (up to 12s)
-    try {
-      await page.waitForSelector('li[data-gs], .pIav2d, ul.Rk10dc > li', { timeout: 12000 });
-    } catch (e) {
-      // No results selector found — might be empty or page structure changed
-    }
+    await waitForResults(page);
 
     // Extra time for lazy-loaded results
     await page.waitForTimeout(2000);
@@ -396,7 +452,7 @@ async function searchWithPlaywright(origin, destination, departureDate, returnDa
     return { success: false, flights: [], minPrice: null, error: err.message };
   } finally {
     // Se cierra la página, NO el contexto: las cookies de sesión se reusan.
-    if (page) await page.close().catch(() => {});
+    if (page) await closePage(page);
   }
 }
 
@@ -420,6 +476,37 @@ function buildSearchUrl(origin, destination, departureDate, returnDate = null) {
 
 /** Selector de las tarjetas de vuelo: la grilla recién existe con resultados. */
 const RESULTS_SELECTOR = 'li[data-gs], .pIav2d, ul.Rk10dc > li';
+
+/**
+ * Espera los resultados y, si no aparecen, recarga y vuelve a esperar.
+ *
+ * Google falla al renderizar cada tanto y deja la página en "No se han
+ * devuelto resultados / Vaya, se ha producido un error", con su propio botón
+ * "Volver a cargar". No es un bloqueo ni un selector podrido: medido el
+ * 23/08/2026 sobre BCN→EZE 17/09 ↔ 04/11 (el caso que venía fallando en
+ * producción), la primera carga queda vacía y la recarga trae los resultados
+ * y la "Tabla de fechas". Sin esta recarga el barrido lo reporta como
+ * "grid button not found" y la búsqueda normal como cero vuelos.
+ *
+ * @param {import('playwright').Page} page
+ * @param {{timeoutMs?: number, reloads?: number}} [opts]
+ * @returns {Promise<boolean>} si los resultados llegaron a renderizar
+ */
+async function waitForResults(page, opts = {}) {
+  const timeoutMs = opts.timeoutMs ?? 20000;
+  const reloads = opts.reloads ?? 1;
+
+  for (let i = 0; i <= reloads; i++) {
+    const rendered = await page.waitForSelector(RESULTS_SELECTOR, { timeout: timeoutMs })
+      .then(() => true)
+      .catch(() => false);
+    if (rendered) return true;
+    if (i < reloads) {
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+    }
+  }
+  return false;
+}
 
 /**
  * Localiza el botón "Tabla de fechas", esperando a que aparezca.
@@ -484,8 +571,7 @@ async function searchDateGrid(origin, destination, departureDate, returnDate) {
 
   let page = null;
   try {
-    const context = await getContext(origin);
-    page = await context.newPage();
+    page = await newPageFor(origin);
 
     const url = buildSearchUrl(origin, destination, departureDate, returnDate);
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -493,8 +579,7 @@ async function searchDateGrid(origin, destination, departureDate, returnDate) {
     // La barra con "Tabla de fechas" solo se renderiza una vez que llegaron
     // los resultados: sin esta espera la página sigue en "Cargando resultados"
     // y el botón no existe todavía.
-    await page.waitForSelector(RESULTS_SELECTOR, { timeout: 25000 })
-      .catch(() => { /* seguimos: el botón puede estar igual */ });
+    await waitForResults(page);
 
     const gridButton = await findGridButton(page);
     if (!gridButton) {
@@ -526,7 +611,7 @@ async function searchDateGrid(origin, destination, departureDate, returnDate) {
     console.error(`  📅 Grid error: ${err.message}`);
     return { success: false, cells: [], minPrice: null, error: err.message };
   } finally {
-    if (page) await page.close().catch(() => {});
+    if (page) await closePage(page);
   }
 }
 
@@ -546,9 +631,7 @@ async function waitForGridToSettle(page, opts = {}) {
 
   while (Date.now() - started < maxMs) {
     await page.waitForTimeout(800);
-    const count = await page
-      .evaluate(() => (document.body.innerText.match(/\d[\d.\s]*\s*€/g) || []).length)
-      .catch(() => previous);
+    const count = await page.evaluate(countGridPrices).catch(() => previous);
 
     if (count === previous && count > 0) {
       stable += 1;
@@ -559,6 +642,31 @@ async function waitForGridToSettle(page, opts = {}) {
     previous = count;
   }
   return previous;
+}
+
+/**
+ * Corre DENTRO de la página: cuántos precios hay en el diálogo de la grilla.
+ * Devuelve 0 mientras el diálogo no exista.
+ *
+ * Cuenta dentro del diálogo y no en `document.body` a propósito. La página de
+ * resultados de atrás ya tiene precios propios, así que el conteo del body
+ * podía repetirse dos veces seguidas ANTES de que el diálogo llegara a
+ * pintarse: waitForGridToSettle daba la grilla por estable a los ~2,4s y el
+ * parseo terminaba en "grid dialog not found" (LIS-EZE, logs 08-23). Medido
+ * el 23/08/2026: el diálogo aparece recién a los 1,6s del click y se estabiliza
+ * a los 5,6s.
+ *
+ * @returns {number}
+ */
+function countGridPrices() {
+  const isGrid = (el) => {
+    const t = el.textContent || '';
+    return t.includes('Salida') && t.includes('Vuelta') && t.includes('€');
+  };
+  for (const el of document.querySelectorAll('div')) {
+    if (isGrid(el)) return (el.innerText.match(/\d[\d.\s]*\s*€/g) || []).length;
+  }
+  return 0;
 }
 
 /**
@@ -747,4 +855,9 @@ module.exports = {
   // navegador (ver tests/dateGrid.test.js).
   resolveGridCells,
   yearResolver,
+  // Exportados para tests: la contabilidad del pool se prueba con un browser
+  // falso (ver tests/contextPool.test.js).
+  newPageFor,
+  closePage,
+  RECYCLE_AFTER,
 };

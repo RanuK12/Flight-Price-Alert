@@ -82,8 +82,13 @@ services:
         value: /app/data/flights.db
 
       # --- Scraper ---
-      # 45s de presupuesto para ida sola (Playwright puede tardar hasta ~44s:
-      # goto 30s + selector 12s + lazy 2s). Los roundtrips usan 2,5x porque
-      # pueden disparar la busqueda de las dos piernas por separado.
+      # 75s de presupuesto para ida sola. Google falla al renderizar cada
+      # tanto y el scraper ahora recarga la pagina una vez (ver
+      # waitForResults en playwrightScraper): el peor caso realista es
+      # ratelimit 7s + goto 2s + espera 20s + recarga 2s + espera 20s +
+      # lazy 2s. Con los 45s de antes ese caso vencia el presupuesto y el
+      # resultado ya calculado se tiraba ("Scraper timeout en background").
+      # Los roundtrips usan 2,5x porque pueden disparar la busqueda de las
+      # dos piernas por separado.
       - key: SCRAPER_TIMEOUT_MS
-        value: "45000"
+        value: "75000"

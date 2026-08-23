@@ -71,6 +71,7 @@ const circuitBreaker = {
   isOpen: false,
   threshold: 12, // más tolerante (era 8)
   resetTimeout: 5 * 60 * 1000,
+  pausedUntil: 0,
 
   recordFailure() {
     this.failures++;
@@ -82,10 +83,17 @@ const circuitBreaker = {
   },
 
   /**
-   * 429-specific: no cuenta como failure normal, pero fuerza un backoff
-   * largo (15s) para dejar que Google se calme.
+   * 429-specific: no cuenta como failure normal, pero anota una pausa larga
+   * (15-20s) para dejar que Google se calme.
+   *
+   * La pausa se ANOTA, no se duerme acá. Antes se dormían 15-20s dentro de la
+   * llamada, que iba a devolver fallo igual: el sueño no compraba nada y se
+   * comía el presupuesto del scraperWorker (SCRAPER_TIMEOUT_MS), así que cada
+   * 429 terminaba además como "Scraper timeout en background" (logs 08-23).
+   * Anotándola, esta llamada corta ya y las siguientes ven canProceed() en
+   * false y fallan al instante, que es lo que de verdad le da aire a Google.
    */
-  async backoff429() {
+  backoff429() {
     this.failures += 0.5; // medio-fallo: 429 es transitorio
     this.lastFailure = Date.now();
     if (this.failures >= this.threshold) {
@@ -94,8 +102,8 @@ const circuitBreaker = {
       return;
     }
     const pause = 15000 + Math.random() * 5000; // 15-20s
+    this.pausedUntil = Date.now() + pause;
     console.log(` ⏳ 429 backoff: pausando ${(pause/1000).toFixed(0)}s`);
-    await new Promise(r => setTimeout(r, pause));
   },
 
   recordSuccess() {
@@ -104,6 +112,7 @@ const circuitBreaker = {
   },
 
   canProceed() {
+    if (Date.now() < this.pausedUntil) return false;
     if (!this.isOpen) return true;
     if (Date.now() - this.lastFailure > this.resetTimeout) {
       this.isOpen = false;
@@ -816,7 +825,7 @@ async function searchFlightsApi(origin, destination, departureDate, returnDate =
       if (response.status !== 200) {
         console.log(`  ⚠️ API HTTP ${response.status}`);
         if (response.status === 429) {
-          await circuitBreaker.backoff429();
+          circuitBreaker.backoff429();
         } else {
           circuitBreaker.recordFailure();
         }
