@@ -22,6 +22,7 @@
     "test:regression": "jest tests/ --testTimeout=10000",
     "backfill:alert-level": "node scripts/backfill-alert-level.js",
     "add:italy-june-alerts": "node scripts/add-italy-june-alerts.js",
+    "alerts:italia-oct-nov": "node scripts/add-italy-june-alerts.js --threshold 480 --origins EZE,COR --dests VCE,FCO --dates 2026-10-30,2026-10-31,2026-11-01,2026-11-02,2026-11-03,2026-11-04",
     "cleanup:poisoned-notifs": "node scripts/cleanup-poisoned-notifs.js",
     "canary:google-flights": "node scripts/canary-google-flights.js"
   },

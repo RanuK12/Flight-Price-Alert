@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Alertas activas: Argentina → Italia, 30 oct - 4 nov 2026
+- Se reemplazó el set anterior (96 rutas Europa → Argentina, 14-20 sep) por 24 rutas solo ida
+  EZE/COR → VCE/FCO, umbral € 480, fechas 30 oct a 4 nov 2026.
+- Reproducible con `npm run alerts:italia-oct-nov` (upsert idempotente sobre `routes`).
+- Las alertas viven en MongoDB, no en el código: este script las escribe, el deploy no las cambia.
+
 ### 🔧 Google Flights request normalization
 - Se agregó una capa de normalización para construir los payloads de Google Flights de forma más estable y testeable.
 - El cambio se integró en el scraper principal y quedó cubierto con una prueba de regresión.
